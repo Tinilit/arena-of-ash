@@ -191,8 +191,19 @@ export class Animator {
   private onComplete?: () => void;
   private stopped = false;
   private current: Pose = { ...neutral };
+  private rest: Pose;
+  private poseKeys: string[];
   constructor(private library: Record<string, Clip> = clips) {
     this.clip = library.idle;
+    this.rest = { ...neutral, ...library.idle.frames[0].pose };
+    this.current = { ...this.rest };
+    this.poseKeys = [
+      ...new Set(
+        Object.values(library).flatMap((clip) =>
+          clip.frames.flatMap((frame) => Object.keys(frame.pose)),
+        ),
+      ),
+    ];
   }
   get running() {
     return (
@@ -243,11 +254,11 @@ export class Animator {
     );
     const smooth = f * f * (3 - 2 * f);
     const result: Pose = {};
-    for (const key of Object.keys(neutral))
+    for (const key of this.poseKeys)
       result[key] =
-        (left.pose[key] ?? neutral[key] ?? 0) +
-        ((right.pose[key] ?? neutral[key] ?? 0) -
-          (left.pose[key] ?? neutral[key] ?? 0)) *
+        (left.pose[key] ?? this.rest[key] ?? 0) +
+        ((right.pose[key] ?? this.rest[key] ?? 0) -
+          (left.pose[key] ?? this.rest[key] ?? 0)) *
           smooth;
     this.current = result;
     if (t === 1) {

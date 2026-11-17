@@ -32,3 +32,7 @@ Styles change presentation only. Combat still resolves one pending event at its 
 Unit tests exercise each profile's impact once, interruption, stopped callbacks, held death, keyframe integrity and unchanged library data. Browser tests preview animations, compare equipped/current gear and mirroring, check reload persistence, perform real attacks in both new styles, and restore Original without changing player progression.
 
 Procedural Graphics do not supply geometry bounds in Phaser. The visual adapters wrap each drawing with a non-rendering Zone that carries its conservative local art bounds. The studio uses their transformed union to frame complete poses, and browser assertions check those bounds against the preview stage. Zones have no pointer handlers and do not alter combat or render visible artwork.
+
+## Grounded and Legacy motion
+
+Style Studio now has an independent **Motion: Grounded / Motion: Legacy** switch. Grounded is the default correction for limb proportions, waist pivot, elbow/knee mechanics, wrist grip and planted feet. Legacy restores the original skeleton and previously supplied motion sets for every style. Selecting Original preserves the original artwork; combine it with Legacy to restore the full M1 presentation. Motion choice persists under its own key and never changes progression. See [anthropometry](ANTHROPOMETRY.md).

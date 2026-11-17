@@ -13,11 +13,33 @@ test.beforeEach(async ({ page }) => {
 test.afterEach(async ({ page }) => {
   expect(runtimeErrors.get(page)).toEqual([]);
 });
+interface Point {
+  x: number;
+  y: number;
+}
+interface RigMeasurement {
+  physical: boolean;
+  scale: number;
+  near: {
+    hip: Point;
+    knee: Point;
+    ankle: Point;
+    shoulder: Point;
+    elbow: Point;
+    hand: Point;
+    heel: Point;
+    toe: Point;
+  };
+  far: RigMeasurement["near"];
+}
 interface Snapshot {
+  motion: "grounded" | "legacy";
+  rigs?: RigMeasurement[];
   scene: string;
   player: Player;
   buttons: Record<string, { x: number; y: number }>;
   preview?: {
+    rigs: RigMeasurement[];
     bounds: { x: number; y: number; width: number; height: number }[];
   };
   battle?: {
@@ -380,3 +402,90 @@ for (const style of ["bronze", "ash"] as const) {
     expect((await snapshot(page)).player.gold).toBe(150);
   });
 }
+
+function expectAnatomicalRig(rig: RigMeasurement) {
+  const length = (a: Point, b: Point) =>
+    Math.hypot(a.x - b.x, a.y - b.y) / rig.scale;
+  expect(rig.physical).toBe(true);
+  for (const side of [rig.near, rig.far]) {
+    expect(length(side.hip, side.knee)).toBeCloseTo(54, 3);
+    expect(length(side.knee, side.ankle)).toBeCloseTo(52, 3);
+    expect(length(side.shoulder, side.elbow)).toBeCloseTo(40, 3);
+    expect(length(side.elbow, side.hand)).toBeCloseTo(34, 3);
+    expect(side.toe.y).toBeCloseTo(side.heel.y, 3);
+  }
+}
+test("grounded limbs keep fixed lengths, level soles, a planted rear foot, and an actual front step", async ({
+  page,
+}) => {
+  await launch(page);
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  let s = await snapshot(page);
+  expect(s.motion).toBe("grounded");
+  s.rigs!.forEach(expectAnatomicalRig);
+  const initial = s.rigs![0];
+  await page.waitForTimeout(300);
+  s = await snapshot(page);
+  expect(s.rigs![0].far.heel.y).toBeCloseTo(initial.far.heel.y, 3);
+  expect(s.rigs![0].near.heel.y).toBeCloseTo(initial.near.heel.y, 3);
+  await page.screenshot({ path: "test-results/screenshots/anatomy-idle.png" });
+  await click(page, "heavy");
+  let lifted = false;
+  for (let frame = 0; frame < 16; frame++) {
+    s = await snapshot(page);
+    const rig = s.rigs![0];
+    expectAnatomicalRig(rig);
+    expect(rig.far.heel.x).toBeCloseTo(initial.far.heel.x, 3);
+    expect(rig.far.heel.y).toBeCloseTo(initial.far.heel.y, 3);
+    expect(rig.near.heel.y).toBeLessThanOrEqual(initial.near.heel.y + 0.01);
+    if (rig.near.heel.y < initial.near.heel.y - 2) lifted = true;
+    if ([2, 5, 8, 12].includes(frame))
+      await page.screenshot({
+        path: `test-results/screenshots/anatomy-heavy-${frame}.png`,
+      });
+    await page.waitForTimeout(65);
+  }
+  expect(lifted).toBe(true);
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.state, { timeout: 15000 })
+    .toBe("PlayerTurn");
+  const end = (await snapshot(page)).rigs![0];
+  expect(end.near.heel.x).toBeCloseTo(initial.near.heel.x, 3);
+  expect(end.far.heel.x).toBeCloseTo(initial.far.heel.x, 3);
+});
+
+test("Legacy restores every previous rig and motion without changing progress", async ({
+  page,
+}) => {
+  await launch(page);
+  const player = (await snapshot(page)).player;
+  await click(page, "studio");
+  await click(page, "preview-motion");
+  expect((await snapshot(page)).motion).toBe("legacy");
+  await expect
+    .poll(async () =>
+      (await snapshot(page)).preview?.rigs.every((r) => !r.physical),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: "test-results/screenshots/anatomy-legacy.png",
+  });
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect((await snapshot(page)).motion).toBe("legacy");
+  await click(page, "studio");
+  await click(page, "preview-motion");
+  expect((await snapshot(page)).motion).toBe("grounded");
+  expect((await snapshot(page)).preview!.rigs.every((r) => r.physical)).toBe(
+    true,
+  );
+  await click(page, "preview-mirror");
+  await page.screenshot({
+    path: "test-results/screenshots/anatomy-mirrored.png",
+  });
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect((await snapshot(page)).motion).toBe("grounded");
+  expect((await snapshot(page)).player).toEqual(player);
+});

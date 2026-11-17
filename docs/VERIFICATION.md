@@ -35,3 +35,13 @@ New screenshot artifacts include `style-comparison.png`, `style-unarmored.png`, 
 This environment still blocks GitHub's management API and direct access to the Pages hostname, so local validation does not establish that a new public deployment has completed. The existing deployment workflow publishes validated pushes to `main`; its remote result must be checked separately.
 
 After the final adjustment that keeps the collapsed fighter above the arena controls, all 74 unit tests and the Pages build passed again; the 3 affected browser checks (studio and both killing-blow presentations) were rerun and passed. The other 6 browser checks had passed in the preceding full 9-test run.
+
+## Grounded anatomy update — 2026-11-17
+
+The default motion now uses a waist pivot, fixed 40/34 arm and 54/52 leg segments, constrained two-bone IK, level soles, a planted rear foot and a timed front-foot step. Wrist articulation replaces the former inline weapon grip. The legacy rigs, art and previous motion libraries remain selectable under Motion: Legacy. References and conventions are documented in [ANTHROPOMETRY.md](ANTHROPOMETRY.md).
+
+Final local results: strict type check passed; ESLint passed; **109 unit tests passed**; **11 browser tests passed**; the Pages production build passed. New checks sample limb lengths, flexion limits, support targets, rolling heel/toe floor clearance and sword/spear face clearance. Browser measurements check actual Phaser joint transforms in both facing directions and through the heavy attack, not only pure calculations. Legacy restore/persistence and unchanged player progression are covered. A transient test read before a queued scene restart completed was corrected to wait for the actual rendered mode; the final full suite passed.
+
+Visual review included idle, wind-up, impact, recovery, mirrored/full-equipment views, both new held collapses, menu and character-screen layout. One late review found a collapsed foot entering the controls; final poses and the sampled heel/toe floor constraint corrected it, followed by another full browser pass. Initial standing joint angles were not accepted as adequate evidence for the whole animation.
+
+The production bundle retains the existing size warning (~357 KB gzip). Remote CI/deployment completion remains unverified from this environment because GitHub's management API and Pages hostname are blocked. The unchanged deployment workflow runs these checks before publishing pushes to main.

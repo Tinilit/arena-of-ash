@@ -58,3 +58,5 @@ See [architecture](docs/ARCHITECTURE.md), [animation](docs/ANIMATION_SYSTEM.md),
 ## Choose character art and animation
 
 Open **Style Studio** in camp to compare **Original**, **Bronze Hero**, and **Ash Vanguard**. Preview all animations, toggle demonstration equipment, mirror the figures, and select a style for actual battles. Selection persists independently of game progress. The original graphics and animations are preserved and remain selectable at any time. See [visual variants](docs/VISUAL_VARIANTS.md).
+
+The default **Grounded** motion corrects limb proportions, waist pivot, joint flexion, wrist grip and planted-foot stepping. **Motion: Legacy** in Style Studio retains every previous rig/animation option. See [anthropometry and anatomy references](docs/ANTHROPOMETRY.md).

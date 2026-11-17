@@ -1,15 +1,18 @@
 export const en = {
+  motionGrounded: "Motion: Grounded",
+  motionLegacy: "Motion: Legacy",
+  styleNeutralStatus: "Preview only • Progress unchanged",
   studio: "Style Studio",
   studioTitle: "GLADIATOR STYLE STUDIO",
   studioHint:
-    "Compare looks and motion. Your equipment and combat stats stay the same.",
+    "Compare artwork. Grounded fixes joint mechanics; Legacy keeps the previous rigs.",
   styleNames: {
     original: "Original",
     bronze: "Bronze Hero",
     ash: "Ash Vanguard",
   },
   styleDescriptions: {
-    original: "The preserved M1 artwork\nand original animation set.",
+    original: "Preserved M1 artwork.\nSelect Legacy for the M1 rig.",
     bronze: "Warm bronze, bold features\nand energetic, flowing attacks.",
     ash: "Cool steel, angular details\nand deliberate, grounded strikes.",
   },

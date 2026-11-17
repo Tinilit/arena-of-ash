@@ -15,3 +15,7 @@ To add a clip, add a typed frame sequence to `clips`, using the neutral pose as 
 ## Alternative motion libraries
 
 The original `clips` remain intact. `Animator` accepts an optional clip library, and `motionProfiles` selects either those original clips or the Bronze Hero / Ash Vanguard additions. New libraries add anticipation, leg bracing, secondary motion, follow-through and a staged collapse. Each keeps exactly one impact event per combat action. See [visual variants](VISUAL_VARIANTS.md) for comparison controls and non-destructive rollback.
+
+## Grounded joint mechanics
+
+The default Grounded mode uses immutable limb dimensions, hand/foot target poses, constrained two-bone IK, and planted-foot compensation. The torso now pivots at the waist and the sword has an independent wrist. The complete previous rig and libraries remain available through **Motion: Legacy**. See [anthropometry and reference checks](ANTHROPOMETRY.md) for dimensions, axes, support rules, test coverage and sources. `Animator` derives its interpolation keys and resting values from its supplied library so hand/foot targets participate in the same lifecycle as the original rotation channels.

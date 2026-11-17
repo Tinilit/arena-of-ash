@@ -100,9 +100,9 @@ export class StyleStudioScene extends BaseScene {
     this.back();
     this.button(
       "preview-gear",
-      502,
+      450,
       670,
-      330,
+      300,
       this.kit ? en.previewKit : en.previewOwned,
       () =>
         this.scene.restart({
@@ -113,9 +113,9 @@ export class StyleStudioScene extends BaseScene {
     );
     this.button(
       "preview-mirror",
-      965,
+      760,
       670,
-      330,
+      280,
       this.mirrored ? en.previewNormal : en.previewMirror,
       () =>
         this.scene.restart({
@@ -123,6 +123,23 @@ export class StyleStudioScene extends BaseScene {
           mirrored: !this.mirrored,
           clip: this.clip,
         }),
+    );
+    this.button(
+      "preview-motion",
+      1095,
+      670,
+      310,
+      this.services.motion === "grounded" ? en.motionGrounded : en.motionLegacy,
+      () => {
+        this.services.selectMotion(
+          this.services.motion === "grounded" ? "legacy" : "grounded",
+        );
+        this.scene.restart({
+          kit: this.kit,
+          mirrored: this.mirrored,
+          clip: this.clip,
+        });
+      },
     );
   }
   private choose(style: VisualStyle) {
@@ -137,7 +154,7 @@ export class StyleStudioScene extends BaseScene {
         .setEnabled(this.services.style !== style),
     );
     this.status.setText(
-      `${en.styleNames[this.services.style]} • ${saved === undefined ? en.studioHint : saved ? en.styleSaved : en.styleSession}`,
+      `${en.styleNames[this.services.style]} • ${saved === undefined ? en.styleNeutralStatus : saved ? en.styleSaved : en.styleSession}`,
     );
   }
   update(_time: number, delta: number) {
@@ -171,6 +188,7 @@ export class StyleStudioScene extends BaseScene {
         kit: this.kit,
         mirrored: this.mirrored,
         clip: this.clip,
+        rigs: this.rigs.map((rig) => rig.jointSnapshot()),
         bounds: this.rigs.map((rig) => {
           const b = rig.root.getBounds();
           return { x: b.x, y: b.y, width: b.width, height: b.height };

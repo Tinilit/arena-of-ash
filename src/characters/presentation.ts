@@ -19,3 +19,25 @@ export function saveStyle(style: VisualStyle): boolean {
     return false;
   }
 }
+
+export const motionModes = ["grounded", "legacy"] as const;
+export type MotionMode = (typeof motionModes)[number];
+export const MOTION_KEY = "arena-of-ash.motion.v1";
+export function parseMotion(raw: string | null): MotionMode {
+  return raw === "legacy" ? "legacy" : "grounded";
+}
+export function loadMotion(): MotionMode {
+  try {
+    return parseMotion(localStorage.getItem(MOTION_KEY));
+  } catch {
+    return "grounded";
+  }
+}
+export function saveMotion(mode: MotionMode) {
+  try {
+    localStorage.setItem(MOTION_KEY, mode);
+    return true;
+  } catch {
+    return false;
+  }
+}

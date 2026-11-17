@@ -27,7 +27,14 @@ export class MainMenuScene extends BaseScene {
     this.button("studio", 1100, 668, 265, en.studio, () =>
       this.scene.start("StyleStudioScene"),
     );
-    this.rig = new Gladiator(this, 867, 548, this.services.player, false, 1.05);
+    this.rig = new Gladiator(
+      this,
+      867,
+      548,
+      this.services.player,
+      false,
+      this.services.motion === "grounded" ? 0.92 : 1.05,
+    );
     label(
       this,
       830,
