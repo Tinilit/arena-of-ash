@@ -6,6 +6,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   timeout: 120000,
+  reporter: process.env.CI ? [["github"], ["list"]] : [["list"]],
   use: {
     baseURL: "http://127.0.0.1:5173",
     viewport: { width: 1280, height: 720 },
