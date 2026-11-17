@@ -133,7 +133,7 @@ function library(style: VisualStyle): Record<string, Clip> {
             torso: -0.09,
             head: -0.08,
             nearHandX: 18,
-            nearHandY: -58,
+            nearHandY: -68,
             nearWrist: 1.0,
           }),
         },

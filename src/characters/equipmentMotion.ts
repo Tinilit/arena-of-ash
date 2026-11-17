@@ -1,10 +1,12 @@
 import type { Item } from "../domain/model";
 import type { Clip, Pose } from "./animation";
+import { rearHandMotion } from "./rearHandMotion";
+import { locomotionClips, type WeaponHand } from "./locomotion";
 import { groundedMotion } from "./groundedMotion";
 const base = groundedMotion.ash;
 let spearLibrary: Record<string, Clip> | undefined;
 /** Spears thrust; the equipment renderer does not alter combat rules. */
-export function equipmentMotion(weapon?: Item): Record<string, Clip> {
+function frontEquipmentMotion(weapon?: Item): Record<string, Clip> {
   if (weapon?.weaponType !== "spear") return base;
   if (spearLibrary) return spearLibrary;
   const pose = (p: Pose): Pose => ({ ...base.idle.frames[0].pose, ...p });
@@ -147,4 +149,21 @@ export function equipmentMotion(weapon?: Item): Record<string, Clip> {
   };
   spearLibrary = result;
   return result;
+}
+
+const libraries = new Map<string, Record<string, Clip>>();
+export function equipmentMotion(
+  weapon?: Item,
+  hand: WeaponHand = "rear",
+): Record<string, Clip> {
+  const spear = weapon?.weaponType === "spear",
+    key = `${hand}-${spear ? "spear" : "sword"}`;
+  if (!libraries.has(key)) {
+    const front = frontEquipmentMotion(weapon);
+    const action = hand === "rear" ? rearHandMotion(front, spear) : front;
+    const library = { ...action, ...locomotionClips(hand) };
+    library.idle = library.idleCombat;
+    libraries.set(key, library);
+  }
+  return libraries.get(key)!;
 }

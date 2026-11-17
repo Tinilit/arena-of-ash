@@ -2,10 +2,15 @@ import { BaseScene } from "./BaseScene";
 import { label, panel } from "../ui/widgets";
 import { en } from "../ui/strings";
 import { Gladiator } from "../characters/Gladiator";
+import Phaser from "phaser";
 import { item } from "../data/catalog";
+import { CampMovement } from "../characters/CampMovement";
 import { opponent } from "../domain/progression";
 export class MainMenuScene extends BaseScene {
   private rig!: Gladiator;
+  private movement!: CampMovement;
+  private keys?: Record<string, Phaser.Input.Keyboard.Key>;
+  private modalOpen = false;
   constructor() {
     super("MainMenuScene");
   }
@@ -13,7 +18,7 @@ export class MainMenuScene extends BaseScene {
     this.prepare(en.camp);
     label(this, 640, 169, en.subtitle, 17, "#e8bd72").setOrigin(0.5);
     label(this, 640, 230, en.title, 70).setOrigin(0.5);
-    label(this, 640, 288, en.startCopy, 19).setOrigin(0.5);
+    label(this, 350, 288, en.startCopy, 18).setOrigin(0.5);
     panel(this, 350, 441, 440, 245);
     this.button("battle", 350, 366, 350, en.battle, () =>
       this.scene.start("ArenaScene"),
@@ -25,42 +30,89 @@ export class MainMenuScene extends BaseScene {
       this.scene.start("ShopScene"),
     );
     this.button("reset", 350, 501, 350, en.reset, () => this.confirmReset());
+    this.modalOpen = false;
+    const equipped = this.services.player.equipment;
     const large =
-      item(this.services.player.equipment.weapon ?? "")?.weaponType ===
-        "spear" ||
-      item(this.services.player.equipment.helmet ?? "")?.visual === "viking";
+      item(equipped.weapon ?? "")?.weaponType === "spear" ||
+      item(equipped.helmet ?? "")?.visual === "viking";
     this.rig = new Gladiator(
       this,
-      867,
-      548,
+      960,
+      555,
       this.services.player,
       false,
-      large ? 0.82 : 0.92,
+      large ? 0.7 : 0.78,
+      { stance: "relaxed" },
+    );
+    this.movement = new CampMovement(this.rig);
+    this.keys = this.input.keyboard?.addKeys({
+      left: "A",
+      right: "D",
+      run: "SHIFT",
+      jump: "SPACE",
+      stance: "R",
+    }) as Record<string, Phaser.Input.Keyboard.Key> | undefined;
+    this.keys?.jump.on("down", () => {
+      if (!this.modalOpen) this.movement.jump();
+    });
+    this.keys?.stance.on("down", () => {
+      if (!this.modalOpen) this.movement.toggle();
+    });
+    this.events.once("shutdown", () => {
+      for (const key of Object.values(this.keys ?? {}))
+        this.input.keyboard?.removeKey(key, true);
+      this.keys = undefined;
+    });
+    label(
+      this,
+      960,
+      588,
+      `${this.services.player.name} • ${en.level} ${this.services.player.level}`,
+      20,
+    ).setOrigin(0.5);
+    label(this, 960, 614, en.movementHint, 13).setOrigin(0.5);
+    const controls = [
+      [
+        "move-back",
+        en.walkBack,
+        () => this.movement.demonstrate("walkBackward"),
+      ],
+      ["move-forward", en.walk, () => this.movement.demonstrate("walkForward")],
+      ["move-run", en.run, () => this.movement.demonstrate("run")],
+      ["move-jump", en.jump, () => this.movement.jump()],
+      ["move-stance", en.stance, () => this.movement.toggle()],
+    ] as const;
+    controls.forEach(([id, text, run], i) =>
+      this.button(id, 760 + i * 96, 649, 86, text, run, 36),
     );
     label(
       this,
-      830,
-      601,
-      `${this.services.player.name} • ${en.level} ${this.services.player.level}`,
-      22,
-    ).setOrigin(0.5);
-    label(
-      this,
       640,
-      668,
+      694,
       `${en.next}: ${opponent(this.services.player).name}`,
       21,
     ).setOrigin(0.5);
   }
+  override snapshot() {
+    return {
+      ...super.snapshot(),
+      rigs: this.rig ? [this.rig.jointSnapshot()] : [],
+      stance: this.movement?.stance,
+      previewBounds: this.rig?.root.getBounds(),
+    };
+  }
   private confirmReset() {
+    this.modalOpen = true;
     const shade = this.add
       .rectangle(640, 360, 1280, 720, 0x000000, 0.75)
       .setInteractive();
     const box = panel(this, 640, 355, 540, 250);
     const title = label(this, 640, 290, en.confirm, 30).setOrigin(0.5);
     const hint = label(this, 640, 337, en.resetHint, 19).setOrigin(0.5);
-    const cleanup = () =>
+    const cleanup = () => {
       [shade, box, title, hint, yes, no].forEach((o) => o.destroy());
+      this.modalOpen = false;
+    };
     const yes = this.button("resetYes", 515, 410, 215, en.yes, () => {
       this.services.reset();
       this.scene.restart();
@@ -68,6 +120,17 @@ export class MainMenuScene extends BaseScene {
     const no = this.button("resetNo", 765, 410, 215, en.no, cleanup);
   }
   update(_time: number, delta: number) {
-    this.rig?.update(delta);
+    if (this.rig && this.movement) {
+      const keys = this.keys,
+        active = !this.modalOpen;
+      this.movement.update(delta, {
+        left: active && Boolean(keys?.left.isDown),
+        right: active && Boolean(keys?.right.isDown),
+        run: active && Boolean(keys?.run.isDown),
+        jump: false,
+        toggleStance: false,
+      });
+      this.rig.update(delta);
+    }
   }
 }

@@ -9,9 +9,15 @@ export interface Clip {
   frames: Frame[];
   loop?: boolean;
   hold?: boolean;
+  blendIn?: number;
+  sample?: (phase: number) => Pose;
 }
 export class Animator {
   private elapsed = 0;
+  private age = 0;
+  private transition: Pose = {};
+  private idleKey = "idle";
+  private currentName = "idle";
   private clip: Clip;
   private fired = false;
   private onImpact?: () => void;
@@ -32,6 +38,16 @@ export class Animator {
       ),
     ];
   }
+  get name() {
+    return this.currentName;
+  }
+  setIdle(name: string) {
+    if (!this.library[name]) return;
+    const idle =
+      this.currentName === this.idleKey || this.currentName === "idle";
+    this.idleKey = name;
+    if (idle) this.play("idle");
+  }
   get running() {
     return (
       !this.stopped &&
@@ -39,11 +55,14 @@ export class Animator {
     );
   }
   play(name: string, impact?: () => void, complete?: () => void) {
-    const source = this.library[name] ?? this.library.idle;
+    this.currentName = name === "idle" ? this.idleKey : name;
+    const source = this.library[this.currentName] ?? this.library.idle;
+    this.transition = { ...this.current };
+    this.age = 0;
     this.clip = {
       ...source,
       frames: source.frames.map((f, i) =>
-        i === 0 ? { ...f, pose: { ...this.current } } : f,
+        i === 0 && !source.blendIn ? { ...f, pose: { ...this.current } } : f,
       ),
     };
     this.elapsed = 0;
@@ -76,6 +95,7 @@ export class Animator {
   update(delta: number): Pose {
     if (this.stopped) return {};
     this.elapsed += delta;
+    this.age += delta;
     const t = Math.min(1, this.elapsed / this.clip.duration);
     const frames = this.clip.frames;
     for (const frame of frames)
@@ -109,6 +129,24 @@ export class Animator {
         (f3 - f2) *
           span *
           this.tangent(Math.min(index + 1, frames.length - 1), key);
+    }
+    if (this.clip.sample)
+      Object.assign(
+        result,
+        this.clip.sample(
+          this.clip.loop
+            ? (this.elapsed % this.clip.duration) / this.clip.duration
+            : t,
+        ),
+      );
+    if (this.clip.blendIn && this.age < this.clip.blendIn) {
+      const v = this.age / this.clip.blendIn,
+        blend = v * v * (3 - 2 * v);
+      for (const key of this.poseKeys)
+        result[key] =
+          (this.transition[key] ?? result[key] ?? 0) +
+          ((result[key] ?? 0) - (this.transition[key] ?? result[key] ?? 0)) *
+            blend;
     }
     this.current = result;
     if (t === 1) {

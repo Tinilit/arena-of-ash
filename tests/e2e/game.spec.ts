@@ -23,7 +23,17 @@ interface RigFrame {
 }
 interface Rig {
   physical: boolean;
-  body: { layers: string[]; arms: string[]; waist: RigFrame; torso: RigFrame };
+  primaryHand: "rear" | "front";
+  animation: string;
+  origin: Point;
+  body: {
+    layers: string[];
+    arms: string[];
+    backArms: string[];
+    frontArms: string[];
+    waist: RigFrame;
+    torso: RigFrame;
+  };
   scale: number;
   shield: boolean;
   shieldAttachment: (Point & { behindBody: boolean }) | null;
@@ -34,6 +44,8 @@ interface Rig {
 interface Snapshot {
   scene: string;
   style: "ash";
+  stance?: "relaxed" | "combat";
+  previewBounds?: { x: number; y: number; width: number; height: number };
   motion: "grounded";
   content: {
     source: "live" | "bundled";
@@ -248,8 +260,8 @@ test("paginated purchases and inventory equip all remaining items and persist th
   expect(rig.shield).toBe(false);
   expect(
     Math.hypot(
-      rig.weapons[0].x - rig.near.hand.x,
-      rig.weapons[0].y - rig.near.hand.y,
+      rig.weapons[0].x - rig.far.hand.x,
+      rig.weapons[0].y - rig.far.hand.y,
     ),
   ).toBeLessThan(0.01);
   await shot(page, "new-equipment-arena");
@@ -533,7 +545,7 @@ test("invalid external data and undecodable image files keep the game playable",
     .toBe(66);
 });
 
-test("shields are absent and both arms render in front of the armored character", async ({
+test("shields are absent and the free front arm stays behind the torso while the armed rear arm renders in front", async ({
   page,
 }) => {
   await launch(page);
@@ -558,6 +570,17 @@ test("shields are absent and both arms render in front of the armored character"
   );
   await page.reload();
   await scene(page, "MainMenuScene");
+  await frames(page);
+  const equippedFloor = (await snapshot(page)).rigs![0].near.heel.y;
+  await page.keyboard.press("Space");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].near.heel.y)
+    .toBeLessThan(equippedFloor - 25);
+  expect((await snapshot(page)).previewBounds!.y).toBeGreaterThan(270);
+  await shot(page, "camp-equipped-jump");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].animation)
+    .toBe("idleRelaxed");
   await click(page, "character");
   await scene(page, "CharacterScene");
   await shot(page, "rig-armored-character");
@@ -586,7 +609,13 @@ test("shields are absent and both arms render in front of the armored character"
   for (const rigs of samples)
     for (const rig of rigs) {
       expect(rig.shield).toBe(false);
-      expect(rig.body.arms).toEqual(["farArm", "nearArm"]);
+      expect(rig.body.arms).toEqual(["nearArm", "farArm"]);
+      expect(rig.body.backArms).toEqual(["nearArm"]);
+      expect(rig.body.frontArms).toEqual(["farArm"]);
+      expect(rig.body.layers.indexOf("backTorso")).toBeGreaterThanOrEqual(0);
+      expect(rig.body.layers.indexOf("backTorso")).toBeLessThan(
+        rig.body.layers.indexOf("torso"),
+      );
       expect(rig.body.layers.indexOf("frontTorso")).toBeGreaterThan(
         rig.body.layers.indexOf("torso"),
       );
@@ -651,8 +680,8 @@ test("both legs stay beneath the skirt and arms keep their own shoulder attachme
       expect(layers.indexOf("frontTorso")).toBeGreaterThan(
         layers.indexOf("skirt"),
       );
-      close(rig.near.shoulder, localPoint(torso, 27, -63));
-      close(rig.far.shoulder, localPoint(torso, -27, -63));
+      close(rig.near.shoulder, localPoint(torso, 24, -55));
+      close(rig.far.shoulder, localPoint(torso, -24, -55));
       close(rig.near.hip, localPoint(waist, 8, 10));
       close(rig.far.hip, localPoint(waist, -8, 10));
     }
@@ -662,4 +691,84 @@ test("both legs stay beneath the skirt and arms keep their own shoulder attachme
   await click(page, "heavy");
   await page.waitForTimeout(250);
   await shot(page, "rig-revised-heavy");
+});
+
+test("camp supports both stances, forward/back walks, running and a grounded jump without changing progression", async ({
+  page,
+}) => {
+  await launch(page);
+  await expect
+    .poll(async () => (await snapshot(page)).rigs?.[0].animation)
+    .toBe("idleRelaxed");
+  const initial = await snapshot(page),
+    startX = initial.rigs![0].origin.x;
+  expect(initial.rigs![0].primaryHand).toBe("rear");
+  await page.keyboard.down("d");
+  await page.waitForTimeout(420);
+  expect((await snapshot(page)).rigs![0].animation).toBe("walkForward");
+  const forward = (await snapshot(page)).rigs![0].origin.x;
+  expect(forward).toBeGreaterThan(startX + 10);
+  await shot(page, "camp-walk-forward");
+  await page.keyboard.up("d");
+  await page.keyboard.down("a");
+  await page.waitForTimeout(420);
+  expect((await snapshot(page)).rigs![0].animation).toBe("walkBackward");
+  expect((await snapshot(page)).rigs![0].origin.x).toBeLessThan(forward);
+  await shot(page, "camp-walk-backward");
+  await page.keyboard.up("a");
+  await page.keyboard.down("Shift");
+  await page.keyboard.down("d");
+  await page.waitForTimeout(350);
+  expect((await snapshot(page)).rigs![0].animation).toBe("run");
+  await shot(page, "camp-run");
+  await page.keyboard.up("d");
+  await page.keyboard.up("Shift");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].animation)
+    .toBe("idleRelaxed");
+  await page.waitForTimeout(220);
+  const grounded = (await snapshot(page)).rigs![0].near.heel.y;
+  await click(page, "move-jump");
+  await page.waitForTimeout(320);
+  const airborne = (await snapshot(page)).rigs![0];
+  expect(airborne.animation).toBe("jump");
+  expect(airborne.near.heel.y).toBeLessThan(grounded - 20);
+  await shot(page, "camp-jump");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].animation)
+    .toBe("idleRelaxed");
+  await page.keyboard.press("r");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].animation)
+    .toBe("idleCombat");
+  await shot(page, "camp-combat-idle");
+  await click(page, "move-stance");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].animation)
+    .toBe("idleRelaxed");
+  const rig = (await snapshot(page)).rigs![0];
+  expect(rig.near.hand.y - rig.near.shoulder.y).toBeGreaterThan(50 * rig.scale);
+  expect(
+    Math.hypot(
+      rig.weapons[0].x - rig.far.hand.x,
+      rig.weapons[0].y - rig.far.hand.y,
+    ),
+  ).toBeLessThan(0.02);
+  expect((await snapshot(page)).player).toEqual(initial.player);
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  for (const fighter of (await snapshot(page)).rigs!) {
+    expect(fighter.animation).toBe("idleCombat");
+    expect(fighter.primaryHand).toBe("rear");
+    expect(
+      Math.hypot(
+        fighter.weapons[0].x - fighter.far.hand.x,
+        fighter.weapons[0].y - fighter.far.hand.y,
+      ),
+    ).toBeLessThan(0.02);
+  }
+  await shot(page, "rear-hand-combat-idle");
+  await click(page, "heavy");
+  await page.waitForTimeout(300);
+  await shot(page, "rear-hand-heavy");
 });

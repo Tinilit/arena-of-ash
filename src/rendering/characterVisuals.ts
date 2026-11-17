@@ -16,10 +16,11 @@ function bounded(
 }
 const bodyBounds: Record<string, [number, number, number, number]> = {
   head: [-32, -49, 66, 75],
-  torso: [-38, -3, 76, 85],
+  torso: [-38, -14, 76, 96],
   pelvis: [-36, -3, 72, 49],
   foot: [-14, -16, 43, 32],
   hand: [-13, -8, 27, 28],
+  relaxedHand: [-8, -5, 19, 27],
 };
 function equipmentBounds(id: string): [number, number, number, number] {
   if (id === "shield") return [-34, -36, 68, 90];
@@ -104,18 +105,28 @@ export function drawPart(
     g.lineBetween(9, -8, 14, 1);
     g.lineBetween(11, -7, 8, -4);
   } else if (kind === "torso") {
+    // A narrow neck and sloping clavicle/trapezius connect the deltoids.
+    g.fillRoundedRect(-10, -11, 20, 23, 6);
+    g.lineStyle(2, p.ink);
+    g.lineBetween(-10, -8, -10, 1);
+    g.lineBetween(10, -8, 10, 1);
     shape([
-      { x: -27, y: 0 },
-      { x: -35, y: 10 },
-      { x: -30, y: 34 },
+      { x: -9, y: 0 },
+      { x: -20, y: 7 },
+      { x: -29, y: 14 },
+      { x: -32, y: 30 },
       { x: -23, y: 51 },
       { x: -25, y: 77 },
       { x: 25, y: 77 },
-      { x: 24, y: 49 },
-      { x: 33, y: 29 },
-      { x: 34, y: 9 },
-      { x: 23, y: 0 },
+      { x: 23, y: 51 },
+      { x: 32, y: 30 },
+      { x: 29, y: 14 },
+      { x: 20, y: 7 },
+      { x: 9, y: 0 },
     ]);
+    g.lineStyle(1.2, p.shade, 0.6);
+    g.lineBetween(-8, 8, -20, 15);
+    g.lineBetween(8, 8, 20, 15);
     g.fillStyle(p.shade, 0.38);
     g.fillPoints(
       [
@@ -183,6 +194,30 @@ export function drawPart(
     g.lineStyle(1, p.ink, 0.6);
     g.lineBetween(0, 6, 0, 12);
     g.lineBetween(5, 6, 5, 12);
+  } else if (kind === "relaxedHand") {
+    // Side view: a narrow wrist, palm arch, relaxed finger cascade and thumb.
+    // The fingers curve toward the palm instead of forming a flat open paddle.
+    shape(
+      [
+        [-5, -3],
+        [5, -3],
+        [6, 2],
+        [9, 6],
+        [9, 9],
+        [7, 11],
+        [5, 8],
+        [5, 13],
+        [3, 17],
+        [0, 20],
+        [-3, 19],
+        [-5, 16],
+        [-6, 11],
+        [-6, 4],
+      ].map(([x, y]) => ({ x, y })),
+    );
+    g.lineStyle(1, p.shade, 0.6);
+    g.lineBetween(-2, 11, 2, 14);
+    g.lineBetween(-3, 14, 0, 17);
   } else if (kind === "foot") {
     // A leather ankle shaft overlaps the greave; the low toe follows the floor.
     // Keep the visible sole at Y=14, matching the solver's support plane.

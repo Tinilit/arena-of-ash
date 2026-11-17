@@ -26,7 +26,9 @@ export class CharacterScene extends BaseScene {
       item(p.equipment.helmet ?? "")?.visual === "viking";
     panel(this, 268, 352, 460, 400);
     panel(this, 880, 368, 678, 432);
-    this.rig = new Gladiator(this, 255, 432, p, false, large ? 0.74 : 0.82);
+    this.rig = new Gladiator(this, 255, 432, p, false, large ? 0.74 : 0.82, {
+      stance: "relaxed",
+    });
     label(this, 70, 183, `${p.name} • ${en.level} ${p.level}`, 25);
     const xp = new ProgressBar(this, 70, 468, 390, colors.gold);
     xp.update(p.xp, threshold(p.level));

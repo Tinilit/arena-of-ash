@@ -36,6 +36,8 @@ On the managed cloud machine, system Chromium is detected automatically. Activat
 
 Start from camp, enter the arena, buy equipment and allocate level-up points in Character. Mouse/touch and keys **1–4** select Quick Attack, Heavy Attack, Defend and Recover. **Escape** returns to camp, abandoning an unresolved fight without rewards. Combat inputs lock while an action or enemy turn resolves.
 
+In camp, **A/D** walk backward/forward, **Shift+A/D** run, **Space** jumps and **R** toggles relaxed/combat idle. Mouse/touch buttons also demonstrate these movements. The main weapon uses the rear hand; the front hand stays relaxed, with a mount reserved for future equipment.
+
 Victory earns 50 gold and 40 XP; defeat earns 10 of each. Every level grants two attribute points. Saves are automatic in localStorage. Reset Progress requires confirmation. There is no special migration for retired catalog items or old appearance preferences.
 
 ## Equipment
@@ -57,4 +59,4 @@ See [architecture](docs/ARCHITECTURE.md), [animation](docs/ANIMATION_SYSTEM.md),
 
 [GitHub Pages deployment](docs/DEPLOYMENT.md) publishes validated pushes to `main` using `/arena-of-ash/` as the base path. The public site and local development server keep separate browser saves.
 
-Character rig refinements cover shoulder placement, both legs beneath the skirt, both arms above the torso, continuous elbow/knee silhouettes, calf-covering greaves, connected leather boots and smoother keyframe motion. See [rig refinement and references](docs/RIG_REFINEMENT.md).
+Character rig refinements cover shoulder placement, both legs beneath the skirt, the free front arm behind the torso and the armed rear arm in front, continuous elbow/knee silhouettes, calf-covering greaves, connected leather boots and smoother keyframe motion. See [rig refinement and references](docs/RIG_REFINEMENT.md).

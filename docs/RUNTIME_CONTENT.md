@@ -86,7 +86,7 @@ Useful starting values matching existing silhouettes:
 | Horned helmet | 120 × 104      | 0.5 / 0.80   |
 | Chest armor   | 70 × 59        | 0.5 / 0.05   |
 
-Carried shield artwork, including the `tower` fallback and custom images, renders behind the entire body while following the far hand. See [render order](RENDER_ORDER.md). Artwork is a rigid attachment; an image cannot introduce extra moving joints. Inspect grip, face clearance and UI framing after adding a new silhouette. Existing anatomy checks establish the authored motion, not clearance for every possible custom drawing.
+Carried shield artwork, including the `tower` fallback and custom images, renders behind the entire body while following the front hand. See [render order](RENDER_ORDER.md). Artwork is a rigid attachment; an image cannot introduce extra moving joints. Inspect grip, face clearance and UI framing after adding a new silhouette. Existing anatomy checks establish the authored motion, not clearance for every possible custom drawing.
 
 ## Failure handling
 

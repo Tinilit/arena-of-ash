@@ -8,4 +8,4 @@ Shop and inventory display eight definitions per page. In the default catalog, t
 
 Definitions live in `public/content/items.json`; images can be added under `public/content/items/`. Rendering uses the equipped item metadata, keeping gameplay rules independent of Phaser. No migration or refund logic is added for removed items. See [runtime content](RUNTIME_CONTENT.md) for validation and publication without a game rebuild.
 
-The character uses continuous limb silhouettes, full-width calf greaves and leather ankle boots. Both arms render in front of the torso; both thighs are under the skirt. See [rig refinement](RIG_REFINEMENT.md).
+The character uses continuous limb silhouettes, full-width calf greaves and leather ankle boots. The free front arm renders behind the torso, while the rear arm and primary weapon render in front; both thighs are under the skirt. See [rig refinement](RIG_REFINEMENT.md).

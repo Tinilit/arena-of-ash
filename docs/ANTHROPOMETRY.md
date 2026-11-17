@@ -22,11 +22,11 @@ Logical units are pixels before display scale. +X faces the opponent; +Y points 
 | ----------------------------------- | ---------------------- |
 | Pelvis / waist origin               | (0, -120)              |
 | Hip centers                         | (+8, -110), (-8, -110) |
-| Shoulder centers, relative to waist | (+27, -63), (-27, -63) |
+| Shoulder centers, relative to waist | (+24, -55), (-24, -55) |
 | Upper arm / forearm                 | 40 / 34                |
 | Thigh / shin                        | 54 / 52                |
-| Head joint relative to waist        | (0, -84)               |
-| Resting head-to-floor height        | approximately 244      |
+| Head joint relative to waist        | (0, -92)               |
+| Resting head-to-floor height        | approximately 252      |
 | Sole below ankle                    | 14                     |
 | Neutral ankle targets               | (+32, -14), (-28, -14) |
 
@@ -40,7 +40,7 @@ Targets outside a limb's reachable annulus are clamped instead of stretching a b
 
 Ankle targets live in the initial floor frame. Inverse root transformation removes body translation and rotation before solving the two leg chains. Ankle rotation counters thigh, knee and root rotation, keeping the sole level. Idle breathing therefore does not lift the feet. The rear foot stays planted throughout quick/heavy attacks; the front foot lifts, advances, lands before impact, and steps back during recovery. Smaller root travel and a closer fighting distance replace the old large body slide. The fall gradually releases foot support before using constrained folded-leg poses; a collapsed fighter is no longer treated as a standing support chain.
 
-The sword mount is perpendicular to a neutral forearm grip, with the hand/wrist supplying the additional cut angle. A carried shield uses the character root frame to remain upright during guard; its separate rear drawing follows the actual far-hand transform. Both stay attached to their hands.
+The primary weapon follows the rear/far hand. The free front/near hand hangs below its own shoulder and exposes a separate equipment mount. The sword mount is perpendicular to a neutral forearm grip, with the hand/wrist supplying the additional cut angle. A carried shield uses the character root frame to remain upright during guard; its separate rear drawing follows the actual front-hand transform. Both stay attached to their hands.
 
 ## State, tests and visual review
 
@@ -50,10 +50,10 @@ Unit tests sample every grounded clip for Ash Vanguard: segment lengths, joint l
 
 Review artifacts include `arena.png`, `anatomy-idle.png`, `new-equipment-character.png` and `new-equipment-arena.png` in `test-results/screenshots/`, alongside the normal full-battle screenshots.
 
-A further sampled check transforms the sword/spear blade centerline into the moving head's frame and tests it against the central facial region. The longest catalog blade is checked every 8 ms for every Ash clip. Heavy wind-up and victory now lift the hilt outside the face before drawing the weapon overhead; a separate forward keyframe precedes the cut. This supplements joint-limit tests, which alone cannot detect a weapon passing through a face. It is a presentation clearance check, not gameplay collision detection.
+A further sampled check transforms the sword/spear blade centerline into the moving head's frame and tests it against the central facial region. The longest catalog blade is checked every 8 ms for every Ash clip. Rear-hand attacks use low wind-ups and forward cuts/thrusts. The retained front-hand heavy wind-up raises the hilt outside the face before the overhead cut. This supplements joint-limit tests, which alone cannot detect a weapon passing through a face. It is a presentation clearance check, not gameplay collision detection.
 
 Released feet also have a heel/toe floor constraint during the fall. Any interpolated sole penetration translates the already-solved assembly upward without changing bone lengths or feeding the correction back into the IK solution. The held collapse uses folded legs and a raised root so the corpse remains on the sand rather than extending into the action controls. Sampled tests cover both sole endpoints throughout this transition.
 
-The shoulders now align to the torso contour, 27 units to either side of center and 13 units below the torso artwork origin. Both hip pivots remain at ±8, 10 relative to the waist, inside the skirt. Both legs render beneath the garment. Both shoulders live in a foreground waist transform with exactly the same torso rotation; this separates draw order from anatomical placement. See [rig refinement and references](RIG_REFINEMENT.md).
+The shoulders sit beneath the sloping clavicle/deltoid contour, 24 units to either side of center and 21 units below the torso artwork origin. The head is raised to expose the neck; arm roots no longer meet the jaw. The outer deltoid is outlined without a circular socket seam. Both hip pivots remain at ±8, 10 relative to the waist, inside the skirt. Both legs render beneath the garment. Both shoulders live in separate drawing planes with exactly the same waist origin and torso rotation; this separates draw order from anatomical placement. See [rig refinement and references](RIG_REFINEMENT.md).
 
-Both arms are drawn in front of the torso and skirt, with the far arm below the near arm. Greave width follows the full calf profile and overlaps the boot shaft; the shaped leather foot keeps its sole at the same support height. Shields are paused in the active catalog and enemy loadouts.
+The free front arm draws behind the torso and skirt; the armed rear arm draws in front. Front/rear identify direction toward the opponent, not camera distance. Greave width follows the full calf profile and overlaps the boot shaft; the shaped leather foot keeps its sole at the same support height. Shields are paused in the active catalog and enemy loadouts.

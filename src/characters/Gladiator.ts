@@ -5,8 +5,15 @@ import { LimbArt } from "../rendering/limbArt";
 import { drawPart, drawGear } from "../rendering/characterVisuals";
 import { equipmentMotion } from "./equipmentMotion";
 import { groundedPose, skeleton } from "./kinematics";
+import type { WeaponHand, Stance } from "./locomotion";
 import { Animator } from "./animation";
+export interface RigOptions {
+  weaponHand?: WeaponHand;
+  stance?: Stance;
+}
 export class Gladiator {
+  readonly handMounts: Record<WeaponHand, Phaser.GameObjects.Container>;
+  readonly primaryHand: WeaponHand;
   root: Phaser.GameObjects.Container;
   animator: Animator;
   private joints: Record<string, Phaser.GameObjects.Container> = {};
@@ -23,9 +30,14 @@ export class Gladiator {
     model: Player,
     enemy = false,
     private bodyScale = 1.25,
+    options: RigOptions = {},
   ) {
     const weapon = item(model.equipment.weapon ?? "");
-    this.animator = new Animator(equipmentMotion(weapon));
+    this.primaryHand = options.weaponHand ?? "rear";
+    this.animator = new Animator(equipmentMotion(weapon, this.primaryHand));
+    this.animator.setIdle(
+      options.stance === "relaxed" ? "idleRelaxed" : "idleCombat",
+    );
     this.direction = enemy ? -1 : 1;
     this.shadow = scene.add.ellipse(
       originX,
@@ -68,6 +80,7 @@ export class Gladiator {
       const shin = joint(`${side}Shin`, thigh, 0, skeleton.thigh);
       joint(`${side}Foot`, shin, 0, skeleton.shin, "foot", 0x694634);
     }
+    const backTorso = joint("backTorso", pelvis, 0, 0);
     const torso = joint("torso", pelvis, 0, 0);
     if (model.equipment.shield) {
       this.shieldMount = drawGear(
@@ -90,8 +103,9 @@ export class Gladiator {
       head.add(drawGear(scene, item(model.equipment.helmet) ?? "cap"));
     this.skirt = drawPart(scene, "pelvis", 0x3e5c61).setName("skirt");
     pelvis.add(this.skirt);
-    // Both arms render above the body and skirt, far arm before near arm.
-    // Their shoulder attachments still share the anatomical torso transform.
+    // Front/rear describe direction toward the opponent, not camera depth.
+    // The free front arm is on the far camera side; the rear arm crosses the
+    // chest in front. Separate planes preserve both shoulder attachments.
     const frontTorso = joint("frontTorso", pelvis, 0, 0);
     const farArm = joint(
       "farArm",
@@ -103,10 +117,16 @@ export class Gladiator {
     farArm.add(farSkin);
     this.limbs.farArm = farSkin;
     const farElbow = joint("farElbow", farArm, 0, skeleton.upperArm);
-    joint("farHand", farElbow, 0, skeleton.forearm, "hand");
+    const farHand = joint(
+      "farHand",
+      farElbow,
+      0,
+      skeleton.forearm,
+      this.primaryHand === "rear" ? "hand" : "relaxedHand",
+    );
     const nearArm = joint(
       "nearArm",
-      frontTorso,
+      backTorso,
       skeleton.nearShoulderX,
       skeleton.shoulderY,
     );
@@ -114,10 +134,17 @@ export class Gladiator {
     nearArm.add(nearSkin);
     this.limbs.nearArm = nearSkin;
     const nearElbow = joint("nearElbow", nearArm, 0, skeleton.upperArm);
-    const nearHand = joint("nearHand", nearElbow, 0, skeleton.forearm, "hand");
+    const nearHand = joint(
+      "nearHand",
+      nearElbow,
+      0,
+      skeleton.forearm,
+      this.primaryHand === "front" ? "hand" : "relaxedHand",
+    );
+    this.handMounts = { rear: farHand, front: nearHand };
     if (weapon) {
       const mounted = drawGear(scene, weapon).setRotation(Math.PI / 2);
-      nearHand.add(mounted);
+      this.handMounts[this.primaryHand].addAt(mounted, 0);
       this.weapons.push(mounted);
     }
     scene.events.once("shutdown", () => this.animator.stop());
@@ -127,6 +154,7 @@ export class Gladiator {
     const p = this.animator.update(delta),
       solved = groundedPose(p);
     this.joints.torso.rotation = solved.torso;
+    this.joints.backTorso.rotation = solved.torso;
     this.joints.frontTorso.rotation = solved.torso;
     this.joints.head.rotation = p.head ?? 0;
     for (const side of ["near", "far"] as const) {
@@ -139,7 +167,7 @@ export class Gladiator {
       this.joints[`${side}Elbow`].rotation = arm.bend;
       this.joints[`${side}Hand`].rotation = arm.wrist;
       this.limbs[`${side}Leg`].pose(leg.bend);
-      this.limbs[`${side}Arm`].pose(arm.bend);
+      this.limbs[`${side}Arm`].pose(arm.bend, arm.angle);
     }
     this.root.x =
       this.originX + solved.root.x * this.bodyScale * this.direction;
@@ -148,7 +176,7 @@ export class Gladiator {
     if (this.shieldMount) {
       // Copy the actual hand attachment into root space after posing the rig.
       // This preserves grip, mirror/scale and fall rotation without arm layering.
-      const hand = this.joints.farHand
+      const hand = this.handMounts.front
         .getWorldTransformMatrix()
         .transformPoint(0, 0);
       const local = this.root
@@ -172,9 +200,17 @@ export class Gladiator {
     });
     return {
       physical: true,
+      primaryHand: this.primaryHand,
+      animation: this.animator.name,
+      origin: { x: this.originX, y: this.originY },
       body: {
         layers: this.joints.pelvis.list.map((part) => part.name),
-        arms: this.joints.frontTorso.list.map((part) => part.name),
+        arms: [
+          ...this.joints.backTorso.list,
+          ...this.joints.frontTorso.list,
+        ].map((part) => part.name),
+        backArms: this.joints.backTorso.list.map((part) => part.name),
+        frontArms: this.joints.frontTorso.list.map((part) => part.name),
         waist: frame("pelvis"),
         torso: frame("torso"),
       },
@@ -214,6 +250,21 @@ export class Gladiator {
         toe: point("farFoot", 26, skeleton.soleY),
       },
     };
+  }
+  setStance(stance: Stance) {
+    this.animator.setIdle(stance === "relaxed" ? "idleRelaxed" : "idleCombat");
+  }
+  moveBy(worldX: number) {
+    this.originX += worldX;
+  }
+  get x() {
+    return this.originX;
+  }
+  get scale() {
+    return this.bodyScale;
+  }
+  getHandMount(hand: WeaponHand) {
+    return this.handMounts[hand];
   }
   play(name: string, impact?: () => void, complete?: () => void) {
     this.animator.play(name, impact, complete);

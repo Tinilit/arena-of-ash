@@ -1,4 +1,10 @@
 export const en = {
+  movementHint: "A/D: walk • Shift: run • Space: jump • R: stance",
+  walkBack: "Back",
+  walk: "Walk",
+  run: "Run",
+  jump: "Jump",
+  stance: "Stance",
   contentFallback: "Equipment update unavailable. Using included equipment.",
   artFallback: "Some equipment artwork is unavailable. Using standard artwork.",
   previous: "← Previous",

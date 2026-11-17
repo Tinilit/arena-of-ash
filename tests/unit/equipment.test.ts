@@ -58,7 +58,12 @@ describe("equipment catalog", () => {
     equipmentMotion(item("spear"));
     equipmentMotion(item("war-spear"));
     expect(JSON.stringify(groundedMotion)).toBe(before);
-    expect(equipmentMotion(item("wood"))).toBe(groundedMotion.ash);
+    expect(equipmentMotion(item("wood"), "front").quick).toBe(
+      groundedMotion.ash.quick,
+    );
+    expect(equipmentMotion(item("wood")).quick).not.toBe(
+      groundedMotion.ash.quick,
+    );
   });
   for (const id of ["spear", "war-spear"])
     it(`${id}: one impact per action and stable grounded limbs`, () => {
@@ -125,12 +130,12 @@ for (const id of ["spear", "war-spear"])
         const angle =
           rootR +
           torso +
-          s.nearArm.angle +
-          s.nearArm.bend +
-          s.nearArm.wrist +
+          s.farArm.angle +
+          s.farArm.bend +
+          s.farArm.wrist +
           Math.PI / 2;
         const local = (length: number) => {
-          const q = add(s.nearArm.hand, rotate({ x: 0, y: length }, angle));
+          const q = add(s.farArm.hand, rotate({ x: 0, y: length }, angle));
           return rotate({ x: q.x - head.x, y: q.y - head.y }, -headR);
         };
         expect(
