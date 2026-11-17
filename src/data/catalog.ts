@@ -1,0 +1,120 @@
+import type { Item } from "../domain/model";
+export const items: Item[] = [
+  {
+    id: "wood",
+    name: "Wooden Sword",
+    slot: "weapon",
+    price: 15,
+    attack: 1,
+    armor: 0,
+    visual: "wood",
+  },
+  {
+    id: "rust",
+    name: "Rusty Sword",
+    slot: "weapon",
+    price: 40,
+    attack: 4,
+    armor: 0,
+    visual: "rust",
+  },
+  {
+    id: "iron",
+    name: "Iron Sword",
+    slot: "weapon",
+    price: 100,
+    attack: 9,
+    armor: 0,
+    visual: "iron",
+  },
+  {
+    id: "spear",
+    name: "Training Spear",
+    slot: "weapon",
+    price: 70,
+    attack: 6,
+    armor: 0,
+    visual: "spear",
+  },
+  {
+    id: "leather",
+    name: "Leather Vest",
+    slot: "chest",
+    price: 45,
+    attack: 0,
+    armor: 2,
+    visual: "leather",
+  },
+  {
+    id: "plate",
+    name: "Iron Chestplate",
+    slot: "chest",
+    price: 120,
+    attack: 0,
+    armor: 5,
+    visual: "plate",
+  },
+  {
+    id: "cap",
+    name: "Leather Helmet",
+    slot: "helmet",
+    price: 35,
+    attack: 0,
+    armor: 1,
+    visual: "cap",
+  },
+  {
+    id: "shield",
+    name: "Wooden Shield",
+    slot: "shield",
+    price: 50,
+    attack: 0,
+    armor: 2,
+    visual: "shield",
+  },
+];
+export const item = (id: string) => items.find((i) => i.id === id);
+export const enemies = [
+  {
+    name: "Arena Novice",
+    attributes: {
+      strength: 7,
+      agility: 7,
+      vitality: 5,
+      defense: 5,
+      endurance: 6,
+    },
+    equipment: { weapon: "wood" },
+  },
+  {
+    name: "Iron Pit Fighter",
+    attributes: {
+      strength: 11,
+      agility: 10,
+      vitality: 10,
+      defense: 10,
+      endurance: 10,
+    },
+    equipment: { weapon: "rust", chest: "leather" },
+  },
+  {
+    name: "Veteran Gladiator",
+    attributes: {
+      strength: 14,
+      agility: 13,
+      vitality: 14,
+      defense: 13,
+      endurance: 13,
+    },
+    equipment: {
+      weapon: "iron",
+      chest: "plate",
+      helmet: "cap",
+      shield: "shield",
+    },
+  },
+];
+export const rewards = {
+  victory: { gold: 50, xp: 40 },
+  defeat: { gold: 10, xp: 10 },
+};

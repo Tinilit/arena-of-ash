@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Arena of Ash</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='8' fill='%23201c1c'/%3E%3Cpath d='M20 5 32 33H8Z' fill='%23e8bd72'/%3E%3C/svg%3E"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #161a1c;
+        height: 100%;
+        overflow: hidden;
+      }
+      #game {
+        height: 100%;
+      }
+      #rotate {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: #241d19;
+        color: #f3d9a5;
+        z-index: 10;
+        align-items: center;
+        justify-content: center;
+        font: 24px Georgia;
+        text-align: center;
+        padding: 30px;
+      }
+      @media (orientation: portrait) {
+        #rotate {
+          display: flex;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <div id="rotate">Rotate your device to landscape<br />The arena awaits</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

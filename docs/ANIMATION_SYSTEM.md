@@ -1,0 +1,13 @@
+# Modular animation
+
+Characters use local pixel coordinates at logical 1280 × 720. Root origin is at the feet. Unscaled body height is approximately 220 px; arena characters use 1.25 scale. Positive local X faces the opponent, positive Y points down. Rotations are radians clockwise. The enemy mirrors the entire root with negative X scale; root displacement and root rotation are mirrored too.
+
+Hierarchy (ordered behind to front): root → pelvis at (0,-95); far thigh at (15,14) → shin at (0,44) → foot at (0,43); torso at (0,-76) → far upper arm at (-23,15) → forearm at (0,38) → hand at (0,35) → shield; torso visual and chest; head at (0,-8) → helmet; pelvis skirt; near thigh at (-14,14) → shin → foot; near upper arm at (25,17) → forearm → hand → weapon. Arms attach at shoulders, elbows at upper-arm endpoints, knees at thigh endpoints. Local geometry begins at the joint; children inherit transforms. Never reposition limbs in screen coordinates.
+
+Phaser delta smoothing is disabled so playback uses actual elapsed milliseconds even on slow software renderers. A skipped frame still emits its impact and completion once.
+
+The pure `Animator` reads `clips`: duration in milliseconds, normalized keyframe times, joint rotations and root X/Y/rotation. Smoothstep interpolation provides eased poses. The first pose blends from the last displayed pose on interruption. Idle loops; actions return to idle; death and victory hold their last pose. `running` exposes playback status. One animator controls every joint of a rig, preventing conflicting pose writers. Combat sequencing owns allowed action playback; hit reaction may interrupt idle. `stop()` clears callbacks before scene objects disappear.
+
+Required clips: idle, quick (600 ms), heavy (1000 ms), defend (500 ms), recover (650 ms), hit (350 ms), death (950 ms), victory (1200 ms). Attack and stance frames mark impact explicitly. Impact fires once when playback crosses the marked time, even if a frame skips over it. Completion fires once after the last frame. The presentation controller applies the precomputed pending combat event at impact, updates bars and displays reaction text. It advances turns only on completion. Death remains held while the other fighter celebrates.
+
+To add a clip, add a typed frame sequence to `clips`, using the neutral pose as the baseline. Set an impact keyframe for actions. Keep all joints in local coordinates and end at neutral unless `hold` is intended. Unit tests cover one-shot impacts, repeat playback, defend after attack, held death, interruption and stop. Browser tests exercise killing blows, enemy killing the player, keyboard interruption and equipment replacement between scenes.
