@@ -1,41 +1,33 @@
-# Verification — 2026-11-17
+# Current release verification — 2026-11-17
 
-The current game uses Ash Vanguard artwork and Grounded motion exclusively. Style Studio, the other art and motion variants, paired warglaives and their offhand rules have been removed. The catalog contains eleven items, including Ashwood War Spear, Viking Warhelm and Tower Shield. No retired-item migration or refund logic is implemented.
+The release uses Ash Vanguard art and Grounded motion. The default catalog has nine items; shields are temporarily omitted from the catalog and opponent loadouts. Both arms render in front of the torso, both leg branches render below the skirt, and cuffs/greaves/boots follow the articulated skeleton. No retired-item migration or refunds are implemented.
 
-Validated locally on Node.js 22, Phaser 3.90.0 and system Chromium:
+## Local validation
+
+Validated in the restored cloud workspace with Node.js 22, Phaser 3.90.0 and system Chromium:
 
 | Check                   | Result                                 |
 | ----------------------- | -------------------------------------- |
 | Strict TypeScript check | Passed                                 |
 | ESLint                  | Passed                                 |
-| Vitest                  | 92 tests passed across 4 files         |
-| Playwright              | 5 affected browser scenarios passed    |
+| Vitest                  | 94 tests passed across 5 files         |
+| Playwright              | 12 browser scenarios passed            |
 | Pages production build  | Passed with `/arena-of-ash/` base path |
 
-Unit coverage includes combat and progression, reward idempotency, save validation, all remaining equipment, spear-specific animation impact events, fixed bone lengths, joint limits, planted feet, collapse floor clearance and sword/spear face clearance. Obsolete style, studio and paired-weapon tests were removed with their features.
+The unit suite covers combat, progression, purchase/equipment/save behavior, fixed bone lengths and joint limits, foot support, collapse floor clearance and sword/spear face clearance. Three motion tests check continuous nonzero speed through a monotone key, interval bounds with irregular timing, and settled turnaround/end poses. The 24 content tests validate the actual published JSON and referenced image files, failure handling and runtime item installation.
 
-Browser tests use actual pointer and keyboard controls with a read-only development snapshot. They cover full victory and defeat, one reward payout, all eleven purchases across shop pages, inventory pagination, the complete spear/helmet/tower kit and reload persistence, attribute allocation, scene shutdown during an attack, reset confirmation, landscape scaling and portrait messaging. Actual Phaser joint transforms verify both facing directions, level soles, rear-foot support and a front-foot step. Old appearance preference keys cannot re-enable removed styles; no studio or paired-blade purchase control exists. Every scenario asserts no console errors or uncaught exceptions. Canvas gameplay and default-renderer startup are both exercised.
+Browser scenarios exercise complete victory and defeat, single reward payouts, all nine purchases and inventory pagination, spear/helmet/chest equipment with reload persistence, attribute allocation, keyboard input, scene shutdown, reset confirmation and landscape/portrait scaling. Additional scenarios cover runtime image-backed equipment and changed stats after refresh, invalid-content/image fallback, shields absent from the shop and veteran, foreground arm ordering, both legs below the skirt and actual shoulder/hip transforms in both facing directions during motion. Each scenario checks console and uncaught errors. Canvas gameplay and default-renderer startup are covered.
 
-Screenshots under `test-results/screenshots/` include `menu.png`, `arena.png`, `attack.png`, `victory.png`, `defeat.png`, `character.png`, `new-equipment-shop.png`, `new-equipment-character.png`, `new-equipment-arena.png`, `spear-thrust.png`, `anatomy-idle.png`, `small-landscape.png`, `portrait.png` and `default-renderer.png`. Visual review checks the simplified menu, three-item second shop page, readable equipment UI, spear silhouette, horned helmet and visible tower shield. Screenshot/input helpers wait for two rendered animation frames when scenes restart.
+Screenshot artifacts include `rig-revised-idle.png`, `rig-revised-heavy.png`, `rig-armored-character.png`, `rig-armored-both-facing.png`, `rig-armored-guard.png`, `new-equipment-arena.png` and the normal menu/battle/result views under `test-results/screenshots/`. These show the current recovered implementation. The Phaser bundle-size warning remains; these checks do not establish frame rate on every device.
 
-The existing Phaser bundle-size warning remains. Browser checks do not establish frame rate on every device. GitHub's management API and the public Pages hostname are blocked from this environment, so local checks do not verify remote deployment completion. The existing workflow validates pushes to main before publishing the game at https://tinilit.github.io/arena-of-ash/.
+## Release scope
 
-A production preview smoke check navigated from camp to the second shop page through pointer input. The three retained additions rendered, no assets failed to load, no console or uncaught errors occurred, and the development diagnostic API was absent. `pages-menu.png` and `pages-equipment.png` record this check.
+This release publishes the working changes recovered from the previous cloud environment: garment/limb ordering, shoulder offsets, continuous limb envelopes, calf-covering greaves, shaped leather boots, smoother keyframe interpolation and the catalog without shields. References and coordinate contracts are in [rig refinement](RIG_REFINEMENT.md).
 
-## Runtime equipment content
+The request to make the rear hand the primary weapon hand and the subsequent request for a further neck/shoulder redesign were interrupted before implementation. They are not included in this recovered release. The existing front-hand weapon animations remain present.
 
-Definitions now load from an external JSON catalog before saves are read. The code keeps a validated snapshot for the session and can load optional item image attachments. Production reads the public raw catalog on main; local development reads the same content directory through Vite. Content-only pushes run validation without building or redeploying the game.
+## Publishing verification
 
-The 24 content tests validate the actual publication file and referenced local images, reject duplicate IDs, invalid slots/visuals/numbers/paths/versions, exercise live purchasing/equipping/saving, and cover network/HTTP/JSON/schema failures and timeout fallback. Gameplay unit and browser tests use a fixed catalog fixture so future balance edits do not invalidate foundation assertions.
+Before this release, GitHub Actions and the public site's script URL identified the deployed version as `5a534e3`, with bundle `index-nCMPcdIk.js`. The recovered local Pages build produces `index-V0npRWeu.js`, confirming that the saved working changes differ from the live site. The latest earlier deployment workflow completed successfully; the previously reported missing-Pages-artifact failure is not the latest workflow outcome.
 
-Browser tests add a new image-backed spear from a routed external JSON response, buy and equip it through normal controls, and check its texture attachment and exact damage. Changing only the external response and image filename affects the next refresh, preserves ownership, requests the new revision's artwork and applies the changed damage. The active battle retains its original stats. Invalid JSON definitions and undecodable image data exercise included catalog and procedural-art fallback. Frame measurements now sample inside the browser on every animation frame without screenshots interrupting the brief foot lift.
-
-A separate production preview test adds a spear and changes a purchase price using only externally delivered JSON. Purchases, equipment and reload persistence succeed through pointer input; the JavaScript bundle SHA-256 stays unchanged. No asset, console or uncaught errors occur, and the development diagnostic API is absent. `runtime-production-shop.png`, `runtime-production-character.png` and `runtime-image-equipped.png` record the relevant views. Test-only items are not published in the default catalog.
-
-## Shield layer correction
-
-Shield artwork now renders as the first child of the character root, below the entire body hierarchy. The far arm retains its normal place behind the torso. Its hand position is copied through world-to-root coordinates after each pose, so mirroring, movement and scaling retain the grip without mixed subtree ordering. This applies to procedural and optional runtime shield images. References and conventions are in [render order](RENDER_ORDER.md).
-
-The current checks include 92 unit tests, strict type checking, lint, the Pages build and five affected browser scenarios: full paginated spear-kit purchase/equipment/reload, both-facing shield layering and grip during a heavy attack and guard, actual limb/support measurements, external image-backed equipment, and invalid-content/art fallback. `tower-shield-character.png`, `tower-shield-both-facing.png` and `tower-shield-guard.png` were visually reviewed. The previous ten-scenario browser baseline predates this correction; the new shield regression scenario is added to CI.
-
-The Pages production build was also opened with the default WebGL renderer. Character and arena views with tower shields in both facing directions rendered without failed assets, console errors or uncaught exceptions; the development API was absent. `tower-shield-production-character.png` and `tower-shield-production-arena.png` were visually reviewed. Remote deployment completion remains unverified.
+Publishing is validated by matching the pushed commit to its successful deployment run and checking the served script/bundle after deployment. Local test success alone is not evidence of a completed public deployment.

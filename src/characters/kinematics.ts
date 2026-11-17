@@ -6,10 +6,10 @@ export interface Point {
 export const skeleton = {
   pelvisY: -120,
   torsoArtY: -76,
-  shoulderY: -59,
+  shoulderY: -63,
   headY: -84,
-  nearShoulderX: 14,
-  farShoulderX: -14,
+  nearShoulderX: 27,
+  farShoulderX: -27,
   hipY: -110,
   nearHipX: 8,
   farHipX: -8,

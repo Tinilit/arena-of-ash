@@ -19,12 +19,13 @@ const funded = () => {
   return p;
 };
 describe("equipment catalog", () => {
-  it("keeps eleven definitions with no retired paired weapon", () => {
-    expect(items).toHaveLength(11);
-    expect(new Set(items.map((i) => i.id)).size).toBe(11);
+  it("keeps nine definitions with shields paused and no paired weapon", () => {
+    expect(items).toHaveLength(9);
+    expect(new Set(items.map((i) => i.id)).size).toBe(9);
     expect(item("glaives")).toBeUndefined();
+    expect(items.some((it) => it.slot === "shield")).toBe(false);
   });
-  it.each(["war-spear", "viking", "tower"])(
+  it.each(["war-spear", "viking"])(
     "purchases and persists %s exactly once",
     (id) => {
       const p = funded();
@@ -34,23 +35,23 @@ describe("equipment catalog", () => {
       expect(deserialize(serialize(p)).inventory).toContain(id);
     },
   );
-  it("equips the spear, helmet and tower together with exact bonuses", () => {
+  it("equips the spear and helmet together with exact bonuses", () => {
     const p = funded();
-    for (const id of ["war-spear", "viking", "tower"]) {
+    for (const id of ["war-spear", "viking"]) {
       purchase(p, id);
       expect(equip(p, id, item(id)!.slot)).toBe(true);
     }
     expect(stats(p).attack).toBe(25);
-    expect(stats(p).armor).toBe(8);
+    expect(stats(p).armor).toBe(3);
     expect(deserialize(serialize(p))).toEqual(p);
   });
   it("rejects unavailable items and wrong slots without changing equipment", () => {
     const p = funded();
-    purchase(p, "tower");
-    equip(p, "tower", "shield");
+    purchase(p, "viking");
+    equip(p, "viking", "helmet");
     expect(equip(p, "glaives", "weapon")).toBe(false);
-    expect(equip(p, "tower", "weapon")).toBe(false);
-    expect(p.equipment.shield).toBe("tower");
+    expect(equip(p, "viking", "weapon")).toBe(false);
+    expect(p.equipment.helmet).toBe("viking");
   });
   it("does not mutate the shared Ash motion library", () => {
     const before = JSON.stringify(groundedMotion);

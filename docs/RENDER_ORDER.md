@@ -17,8 +17,10 @@ The character root has two rendering branches, in this order:
 1. Shield artwork, when equipped.
 2. The pelvis/body hierarchy, including both legs, torso, chest armor, head, helmet, arms, hands and weapon.
 
-The shield is the first root child and therefore renders behind every body part, while staying in front of the arena background. The far arm keeps its normal position behind the torso. No tower-specific promotion of the arm or per-frame depth sorting is used. Both procedural shields and runtime image-backed shields use this policy.
+The shield is the first root child and therefore renders behind every body part, while staying in front of the arena background. Within the body hierarchy, both leg branches render first, followed by torso/head, the skirt overlay, and the foreground arms/weapon. The far arm renders in front of the body, followed by the near arm. No tower-specific promotion of the arm or per-frame depth sorting is used. Both procedural shields and runtime image-backed shields use this policy.
 
 The hand remains part of the articulated skeleton. After posing and positioning the root, `Gladiator.update` reads the actual far-hand world transform and converts its grip position into root-local coordinates using the inverse root matrix. The separate shield drawing is placed at that position. This keeps the grip aligned through facing changes, scale, body movement and rotation without inheriting the arm's rendering position. A zero local shield rotation preserves its upright orientation relative to the root, including the body's fall rotation. The initial pose is applied before the first render.
 
-Browser coverage measures both facing directions through a heavy attack and guard. It checks the actual shield parent/order and world grip against the actual Phaser hand, rather than only comparing authored coordinates. Screenshots cover Character, both arena fighters and guard. Gameplay and inventory rules do not change.
+Shields are currently omitted from the default catalog and enemy loadouts. The shield branch is dormant; the current browser coverage checks that shields are absent and both arms render in front of the body, in both facing directions through a heavy attack and guard.
+
+Both arms use a foreground waist container that mirrors the torso rotation every frame. Their shoulder coordinates remain relative to the same waist origin as the far shoulder. This keeps both thighs below the skirt while both arms and hands stay in front of it. No hip or shoulder is repositioned to fake an occlusion.

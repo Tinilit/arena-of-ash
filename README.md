@@ -40,13 +40,12 @@ Victory earns 50 gold and 40 XP; defeat earns 10 of each. Every level grants two
 
 ## Equipment
 
-The catalog has **11 items** across weapon, helmet, chest and shield slots. Shop and inventory have page controls. Shop page 2 contains:
+The default catalog has **9 items** across weapon, helmet and chest slots. Shields are temporarily removed while the character rig is refined. Shop and inventory have page controls. Ashwood War Spear is on shop page 1 and Viking Warhelm is on page 2:
 
 - **Ashwood War Spear** — 115 gold, +10 attack; wooden haft, leaf head and thrust animations.
 - **Viking Warhelm** — 60 gold, +3 armor; horned fantasy helmet.
-- **Tower Shield** — 85 gold, +5 armor; tall reinforced shield drawn behind the body and attached to the far hand.
 
-Training Spear also uses a real haft/head design. All original eight catalog definitions remain. See [equipment](docs/EQUIPMENT.md).
+Training Spear also uses a real haft/head design. The other seven active definitions remain. See [equipment](docs/EQUIPMENT.md).
 
 Item definitions live in [`public/content/items.json`](public/content/items.json). Add images under `public/content/items/` and edit the catalog to add or rebalance equipment without rebuilding the game. Refresh to load changes; the public game reads content directly from `main`. See the [runtime content guide](docs/RUNTIME_CONTENT.md) for a complete record, pivots, validation and publishing.
 
@@ -57,3 +56,5 @@ Six scenes, three opponents, five attributes, leveling, persistent saves and a m
 See [architecture](docs/ARCHITECTURE.md), [animation](docs/ANIMATION_SYSTEM.md), [anatomy and references](docs/ANTHROPOMETRY.md), [art contract](docs/ART_PIPELINE.md), [game design](docs/GAME_DESIGN.md), [roadmap](docs/ROADMAP.md), and [verification](docs/VERIFICATION.md).
 
 [GitHub Pages deployment](docs/DEPLOYMENT.md) publishes validated pushes to `main` using `/arena-of-ash/` as the base path. The public site and local development server keep separate browser saves.
+
+Character rig refinements cover shoulder placement, both legs beneath the skirt, both arms above the torso, continuous elbow/knee silhouettes, calf-covering greaves, connected leather boots and smoother keyframe motion. See [rig refinement and references](docs/RIG_REFINEMENT.md).

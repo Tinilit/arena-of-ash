@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { item } from "../data/catalog";
 import type { Player } from "../domain/model";
+import { LimbArt } from "../rendering/limbArt";
 import { drawPart, drawGear } from "../rendering/characterVisuals";
 import { equipmentMotion } from "./equipmentMotion";
 import { groundedPose, skeleton } from "./kinematics";
@@ -12,6 +13,8 @@ export class Gladiator {
   private shadow: Phaser.GameObjects.Ellipse;
   private direction: number;
   private shieldMount?: Phaser.GameObjects.Container;
+  private limbs: Record<string, LimbArt> = {};
+  private skirt!: Phaser.GameObjects.Container;
   private weapons: Phaser.GameObjects.Container[] = [];
   constructor(
     private scene: Phaser.Scene,
@@ -36,12 +39,6 @@ export class Gladiator {
       .container(originX, originY)
       .setScale(bodyScale * this.direction, bodyScale);
     const skin = enemy ? 0xba805b : 0xd79e72;
-    const stretch: Record<string, number> = {
-      thigh: skeleton.thigh / 44,
-      shin: skeleton.shin / 43,
-      upper: skeleton.upperArm / 38,
-      forearm: skeleton.forearm / 35,
-    };
     const joint = (
       name: string,
       parent: Phaser.GameObjects.Container,
@@ -50,27 +47,28 @@ export class Gladiator {
       kind?: string,
       color = skin,
     ) => {
-      const c = scene.add.container(x, y);
+      const c = scene.add.container(x, y).setName(name);
       parent.add(c);
       this.joints[name] = c;
-      if (kind)
-        c.add(drawPart(scene, kind, color).setScale(1, stretch[kind] ?? 1));
+      if (kind) c.add(drawPart(scene, kind, color));
       return c;
     };
     const pelvis = joint("pelvis", this.root, 0, skeleton.pelvisY);
-    const farThigh = joint("farThigh", pelvis, skeleton.farHipX, 10, "thigh");
-    const farShin = joint("farShin", farThigh, 0, skeleton.thigh, "shin");
-    joint("farFoot", farShin, 0, skeleton.shin, "foot", 0x694634);
+    // Both leg branches are below the torso and the skirt overlay.
+    for (const side of ["far", "near"] as const) {
+      const thigh = joint(
+        `${side}Thigh`,
+        pelvis,
+        side === "near" ? skeleton.nearHipX : skeleton.farHipX,
+        skeleton.hipY - skeleton.pelvisY,
+      );
+      const skinArt = new LimbArt(scene, "leg", skin, side === "far");
+      thigh.add(skinArt);
+      this.limbs[`${side}Leg`] = skinArt;
+      const shin = joint(`${side}Shin`, thigh, 0, skeleton.thigh);
+      joint(`${side}Foot`, shin, 0, skeleton.shin, "foot", 0x694634);
+    }
     const torso = joint("torso", pelvis, 0, 0);
-    const farArm = joint(
-      "farArm",
-      torso,
-      skeleton.farShoulderX,
-      skeleton.shoulderY,
-      "upper",
-    );
-    const farElbow = joint("farElbow", farArm, 0, skeleton.upperArm, "forearm");
-    joint("farHand", farElbow, 0, skeleton.forearm, "hand");
     if (model.equipment.shield) {
       this.shieldMount = drawGear(
         scene,
@@ -90,30 +88,32 @@ export class Gladiator {
     const head = joint("head", torso, 0, skeleton.headY, "head");
     if (model.equipment.helmet)
       head.add(drawGear(scene, item(model.equipment.helmet) ?? "cap"));
-    pelvis.add(drawPart(scene, "pelvis", 0x3e5c61));
-    const nearThigh = joint(
-      "nearThigh",
-      pelvis,
-      skeleton.nearHipX,
-      10,
-      "thigh",
+    this.skirt = drawPart(scene, "pelvis", 0x3e5c61).setName("skirt");
+    pelvis.add(this.skirt);
+    // Both arms render above the body and skirt, far arm before near arm.
+    // Their shoulder attachments still share the anatomical torso transform.
+    const frontTorso = joint("frontTorso", pelvis, 0, 0);
+    const farArm = joint(
+      "farArm",
+      frontTorso,
+      skeleton.farShoulderX,
+      skeleton.shoulderY,
     );
-    const nearShin = joint("nearShin", nearThigh, 0, skeleton.thigh, "shin");
-    joint("nearFoot", nearShin, 0, skeleton.shin, "foot", 0x694634);
+    const farSkin = new LimbArt(scene, "arm", skin, true);
+    farArm.add(farSkin);
+    this.limbs.farArm = farSkin;
+    const farElbow = joint("farElbow", farArm, 0, skeleton.upperArm);
+    joint("farHand", farElbow, 0, skeleton.forearm, "hand");
     const nearArm = joint(
       "nearArm",
-      torso,
+      frontTorso,
       skeleton.nearShoulderX,
       skeleton.shoulderY,
-      "upper",
     );
-    const nearElbow = joint(
-      "nearElbow",
-      nearArm,
-      0,
-      skeleton.upperArm,
-      "forearm",
-    );
+    const nearSkin = new LimbArt(scene, "arm", skin);
+    nearArm.add(nearSkin);
+    this.limbs.nearArm = nearSkin;
+    const nearElbow = joint("nearElbow", nearArm, 0, skeleton.upperArm);
     const nearHand = joint("nearHand", nearElbow, 0, skeleton.forearm, "hand");
     if (weapon) {
       const mounted = drawGear(scene, weapon).setRotation(Math.PI / 2);
@@ -127,6 +127,7 @@ export class Gladiator {
     const p = this.animator.update(delta),
       solved = groundedPose(p);
     this.joints.torso.rotation = solved.torso;
+    this.joints.frontTorso.rotation = solved.torso;
     this.joints.head.rotation = p.head ?? 0;
     for (const side of ["near", "far"] as const) {
       const leg = side === "near" ? solved.nearLeg : solved.farLeg,
@@ -137,6 +138,8 @@ export class Gladiator {
       this.joints[`${side}Arm`].rotation = arm.angle;
       this.joints[`${side}Elbow`].rotation = arm.bend;
       this.joints[`${side}Hand`].rotation = arm.wrist;
+      this.limbs[`${side}Leg`].pose(leg.bend);
+      this.limbs[`${side}Arm`].pose(arm.bend);
     }
     this.root.x =
       this.originX + solved.root.x * this.bodyScale * this.direction;
@@ -162,8 +165,19 @@ export class Gladiator {
         .transformPoint(x, y);
       return { x: p.x, y: p.y };
     };
+    const frame = (name: string) => ({
+      origin: point(name),
+      right: point(name, 1, 0),
+      down: point(name, 0, 1),
+    });
     return {
       physical: true,
+      body: {
+        layers: this.joints.pelvis.list.map((part) => part.name),
+        arms: this.joints.frontTorso.list.map((part) => part.name),
+        waist: frame("pelvis"),
+        torso: frame("torso"),
+      },
       shield: Boolean(this.shieldMount),
       shieldAttachment: this.shieldMount
         ? {

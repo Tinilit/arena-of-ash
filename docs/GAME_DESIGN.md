@@ -12,8 +12,6 @@ Opponents: Arena Novice → Iron Pit Fighter → Veteran Gladiator. Wins advance
 
 Level threshold = 100 + 50 × (level − 1). Each level grants 2 attribute points. Excess XP carries over through multiple level gains. Spend points on any base attribute in the character scene.
 
-The eight starting catalog definitions cover four slots: four weapons (Wooden Sword, Rusty Sword, Iron Sword, Training Spear), two chest pieces (Leather Vest, Iron Chestplate), Leather Helmet and Wooden Shield. One instance per definition; no selling. Buy, then equip in the character scene. Weapons, chest, helmet and shield affect both stats and the modular rig.
+The default catalog currently contains nine definitions across weapon, helmet and chest slots: Wooden Sword, Rusty Sword, Iron Sword, Training Spear, Ashwood War Spear, Leather Vest, Iron Chestplate, Leather Helmet and Viking Warhelm. There is one owned copy per definition and no selling. Buy, then equip in the character scene. Shields are temporarily removed from the catalog and all opponent loadouts.
 
-## Current equipment and art
-
-The catalog contains eleven definitions. Ashwood War Spear adds +10 attack for 115 gold, Viking Warhelm +3 armor for 60 gold, and Tower Shield +5 armor for 85 gold. All original eight items remain; spears use a proper shaft/head model and thrust animations. Ash Vanguard is the only artwork and Grounded the only motion system. There is no studio, alternate-style selection or paired weapon. See [equipment](EQUIPMENT.md).
+Ashwood War Spear adds +10 attack for 115 gold and Viking Warhelm +3 armor for 60 gold. Spears use a proper haft/head drawing and thrust motion. Ash Vanguard is the only artwork and Grounded the only motion system. There is no studio or paired weapon. See [equipment](EQUIPMENT.md).

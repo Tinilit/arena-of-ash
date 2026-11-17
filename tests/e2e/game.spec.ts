@@ -16,8 +16,14 @@ interface Limb {
   heel: Point;
   toe: Point;
 }
+interface RigFrame {
+  origin: Point;
+  right: Point;
+  down: Point;
+}
 interface Rig {
   physical: boolean;
+  body: { layers: string[]; arms: string[]; waist: RigFrame; torso: RigFrame };
   scale: number;
   shield: boolean;
   shieldAttachment: (Point & { behindBody: boolean }) | null;
@@ -215,32 +221,31 @@ test("paginated purchases and inventory equip all remaining items and persist th
     "leather",
     "plate",
     "cap",
-    "shield",
+    "war-spear",
   ])
     await click(page, `buy-${id}`);
   await click(page, "shop-next");
   await expect
-    .poll(async () => Boolean((await snapshot(page)).buttons["buy-war-spear"]))
+    .poll(async () => Boolean((await snapshot(page)).buttons["buy-viking"]))
     .toBe(true);
   expect((await snapshot(page)).buttons["buy-glaives"]).toBeUndefined();
   await shot(page, "new-equipment-shop");
-  for (const id of ["war-spear", "viking", "tower"])
-    await click(page, `buy-${id}`);
-  expect((await snapshot(page)).player.gold).toBe(280);
-  expect((await snapshot(page)).player.inventory).toHaveLength(11);
+  await click(page, "buy-viking");
+  expect((await snapshot(page)).player.gold).toBe(415);
+  expect((await snapshot(page)).player.inventory).toHaveLength(9);
   await click(page, "back");
   await click(page, "character");
   await click(page, "equip-plate");
+  await click(page, "equip-war-spear");
   await click(page, "inventory-next");
-  for (const id of ["war-spear", "viking", "tower"])
-    await click(page, `equip-${id}`);
+  await click(page, "equip-viking");
   await shot(page, "new-equipment-character");
   await click(page, "back");
   await click(page, "battle");
   await scene(page, "ArenaScene");
   const rig = (await snapshot(page)).rigs![0];
   expect(rig.weapons).toHaveLength(1);
-  expect(rig.shield).toBe(true);
+  expect(rig.shield).toBe(false);
   expect(
     Math.hypot(
       rig.weapons[0].x - rig.near.hand.x,
@@ -263,10 +268,9 @@ test("paginated purchases and inventory equip all remaining items and persist th
     weapon: "war-spear",
     chest: "plate",
     helmet: "viking",
-    shield: "tower",
   });
-  expect(loaded.gold).toBe(280);
-  expect(loaded.inventory).toHaveLength(11);
+  expect(loaded.gold).toBe(415);
+  expect(loaded.inventory).toHaveLength(9);
 });
 test("real joint transforms keep fixed bones, level soles and rear-foot support during a step", async ({
   page,
@@ -433,7 +437,7 @@ test("external JSON adds image-backed equipment and changes live stats after ref
   expect((await snapshot(page)).content).toEqual({
     source: "live",
     revision: "runtime-test-1",
-    count: 12,
+    count: 10,
     failedImages: 0,
   });
   await click(page, "shop");
@@ -529,26 +533,21 @@ test("invalid external data and undecodable image files keep the game playable",
     .toBe(66);
 });
 
-test("tower shields stay behind the entire body and attached to both facing hands", async ({
+test("shields are absent and both arms render in front of the armored character", async ({
   page,
 }) => {
-  // The veteran uses the shield definition; give it tower artwork to cover the
-  // mirrored rig as well as the player's normal tower item.
-  const content = structuredClone(bundled);
-  content.items.find((i) => i.id === "shield")!.visual = "tower";
-  await page.route("**/content/items.json?_=*", (route) =>
-    route.fulfill({ json: content }),
-  );
   await launch(page);
+  await click(page, "shop");
+  expect((await snapshot(page)).buttons["buy-shield"]).toBeUndefined();
+  expect((await snapshot(page)).buttons["buy-tower"]).toBeUndefined();
+  await click(page, "shop-next");
+  expect((await snapshot(page)).buttons["buy-shield"]).toBeUndefined();
+  expect((await snapshot(page)).buttons["buy-tower"]).toBeUndefined();
+  await click(page, "back");
   const player = (await snapshot(page)).player;
   player.progress = 2;
-  player.inventory = ["wood", "war-spear", "plate", "viking", "tower"];
-  player.equipment = {
-    weapon: "war-spear",
-    chest: "plate",
-    helmet: "viking",
-    shield: "tower",
-  };
+  player.inventory = ["wood", "war-spear", "plate", "viking"];
+  player.equipment = { weapon: "war-spear", chest: "plate", helmet: "viking" };
   await page.evaluate(
     (p) =>
       localStorage.setItem(
@@ -561,51 +560,106 @@ test("tower shields stay behind the entire body and attached to both facing hand
   await scene(page, "MainMenuScene");
   await click(page, "character");
   await scene(page, "CharacterScene");
-  await shot(page, "tower-shield-character");
+  await shot(page, "rig-armored-character");
   await click(page, "back");
   await click(page, "battle");
   await scene(page, "ArenaScene");
-  await shot(page, "tower-shield-both-facing");
+  await shot(page, "rig-armored-both-facing");
   await click(page, "heavy");
   const samples = await page.evaluate(
     () =>
       new Promise<Rig[][]>((resolve) => {
-        const snapshots: Rig[][] = [],
+        const poses: Rig[][] = [],
           end = performance.now() + 2300;
         const sample = () => {
-          snapshots.push(
+          poses.push(
             (
               window as unknown as { __arena: { snapshot: () => Snapshot } }
             ).__arena.snapshot().rigs!,
           );
           if (performance.now() < end) requestAnimationFrame(sample);
-          else resolve(snapshots);
+          else resolve(poses);
         };
         requestAnimationFrame(sample);
       }),
   );
   for (const rigs of samples)
     for (const rig of rigs) {
-      expect(rig.shieldAttachment?.behindBody).toBe(true);
-      expect(
-        Math.hypot(
-          rig.shieldAttachment!.x - rig.far.hand.x,
-          rig.shieldAttachment!.y - rig.far.hand.y,
-        ),
-      ).toBeLessThan(0.02);
+      expect(rig.shield).toBe(false);
+      expect(rig.body.arms).toEqual(["farArm", "nearArm"]);
+      expect(rig.body.layers.indexOf("frontTorso")).toBeGreaterThan(
+        rig.body.layers.indexOf("torso"),
+      );
+      expect(rig.body.layers.indexOf("frontTorso")).toBeGreaterThan(
+        rig.body.layers.indexOf("skirt"),
+      );
     }
   await expect
     .poll(async () => (await snapshot(page)).battle?.state, { timeout: 15000 })
     .toBe("PlayerTurn");
   await click(page, "defend");
-  await shot(page, "tower-shield-guard");
-  for (const rig of (await snapshot(page)).rigs!) {
-    expect(rig.shieldAttachment?.behindBody).toBe(true);
+  await shot(page, "rig-armored-guard");
+});
+
+test("both legs stay beneath the skirt and arms keep their own shoulder attachments through motion", async ({
+  page,
+}) => {
+  await launch(page);
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  await shot(page, "rig-revised-idle");
+  await click(page, "heavy");
+  const samples = await page.evaluate(
+    () =>
+      new Promise<Rig[][]>((resolve) => {
+        const poses: Rig[][] = [],
+          end = performance.now() + 1500;
+        const sample = () => {
+          poses.push(
+            (
+              window as unknown as { __arena: { snapshot: () => Snapshot } }
+            ).__arena.snapshot().rigs!,
+          );
+          if (performance.now() < end) requestAnimationFrame(sample);
+          else resolve(poses);
+        };
+        requestAnimationFrame(sample);
+      }),
+  );
+  const localPoint = (frame: RigFrame, x: number, y: number) => ({
+    x:
+      frame.origin.x +
+      x * (frame.right.x - frame.origin.x) +
+      y * (frame.down.x - frame.origin.x),
+    y:
+      frame.origin.y +
+      x * (frame.right.y - frame.origin.y) +
+      y * (frame.down.y - frame.origin.y),
+  });
+  const close = (actual: Point, expected: Point) =>
     expect(
-      Math.hypot(
-        rig.shieldAttachment!.x - rig.far.hand.x,
-        rig.shieldAttachment!.y - rig.far.hand.y,
-      ),
-    ).toBeLessThan(0.02);
-  }
+      Math.hypot(actual.x - expected.x, actual.y - expected.y),
+    ).toBeLessThan(0.04);
+  expect(samples.length).toBeGreaterThan(2);
+  for (const rigs of samples)
+    for (const rig of rigs) {
+      const { layers, waist, torso } = rig.body;
+      for (const name of ["nearThigh", "farThigh"]) {
+        expect(layers.indexOf(name)).toBeGreaterThanOrEqual(0);
+        expect(layers.indexOf(name)).toBeLessThan(layers.indexOf("skirt"));
+      }
+      expect(layers.indexOf("frontTorso")).toBeGreaterThan(
+        layers.indexOf("skirt"),
+      );
+      close(rig.near.shoulder, localPoint(torso, 27, -63));
+      close(rig.far.shoulder, localPoint(torso, -27, -63));
+      close(rig.near.hip, localPoint(waist, 8, 10));
+      close(rig.far.hip, localPoint(waist, -8, 10));
+    }
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.state, { timeout: 15000 })
+    .toBe("PlayerTurn");
+  await click(page, "heavy");
+  await page.waitForTimeout(250);
+  await shot(page, "rig-revised-heavy");
 });

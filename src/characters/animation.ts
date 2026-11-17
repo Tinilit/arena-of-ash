@@ -57,6 +57,22 @@ export class Animator {
     this.onImpact = undefined;
     this.onComplete = undefined;
   }
+  private tangent(index: number, key: string) {
+    const frames = this.clip.frames;
+    // Rest at clip boundaries and at direction changes. Otherwise retain a
+    // shared velocity through a key instead of stopping at every authored pose.
+    if (index === 0 || index === frames.length - 1) return 0;
+    const value = (i: number) => frames[i].pose[key] ?? this.rest[key] ?? 0;
+    const before = frames[index].time - frames[index - 1].time;
+    const after = frames[index + 1].time - frames[index].time;
+    if (before <= 0 || after <= 0) return 0;
+    const incoming = (value(index) - value(index - 1)) / before;
+    const outgoing = (value(index + 1) - value(index)) / after;
+    if (incoming * outgoing <= 0) return 0;
+    const w1 = 2 * after + before,
+      w2 = after + 2 * before;
+    return (w1 + w2) / (w1 / incoming + w2 / outgoing);
+  }
   update(delta: number): Pose {
     if (this.stopped) return {};
     this.elapsed += delta;
@@ -67,26 +83,33 @@ export class Animator {
         this.fired = true;
         this.onImpact?.();
       }
-    let left = frames[0],
-      right = frames[frames.length - 1];
+    let index = Math.max(0, frames.length - 2);
     for (let i = 1; i < frames.length; i++)
       if (t <= frames[i].time) {
-        left = frames[i - 1];
-        right = frames[i];
+        index = i - 1;
         break;
       }
+    const left = frames[index],
+      right = frames[index + 1] ?? left;
     const f = Math.max(
       0,
       Math.min(1, (t - left.time) / (right.time - left.time || 1)),
     );
-    const smooth = f * f * (3 - 2 * f);
+    const f2 = f * f,
+      f3 = f2 * f,
+      span = right.time - left.time;
     const result: Pose = {};
-    for (const key of this.poseKeys)
+    for (const key of this.poseKeys) {
+      const start = left.pose[key] ?? this.rest[key] ?? 0;
+      const end = right.pose[key] ?? this.rest[key] ?? 0;
       result[key] =
-        (left.pose[key] ?? this.rest[key] ?? 0) +
-        ((right.pose[key] ?? this.rest[key] ?? 0) -
-          (left.pose[key] ?? this.rest[key] ?? 0)) *
-          smooth;
+        (2 * f3 - 3 * f2 + 1) * start +
+        (f3 - 2 * f2 + f) * span * this.tangent(index, key) +
+        (-2 * f3 + 3 * f2) * end +
+        (f3 - f2) *
+          span *
+          this.tangent(Math.min(index + 1, frames.length - 1), key);
+    }
     this.current = result;
     if (t === 1) {
       const complete = this.onComplete;

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "revision": "2026-11-17-1",
+  "revision": "2026-11-17-2",
   "items": [
     {
       "id": "wood",
@@ -68,15 +68,6 @@
       "visual": "cap"
     },
     {
-      "id": "shield",
-      "name": "Wooden Shield",
-      "slot": "shield",
-      "price": 50,
-      "attack": 0,
-      "armor": 2,
-      "visual": "shield"
-    },
-    {
       "id": "war-spear",
       "name": "Ashwood War Spear",
       "slot": "weapon",
@@ -96,16 +87,6 @@
       "armor": 3,
       "visual": "viking",
       "description": "Horned fantasy helm with a nasal guard."
-    },
-    {
-      "id": "tower",
-      "name": "Tower Shield",
-      "slot": "shield",
-      "price": 85,
-      "attack": 0,
-      "armor": 5,
-      "visual": "tower",
-      "description": "Tall wooden boards with iron reinforcement."
     }
   ]
 }

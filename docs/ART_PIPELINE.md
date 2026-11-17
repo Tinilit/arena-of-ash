@@ -10,8 +10,14 @@ Supply metadata in logical pixels: `{texture, logicalWidth, logicalHeight, pivot
 
 A weapon's local grip is (0,0), with its blade toward negative Y. The hand mount rotates it by π/2, with separate wrist rotation. Shield artwork centers on its grip and stays upright in the character root frame; helmet aligns to the head. Author parts facing +X; root mirroring handles the opponent. Do not duplicate mirrored assets or bake text into them.
 
-The adapters return containers with visuals and non-rendering local bounds Zones. Texture-backed images can replace the procedural drawing while preserving the bounds/pivots. Graphics alone do not supply geometry bounds in Phaser. Layer far limbs behind torso, then chest/head/helmet, near limbs and weapon; keep shield artwork in the first root child, behind the entire body, with its grip following the far hand. See [render order](RENDER_ORDER.md). Preload required textures in BootScene and keep procedural fallback for missing keys. Combat rules, AI, progression and saves must remain unchanged when art is replaced.
+The adapters return containers with visuals and non-rendering local bounds Zones. Texture-backed images can replace the procedural drawing while preserving the bounds/pivots. Graphics alone do not supply geometry bounds in Phaser. Layer both legs below torso and skirt, then both arms and the weapon above them; keep shield artwork in the first root child, behind the entire body, with its grip following the far hand. See [render order](RENDER_ORDER.md). Preload required textures in BootScene and keep procedural fallback for missing keys. Combat rules, AI, progression and saves must remain unchanged when art is replaced.
 
 ## Runtime item images
 
 Optional item PNG/WebP images are loaded from `public/content/items/` through the external catalog. They replace the selected gear drawing in every scene while retaining joint attachment and sword/spear behavior. The catalog specifies dimensions and normalized pivots. See [runtime content](RUNTIME_CONTENT.md). Body-part and animation replacement still requires code changes.
+
+## Continuous limb silhouettes
+
+The current procedural arms and legs are drawn by `limbArt.ts` as complete two-segment forms, rather than independent fully outlined capsules. The ink envelope is painted first and the skin envelope over it, hiding internal joint borders. Tapered ends share the exact elbow/knee center; cuffs and greaves rotate with the lower segment. Both leg envelopes are below the skirt. Shoulder centers match the torso silhouette at ±27, -63 relative to the waist. Future cutout textures should use shared rotation centers and concealed overlap, with no doubled seam across the flexing joint. See [rig refinement](RIG_REFINEMENT.md).
+
+The calf armor uses the full lower-leg width, including its shaded side panel. The boot shaft overlaps its lower edge; a shaped leather toe and thin sole replace the block-shaped foot. The near and far arms are both foreground layers, sharing the torso transform. Shields are omitted from current default content.

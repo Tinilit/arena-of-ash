@@ -18,12 +18,8 @@ const bodyBounds: Record<string, [number, number, number, number]> = {
   head: [-32, -49, 66, 75],
   torso: [-38, -3, 76, 85],
   pelvis: [-36, -3, 72, 49],
-  foot: [-15, -7, 46, 25],
+  foot: [-14, -16, 43, 32],
   hand: [-13, -8, 27, 28],
-  thigh: [-18, -9, 36, 66],
-  shin: [-14, -9, 28, 64],
-  upper: [-16, -9, 32, 59],
-  forearm: [-14, -9, 28, 55],
 };
 function equipmentBounds(id: string): [number, number, number, number] {
   if (id === "shield") return [-34, -36, 68, 90];
@@ -188,53 +184,47 @@ export function drawPart(
     g.lineBetween(0, 6, 0, 12);
     g.lineBetween(5, 6, 5, 12);
   } else if (kind === "foot") {
+    // A leather ankle shaft overlaps the greave; the low toe follows the floor.
+    // Keep the visible sole at Y=14, matching the solver's support plane.
     g.fillStyle(p.ink);
-    g.fillRoundedRect(-13, -4, 41, 18, 5);
-    g.strokeRoundedRect(-13, -4, 41, 18, 5);
-    g.fillStyle(p.shade);
-    g.fillRoundedRect(-10, -3, 34, 10, 4);
-    g.lineStyle(2, p.trim, 0.75);
-    g.lineBetween(-8, 1, 9, 1);
-    g.fillStyle(p.metal);
-    g.fillRect(-12, 10, 39, 4);
-  } else {
-    const len =
-      kind === "thigh" ? 48 : kind === "shin" ? 46 : kind === "upper" ? 41 : 37;
-    const width =
-      kind === "thigh" ? 29 : kind === "upper" ? 22 : kind === "shin" ? 21 : 20;
-    g.fillRoundedRect(-width / 2, -6, width, len + 12, width / 2);
-    g.strokeRoundedRect(-width / 2, -6, width, len + 12, width / 2);
-    g.fillStyle(p.shade, 0.4);
-    g.fillRoundedRect(-width / 2 + 1, 3, 6, len - 1, 3);
-    g.fillStyle(p.light, 0.5);
-    g.fillRoundedRect(2, 2, 5, len - 11, 2);
-    if (kind === "upper") {
-      g.lineStyle(1.3, p.shade, 0.7);
-      g.lineBetween(1, 13, 5, 23);
-    }
-    if (kind === "forearm") {
-      g.fillStyle(p.cloth);
-      g.fillRoundedRect(-width / 2 - 1, len - 14, width + 2, 15, 3);
-      g.lineStyle(2, p.trim, 0.7);
-      g.lineBetween(-9, len - 9, 9, len - 9);
-      g.lineBetween(-9, len - 4, 9, len - 4);
-    }
-    if (kind === "shin") {
-      g.fillStyle(p.metal);
-      g.fillPoints(
-        [
-          { x: -10, y: 13 },
-          { x: 9, y: 13 },
-          { x: 8, y: 43 },
-          { x: -9, y: 43 },
-        ],
-        true,
-      );
-      g.lineStyle(2, p.trim);
-      g.lineBetween(2, 16, 2, 38);
-      g.fillStyle(p.ink);
-      g.fillRect(-10, 11, 20, 5);
-    }
+    g.fillRoundedRect(-10, -14, 20, 25, 5);
+    g.fillPoints(
+      [
+        { x: -12, y: 2 },
+        { x: -6, y: -3 },
+        { x: 7, y: -3 },
+        { x: 15, y: 0 },
+        { x: 24, y: 5 },
+        { x: 27, y: 9 },
+        { x: 25, y: 14 },
+        { x: -10, y: 14 },
+        { x: -13, y: 10 },
+      ],
+      true,
+    );
+    g.fillStyle(0x694634);
+    g.fillRoundedRect(-8, -12, 16, 20, 4);
+    g.fillPoints(
+      [
+        { x: -10, y: 3 },
+        { x: -5, y: -1 },
+        { x: 6, y: -1 },
+        { x: 14, y: 2 },
+        { x: 22, y: 6 },
+        { x: 24, y: 9 },
+        { x: 23, y: 11 },
+        { x: -9, y: 11 },
+        { x: -11, y: 8 },
+      ],
+      true,
+    );
+    g.fillStyle(0x3c2c25);
+    g.fillRoundedRect(-10, 8, 34, 4, 2);
+    g.lineStyle(1.5, 0xb18961, 0.8);
+    g.lineBetween(-5, -8, 4, -8);
+    g.lineBetween(4, 1, 13, 4);
+    g.lineStyle(1, 0x8b674c, 0.75);
+    g.lineBetween(-8, 11, 21, 11);
   }
   return bounded(scene, g, bodyBounds[kind]);
 }

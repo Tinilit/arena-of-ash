@@ -45,7 +45,7 @@ Supply your own `frost-spear.png`, or omit `image` to use the existing war-spear
 
 ## Fields
 
-The top level contains `version: 1`, a nonempty `revision` up to 64 characters, and `items` (7–1000 definitions). Array order determines shop order.
+The top level contains `version: 1`, a nonempty `revision` up to 64 characters, and `items` (6–1000 definitions). Array order determines shop order.
 
 | Field             | Contract                                                                                                                     |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -68,7 +68,7 @@ The top level contains `version: 1`, a nonempty `revision` up to 64 characters, 
 
 New sword or spear designs, helmets, chest pieces and shields need no new game code. New slots, effects, weapon behaviors or animations require an engine change. A database can later serve the same JSON contract through an API; a browser cannot directly query a private database.
 
-Keep IDs `wood`, `rust`, `iron`, `leather`, `plate`, `cap` and `shield` in their existing slots because the starter and opponents reference them. Their names, prices, bonuses and images may change. No migration or refund handling is added for removed items; saves with unknown IDs retain the existing reset behavior.
+Keep IDs `wood`, `rust`, `iron`, `leather`, `plate` and `cap` in their existing slots because the starter and opponents reference them. Their names, prices, bonuses and images may change. No migration or refund handling is added for removed items; saves with unknown IDs retain the existing reset behavior.
 
 ## Image alignment
 
@@ -95,3 +95,5 @@ The catalog is fetched and fully validated before the save is read. A network er
 No polling, filesystem watching, arbitrary script execution or mid-session catalog mutation is exposed. Browser games need an explicit JSON index: simply uploading an unreferenced image cannot create an item.
 
 Gameplay tests use a fixed catalog fixture so new live definitions, reordering or balance edits do not require changing gameplay assertions. Content validation reads the actual publication file and checks every referenced local image.
+
+The current default catalog has nine items and intentionally omits shields. Shield slot/drawing support is retained for a later explicit restoration; no opponent currently references a shield definition, so the old `shield` ID is no longer mandatory. The character UI displays only slots present in the active catalog.

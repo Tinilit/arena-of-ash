@@ -22,7 +22,7 @@ Logical units are pixels before display scale. +X faces the opponent; +Y points 
 | ----------------------------------- | ---------------------- |
 | Pelvis / waist origin               | (0, -120)              |
 | Hip centers                         | (+8, -110), (-8, -110) |
-| Shoulder centers, relative to waist | (+14, -59), (-14, -59) |
+| Shoulder centers, relative to waist | (+27, -63), (-27, -63) |
 | Upper arm / forearm                 | 40 / 34                |
 | Thigh / shin                        | 54 / 52                |
 | Head joint relative to waist        | (0, -84)               |
@@ -30,7 +30,7 @@ Logical units are pixels before display scale. +X faces the opponent; +Y points 
 | Sole below ankle                    | 14                     |
 | Neutral ankle targets               | (+32, -14), (-28, -14) |
 
-Legs are longer relative to the torso than in the earlier rig. Bone lengths are immutable during playback. Only the procedural limb drawing is scaled to match the new joint-to-joint dimensions; that visual scale never changes a child joint's position. The torso rotates at the waist, while torso/chest drawings are offset upward by 76 units. Head, shoulders and gear inherit that waist rotation.
+Legs are longer relative to the torso than in the earlier rig. Bone lengths are immutable during playback. Procedural limb envelopes are drawn directly at these lengths and updated from the solved bend. The drawing is not stretched. The torso rotates at the waist, while torso/chest drawings are offset upward by 76 units. Head, shoulders and gear inherit that waist rotation.
 
 ## Joint and foot rules
 
@@ -53,3 +53,7 @@ Review artifacts include `arena.png`, `anatomy-idle.png`, `new-equipment-charact
 A further sampled check transforms the sword/spear blade centerline into the moving head's frame and tests it against the central facial region. The longest catalog blade is checked every 8 ms for every Ash clip. Heavy wind-up and victory now lift the hilt outside the face before drawing the weapon overhead; a separate forward keyframe precedes the cut. This supplements joint-limit tests, which alone cannot detect a weapon passing through a face. It is a presentation clearance check, not gameplay collision detection.
 
 Released feet also have a heel/toe floor constraint during the fall. Any interpolated sole penetration translates the already-solved assembly upward without changing bone lengths or feeding the correction back into the IK solution. The held collapse uses folded legs and a raised root so the corpse remains on the sand rather than extending into the action controls. Sampled tests cover both sole endpoints throughout this transition.
+
+The shoulders now align to the torso contour, 27 units to either side of center and 13 units below the torso artwork origin. Both hip pivots remain at ±8, 10 relative to the waist, inside the skirt. Both legs render beneath the garment. Both shoulders live in a foreground waist transform with exactly the same torso rotation; this separates draw order from anatomical placement. See [rig refinement and references](RIG_REFINEMENT.md).
+
+Both arms are drawn in front of the torso and skirt, with the far arm below the near arm. Greave width follows the full calf profile and overlaps the boot shaft; the shaped leather foot keeps its sole at the same support height. Shields are paused in the active catalog and enemy loadouts.

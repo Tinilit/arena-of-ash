@@ -10,7 +10,7 @@ import {
   stats,
   threshold,
 } from "../domain/progression";
-import { item } from "../data/catalog";
+import { item, items } from "../data/catalog";
 export class CharacterScene extends BaseScene {
   private rig!: Gladiator;
   constructor() {
@@ -79,17 +79,19 @@ export class CharacterScene extends BaseScene {
         32,
       ).setEnabled(!worn && canEquip(p, id, def.slot));
     });
-    Object.entries(en.slots).forEach(([slot, name], i) => {
-      const id = p.equipment[slot as keyof typeof p.equipment];
-      const gear = label(
-        this,
-        568,
-        420 + i * 39,
-        `${name}: ${id ? item(id)?.name : en.noGear}`,
-        19,
-      );
-      if (gear.width > 320) gear.setFontSize((19 * 320) / gear.width);
-    });
+    Object.entries(en.slots)
+      .filter(([slot]) => items.some((it) => it.slot === slot))
+      .forEach(([slot, name], i) => {
+        const id = p.equipment[slot as keyof typeof p.equipment];
+        const gear = label(
+          this,
+          568,
+          420 + i * 39,
+          `${name}: ${id ? item(id)?.name : en.noGear}`,
+          19,
+        );
+        if (gear.width > 320) gear.setFontSize((19 * 320) / gear.width);
+      });
     this.button(
       "inventory-prev",
       941,

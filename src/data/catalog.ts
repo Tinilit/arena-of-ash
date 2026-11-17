@@ -43,7 +43,6 @@ export const enemies = [
       weapon: "iron",
       chest: "plate",
       helmet: "cap",
-      shield: "shield",
     },
   },
 ];

@@ -20,7 +20,6 @@ const required: Record<string, Slot> = {
   leather: "chest",
   plate: "chest",
   cap: "helmet",
-  shield: "shield",
 };
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -77,7 +76,7 @@ export function parseCatalog(
   if (
     root.version !== 1 ||
     !Array.isArray(root.items) ||
-    root.items.length < 7 ||
+    root.items.length < 6 ||
     root.items.length > 1000
   )
     throw Error("Unsupported catalog version or item count");
