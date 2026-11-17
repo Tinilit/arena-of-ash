@@ -12,7 +12,7 @@ The expected address, once GitHub confirms deployment, is `https://tinilit.githu
 
 ## Update loop
 
-Push an update to `main`. The **Validate and deploy game** workflow runs strict type checking, lint, unit tests, a production build, and Chromium browser tests. Only a successful test job permits deployment. The deploy job builds with the `/arena-of-ash/` Vite base path, uploads only `dist/`, and publishes using GitHub's Pages actions. Pull requests are tested without deploying. **Actions → Validate and deploy game → Run workflow** can retry after the one-time Pages setting is enabled.
+Push a code update to `main`. The **Validate and deploy game** workflow runs strict type checking, lint, unit tests, a production build, and Chromium browser tests. Only a successful test job permits deployment. The deploy job builds with the `/arena-of-ash/` Vite base path, uploads only `dist/`, and publishes using GitHub's Pages actions. Pull requests are tested without deploying. **Actions → Validate and deploy game → Run workflow** can retry after the one-time Pages setting is enabled.
 
 The existing public site stays on its last successful deployment if validation fails. Screenshots and failure traces are available from the workflow artifacts. The deploy job's environment URL is authoritative, especially if a custom domain is configured later.
 
@@ -32,3 +32,7 @@ A browser keeps saves for the site's origin in localStorage. Future deployments 
 ## Managed cloud access
 
 The cloud environment needs `api.github.com` to inspect deployment runs and configure Pages, plus `tinilit.github.io` to verify the deployed game. These domains have been added to the environment configuration draft; saving that draft does not apply the grants to a running task. Existing Git authentication is already usable, so no new token should be requested merely because the management API is blocked by policy.
+
+## Runtime content updates
+
+Item JSON and artwork under `public/content/**` are fetched separately from main by the published game. Content-only changes run the content validation workflow and skip the game build and Pages deployment. Publish the files, bump the catalog revision and refresh the page. See [runtime content](RUNTIME_CONTENT.md). This route requires public read access to those repository files; no database or application secrets are used.

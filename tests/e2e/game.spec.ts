@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import bundled from "../fixtures/catalog.json" with { type: "json" };
 import type { Player } from "../../src/domain/model";
 import type { Fighter, State, CombatEvent } from "../../src/combat/engine";
 interface Point {
@@ -19,7 +20,7 @@ interface Rig {
   physical: boolean;
   scale: number;
   shield: boolean;
-  weapons: Point[];
+  weapons: (Point & { texture: string | null })[];
   near: Limb;
   far: Limb;
 }
@@ -27,6 +28,12 @@ interface Snapshot {
   scene: string;
   style: "ash";
   motion: "grounded";
+  content: {
+    source: "live" | "bundled";
+    revision: string;
+    count: number;
+    failedImages: number;
+  };
   player: Player;
   buttons: Record<string, Point>;
   rigs?: Rig[];
@@ -41,6 +48,10 @@ const errors = new WeakMap<Page, string[]>();
 test.beforeEach(async ({ page }) => {
   const list: string[] = [];
   errors.set(page, list);
+  // Foundation scenarios use a fixed balance; the live file is validated separately.
+  await page.route("**/content/items.json?_=*", (route) =>
+    route.fulfill({ json: bundled }),
+  );
   page.on("pageerror", (e) => list.push(e.message));
   page.on("console", (m) => {
     if (m.type() === "error") list.push(m.text());
@@ -264,17 +275,34 @@ test("real joint transforms keep fixed bones, level soles and rear-foot support 
   await scene(page, "ArenaScene");
   const initial = (await snapshot(page)).rigs![0];
   (await snapshot(page)).rigs!.forEach(anatomy);
+  await shot(page, "anatomy-idle");
   await click(page, "heavy");
+  // Measure every rendered frame in the browser. Screenshots and Node round trips
+  // during this window can skip a brief lift on a busy software renderer.
+  const samples = await page.evaluate(
+    () =>
+      new Promise<Rig[]>((resolve) => {
+        const rigs: Rig[] = [],
+          end = performance.now() + 1350;
+        const sample = () => {
+          const current = (
+            window as unknown as { __arena: { snapshot: () => Snapshot } }
+          ).__arena.snapshot();
+          rigs.push(current.rigs![0]);
+          if (performance.now() < end) requestAnimationFrame(sample);
+          else resolve(rigs);
+        };
+        requestAnimationFrame(sample);
+      }),
+  );
   let lifted = false;
-  for (let i = 0; i < 16; i++) {
-    const rig = (await snapshot(page)).rigs![0];
+  expect(samples.length).toBeGreaterThan(2);
+  for (const rig of samples) {
     anatomy(rig);
     expect(rig.far.heel.x).toBeCloseTo(initial.far.heel.x, 3);
     expect(rig.far.heel.y).toBeCloseTo(initial.far.heel.y, 3);
     expect(rig.near.heel.y).toBeLessThanOrEqual(initial.near.heel.y + 0.01);
     if (rig.near.heel.y < initial.near.heel.y - 2) lifted = true;
-    if ([2, 5, 8].includes(i)) await shot(page, `anatomy-heavy-${i}`);
-    await page.waitForTimeout(65);
   }
   expect(lifted).toBe(true);
 });
@@ -356,4 +384,146 @@ test("attribute allocation persists and updates battle statistics", async ({
   await expect
     .poll(async () => (await snapshot(page)).battle?.enemy.hp)
     .toBe(65);
+});
+
+test("external JSON adds image-backed equipment and changes live stats after refresh without code changes", async ({
+  page,
+}) => {
+  const live = {
+    ...structuredClone(bundled),
+    revision: "runtime-test-1",
+    items: [
+      ...structuredClone(bundled.items),
+      {
+        id: "runtime-spear",
+        name: "Runtime Test Spear",
+        slot: "weapon",
+        price: 25,
+        attack: 12,
+        armor: 0,
+        visual: "war-spear",
+        weaponType: "spear",
+        description: "Loaded from an external catalog.",
+        image: {
+          src: "items/runtime-spear.png",
+          width: 18,
+          height: 190,
+          originX: 0.5,
+          originY: 0.63,
+        },
+      },
+    ],
+  };
+  const imageRequests: string[] = [];
+  await page.route("**/content/items.json?_=*", (route) =>
+    route.fulfill({ json: live }),
+  );
+  await page.route("**/content/items/runtime-spear*.png?*", (route) => {
+    imageRequests.push(route.request().url());
+    return route.fulfill({
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aK1kAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    });
+  });
+  await launch(page);
+  expect((await snapshot(page)).content).toEqual({
+    source: "live",
+    revision: "runtime-test-1",
+    count: 12,
+    failedImages: 0,
+  });
+  await click(page, "shop");
+  await click(page, "shop-next");
+  await click(page, "buy-runtime-spear");
+  expect((await snapshot(page)).player.gold).toBe(75);
+  await click(page, "back");
+  await click(page, "character");
+  await click(page, "equip-runtime-spear");
+  await click(page, "back");
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  expect((await snapshot(page)).rigs![0].weapons[0].texture).toBe(
+    "content-item:runtime-spear",
+  );
+  await shot(page, "runtime-image-equipped");
+  // Publishing changed data cannot mutate an already-running battle.
+  live.items[live.items.length - 1].attack = 18;
+  live.revision = "runtime-test-2";
+  const updated = live.items[live.items.length - 1];
+  if (!("image" in updated)) throw Error("Missing test artwork");
+  updated.image.src = "items/runtime-spear-v2.png";
+  await click(page, "quick");
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.enemy.hp)
+    .toBe(55);
+  expect((await snapshot(page)).content.revision).toBe("runtime-test-1");
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect((await snapshot(page)).content.revision).toBe("runtime-test-2");
+  expect((await snapshot(page)).player.equipment.weapon).toBe("runtime-spear");
+  expect(
+    imageRequests.some((url) =>
+      url.includes("runtime-spear-v2.png?rev=runtime-test-2"),
+    ),
+  ).toBe(true);
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  await click(page, "quick");
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.enemy.hp)
+    .toBe(49);
+});
+
+test("invalid external data and undecodable image files keep the game playable", async ({
+  page,
+}) => {
+  await page.route("**/content/items.json?_=*", (route) =>
+    route.fulfill({ json: { version: 99, items: [] } }),
+  );
+  await launch(page);
+  expect((await snapshot(page)).content.source).toBe("bundled");
+  await click(page, "shop");
+  expect((await snapshot(page)).buttons["buy-rust"]).toBeDefined();
+  await page.unroute("**/content/items.json?_=*");
+  const live = structuredClone(bundled);
+  await page.route("**/content/items.json?_=*", (route) =>
+    route.fulfill({
+      json: {
+        ...live,
+        items: live.items.map((i) =>
+          i.id === "wood"
+            ? {
+                ...i,
+                image: {
+                  src: "items/broken.png",
+                  width: 25,
+                  height: 130,
+                  originX: 0.5,
+                  originY: 0.8,
+                },
+              }
+            : i,
+        ),
+      },
+    }),
+  );
+  await page.route("**/content/items/broken.png?*", (route) =>
+    route.fulfill({ contentType: "image/png", body: "invalid image bytes" }),
+  );
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect((await snapshot(page)).content).toMatchObject({
+    source: "live",
+    failedImages: 1,
+  });
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  expect((await snapshot(page)).rigs![0].weapons[0].texture).toBeNull();
+  await click(page, "quick");
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.enemy.hp)
+    .toBe(66);
 });

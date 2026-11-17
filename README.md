@@ -17,6 +17,7 @@ The logical canvas is 1280×720 with FIT scaling. Portrait screens display a rot
 npm run typecheck
 npm run lint
 npm test
+npm run check:content
 npm run test:e2e
 npm run build
 npm run preview
@@ -46,6 +47,8 @@ The catalog has **11 items** across weapon, helmet, chest and shield slots. Shop
 - **Tower Shield** — 85 gold, +5 armor; tall reinforced shield carried in front of the torso.
 
 Training Spear also uses a real haft/head design. All original eight catalog definitions remain. See [equipment](docs/EQUIPMENT.md).
+
+Item definitions live in [`public/content/items.json`](public/content/items.json). Add images under `public/content/items/` and edit the catalog to add or rebalance equipment without rebuilding the game. Refresh to load changes; the public game reads content directly from `main`. See the [runtime content guide](docs/RUNTIME_CONTENT.md) for a complete record, pivots, validation and publishing.
 
 ## Scope and documentation
 

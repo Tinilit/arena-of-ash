@@ -22,8 +22,8 @@ export class CharacterScene extends BaseScene {
     const pages = Math.max(1, Math.ceil(p.inventory.length / 8)),
       page = Math.max(0, Math.min(data.page ?? 0, pages - 1));
     const large =
-      ["spear", "war-spear"].includes(p.equipment.weapon ?? "") ||
-      p.equipment.helmet === "viking";
+      item(p.equipment.weapon ?? "")?.weaponType === "spear" ||
+      item(p.equipment.helmet ?? "")?.visual === "viking";
     panel(this, 268, 352, 460, 400);
     panel(this, 880, 368, 678, 432);
     this.rig = new Gladiator(this, 255, 432, p, false, large ? 0.74 : 0.82);
@@ -62,7 +62,8 @@ export class CharacterScene extends BaseScene {
       const def = item(id)!;
       const y = 220 + i * 41;
       const worn = p.equipment[def.slot] === id;
-      label(this, 905, y, def.name, 17);
+      const name = label(this, 905, y, def.name, 17);
+      if (name.width > 193) name.setFontSize((17 * 193) / name.width);
       this.button(
         `equip-${id}`,
         1160,
@@ -80,13 +81,14 @@ export class CharacterScene extends BaseScene {
     });
     Object.entries(en.slots).forEach(([slot, name], i) => {
       const id = p.equipment[slot as keyof typeof p.equipment];
-      label(
+      const gear = label(
         this,
         568,
         420 + i * 39,
         `${name}: ${id ? item(id)?.name : en.noGear}`,
         19,
       );
+      if (gear.width > 320) gear.setFontSize((19 * 320) / gear.width);
     });
     this.button(
       "inventory-prev",

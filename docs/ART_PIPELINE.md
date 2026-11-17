@@ -11,3 +11,7 @@ Supply metadata in logical pixels: `{texture, logicalWidth, logicalHeight, pivot
 A weapon's local grip is (0,0), with its blade toward negative Y. The hand mount rotates it by π/2, with separate wrist rotation. Shield artwork centers on its grip and is counter-rotated upright; helmet aligns to the head. Author parts facing +X; root mirroring handles the opponent. Do not duplicate mirrored assets or bake text into them.
 
 The adapters return containers with visuals and non-rendering local bounds Zones. Texture-backed images can replace the procedural drawing while preserving the bounds/pivots. Graphics alone do not supply geometry bounds in Phaser. Layer far limbs behind torso, then chest/head/helmet, near limbs and weapon; place the tower-shield arm above the torso below the weapon arm. Preload required textures in BootScene and keep procedural fallback for missing keys. Combat rules, AI, progression and saves must remain unchanged when art is replaced.
+
+## Runtime item images
+
+Optional item PNG/WebP images are loaded from `public/content/items/` through the external catalog. They replace the selected gear drawing in every scene while retaining joint attachment and sword/spear behavior. The catalog specifies dimensions and normalized pivots. See [runtime content](RUNTIME_CONTENT.md). Body-part and animation replacement still requires code changes.

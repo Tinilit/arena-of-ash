@@ -1,111 +1,11 @@
+import bundled from "../../public/content/items.json";
+import { parseCatalog } from "../content/schema";
 import type { Item } from "../domain/model";
-export const items: Item[] = [
-  {
-    id: "wood",
-    name: "Wooden Sword",
-    slot: "weapon",
-    price: 15,
-    attack: 1,
-    armor: 0,
-    visual: "wood",
-  },
-  {
-    id: "rust",
-    name: "Rusty Sword",
-    slot: "weapon",
-    price: 40,
-    attack: 4,
-    armor: 0,
-    visual: "rust",
-  },
-  {
-    id: "iron",
-    name: "Iron Sword",
-    slot: "weapon",
-    price: 100,
-    attack: 9,
-    armor: 0,
-    visual: "iron",
-  },
-  {
-    id: "spear",
-    name: "Training Spear",
-    slot: "weapon",
-    price: 70,
-    attack: 6,
-    armor: 0,
-    visual: "spear",
-    weaponType: "spear",
-    description: "Wooden haft and a socketed practice head.",
-  },
-  {
-    id: "leather",
-    name: "Leather Vest",
-    slot: "chest",
-    price: 45,
-    attack: 0,
-    armor: 2,
-    visual: "leather",
-  },
-  {
-    id: "plate",
-    name: "Iron Chestplate",
-    slot: "chest",
-    price: 120,
-    attack: 0,
-    armor: 5,
-    visual: "plate",
-  },
-  {
-    id: "cap",
-    name: "Leather Helmet",
-    slot: "helmet",
-    price: 35,
-    attack: 0,
-    armor: 1,
-    visual: "cap",
-  },
-  {
-    id: "shield",
-    name: "Wooden Shield",
-    slot: "shield",
-    price: 50,
-    attack: 0,
-    armor: 2,
-    visual: "shield",
-  },
-  {
-    id: "war-spear",
-    name: "Ashwood War Spear",
-    slot: "weapon",
-    price: 115,
-    attack: 10,
-    armor: 0,
-    visual: "war-spear",
-    weaponType: "spear",
-    description: "Leaf head, long haft and piercing thrusts.",
-  },
-  {
-    id: "viking",
-    name: "Viking Warhelm",
-    slot: "helmet",
-    price: 60,
-    attack: 0,
-    armor: 3,
-    visual: "viking",
-    description: "Horned fantasy helm with a nasal guard.",
-  },
-  {
-    id: "tower",
-    name: "Tower Shield",
-    slot: "shield",
-    price: 85,
-    attack: 0,
-    armor: 5,
-    visual: "tower",
-    description: "Tall wooden boards with iron reinforcement.",
-  },
-];
+// A startup snapshot keeps gameplay synchronous and stable for the session.
+export const items: Item[] = parseCatalog(bundled).items;
+export function installCatalog(catalog: Item[]) {
+  items.splice(0, items.length, ...catalog);
+}
 export const item = (id: string) => items.find((i) => i.id === id);
 export const enemies = [
   {

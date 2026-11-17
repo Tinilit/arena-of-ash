@@ -17,3 +17,7 @@ Shop has eight cards per page with actual item icons, bonuses, prices and descri
 Paired warglaives and their special offhand rules have been removed. No retired-item migration or refunds are implemented. There is no equipment studio or free preview loadout.
 
 Definitions live in `data/catalog.ts`, pole/helmet/shield drawing in `rendering/extendedGear.ts`, and spear motion in `characters/equipmentMotion.ts`. Unit tests cover exact purchase costs, valid slots, persistence, single impact events, joint constraints and full-shaft face clearance. Browser tests buy every remaining item across both pages, equip the spear kit, use it in a real battle and verify reload persistence.
+
+## External definitions
+
+The eleven initial definitions now live in `public/content/items.json`. The runtime catalog can add, rebalance or reskin items without recompiling gameplay. Optional image metadata supplies the source file, logical dimensions and attachment pivot; missing art uses the selected Ash Vanguard procedural fallback. See [runtime content](RUNTIME_CONTENT.md).

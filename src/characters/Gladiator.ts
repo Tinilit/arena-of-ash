@@ -74,20 +74,20 @@ export class Gladiator {
     if (model.equipment.shield) {
       this.shieldMount = drawGear(
         scene,
-        item(model.equipment.shield)?.visual ?? "shield",
+        item(model.equipment.shield) ?? "shield",
       );
       farHand.add(this.shieldMount);
     }
     torso.add(drawPart(scene, "torso", skin).setY(skeleton.torsoArtY));
     if (model.equipment.chest)
       torso.add(
-        drawGear(scene, item(model.equipment.chest)?.visual ?? "leather").setY(
+        drawGear(scene, item(model.equipment.chest) ?? "leather").setY(
           skeleton.torsoArtY,
         ),
       );
     const head = joint("head", torso, 0, skeleton.headY, "head");
     if (model.equipment.helmet)
-      head.add(drawGear(scene, item(model.equipment.helmet)?.visual ?? "cap"));
+      head.add(drawGear(scene, item(model.equipment.helmet) ?? "cap"));
     pelvis.add(drawPart(scene, "pelvis", 0x3e5c61));
     const nearThigh = joint(
       "nearThigh",
@@ -114,11 +114,11 @@ export class Gladiator {
     );
     const nearHand = joint("nearHand", nearElbow, 0, skeleton.forearm, "hand");
     if (weapon) {
-      const mounted = drawGear(scene, weapon.visual).setRotation(Math.PI / 2);
+      const mounted = drawGear(scene, weapon).setRotation(Math.PI / 2);
       nearHand.add(mounted);
       this.weapons.push(mounted);
     }
-    if (model.equipment.shield === "tower") {
+    if (item(model.equipment.shield ?? "")?.visual === "tower") {
       torso.bringToTop(farArm);
       torso.bringToTop(nearArm);
     }
@@ -164,7 +164,7 @@ export class Gladiator {
       shield: Boolean(this.shieldMount),
       weapons: this.weapons.map((weapon) => {
         const p = weapon.getWorldTransformMatrix().transformPoint(0, 0);
-        return { x: p.x, y: p.y };
+        return { x: p.x, y: p.y, texture: weapon.name || null };
       }),
       scale: Math.abs(this.root.scaleY),
       near: {

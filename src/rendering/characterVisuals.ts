@@ -1,5 +1,7 @@
 import Phaser from "phaser";
 import { extendedGear, extendedGearBounds } from "./extendedGear";
+import type { Item } from "../domain/model";
+import { itemTextureKey } from "../content/textures";
 type PartVisual = Phaser.GameObjects.Graphics | Phaser.GameObjects.Image;
 
 // Graphics has no geometry bounds in Phaser. A non-rendering Zone supplies a
@@ -238,8 +240,22 @@ export function drawPart(
 }
 export function drawGear(
   scene: Phaser.Scene,
-  id: string,
+  definition: string | Item,
 ): Phaser.GameObjects.Container {
+  const id = typeof definition === "string" ? definition : definition.visual;
+  if (
+    typeof definition !== "string" &&
+    definition.image &&
+    scene.textures.exists(itemTextureKey(definition.id))
+  ) {
+    const art = definition.image,
+      key = itemTextureKey(definition.id);
+    const visual = scene.add
+      .image(0, 0, key)
+      .setOrigin(art.originX, art.originY)
+      .setDisplaySize(art.width, art.height);
+    return scene.add.container(0, 0, [visual]).setName(key);
+  }
   const extended = extendedGear(scene, id);
   if (extended) return bounded(scene, extended, extendedGearBounds[id]);
   const p = palette,

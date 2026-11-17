@@ -1,7 +1,11 @@
 name: Validate and deploy game
 on:
   push:
+    paths-ignore:
+      - "public/content/**"
   pull_request:
+    paths-ignore:
+      - "public/content/**"
   workflow_dispatch:
 
 permissions:

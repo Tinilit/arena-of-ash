@@ -21,6 +21,20 @@ export class BaseScene extends Phaser.Scene {
     ).setOrigin(1, 0.5);
     if (this.services.store.warning)
       label(this, 640, 707, en.storage, 14, "#e8bd72").setOrigin(0.5);
+    else if (
+      this.services.content.source === "bundled" ||
+      this.services.content.failedImages
+    )
+      label(
+        this,
+        640,
+        707,
+        this.services.content.source === "bundled"
+          ? en.contentFallback
+          : en.artFallback,
+        14,
+        "#e8bd72",
+      ).setOrigin(0.5);
     this.input.keyboard?.on("keydown-ESC", () => {
       if (this.scene.key !== "MainMenuScene") this.scene.start("MainMenuScene");
     });
@@ -51,6 +65,7 @@ export class BaseScene extends Phaser.Scene {
       scene: this.scene.key,
       style: this.services.style,
       motion: this.services.motion,
+      content: { ...this.services.content },
       player: structuredClone(this.services.player),
       buttons: Object.fromEntries(
         Object.entries(this.buttons).map(([id, b]) => [id, { x: b.x, y: b.y }]),

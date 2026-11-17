@@ -18,13 +18,14 @@ export class ShopScene extends BaseScene {
       const x = 42 + (i % 2) * 626,
         y = 192 + Math.floor(i / 2) * 108;
       panel(this, x + 285, y + 20, 570, 96);
-      const visual = drawGear(this, it.visual),
+      const visual = drawGear(this, it),
         b = visual.getBounds(),
         scale = Math.min(58 / b.width, 74 / b.height);
       visual
         .setScale(scale)
         .setPosition(x + 42 - b.centerX * scale, y + 20 - b.centerY * scale);
-      label(this, x + 85, y - 10, it.name, 21);
+      const name = label(this, x + 85, y - 10, it.name, 21);
+      if (name.width > 290) name.setFontSize((21 * 290) / name.width);
       label(
         this,
         x + 85,

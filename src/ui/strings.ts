@@ -1,4 +1,6 @@
 export const en = {
+  contentFallback: "Equipment update unavailable. Using included equipment.",
+  artFallback: "Some equipment artwork is unavailable. Using standard artwork.",
   previous: "← Previous",
   nextPage: "Next →",
   page: "Page",

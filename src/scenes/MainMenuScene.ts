@@ -2,6 +2,7 @@ import { BaseScene } from "./BaseScene";
 import { label, panel } from "../ui/widgets";
 import { en } from "../ui/strings";
 import { Gladiator } from "../characters/Gladiator";
+import { item } from "../data/catalog";
 import { opponent } from "../domain/progression";
 export class MainMenuScene extends BaseScene {
   private rig!: Gladiator;
@@ -25,9 +26,9 @@ export class MainMenuScene extends BaseScene {
     );
     this.button("reset", 350, 501, 350, en.reset, () => this.confirmReset());
     const large =
-      ["spear", "war-spear"].includes(
-        this.services.player.equipment.weapon ?? "",
-      ) || this.services.player.equipment.helmet === "viking";
+      item(this.services.player.equipment.weapon ?? "")?.weaponType ===
+        "spear" ||
+      item(this.services.player.equipment.helmet ?? "")?.visual === "viking";
     this.rig = new Gladiator(
       this,
       867,
