@@ -19,6 +19,8 @@ interface Point {
 }
 interface RigMeasurement {
   physical: boolean;
+  shield: boolean;
+  weapons: Point[];
   scale: number;
   near: {
     hip: Point;
@@ -39,6 +41,7 @@ interface Snapshot {
   player: Player;
   buttons: Record<string, { x: number; y: number }>;
   preview?: {
+    loadout: string;
     rigs: RigMeasurement[];
     bounds: { x: number; y: number; width: number; height: number }[];
   };
@@ -55,6 +58,15 @@ const snapshot = (page: Page) =>
       window as unknown as { __arena: { snapshot: () => Snapshot } }
     ).__arena.snapshot(),
   );
+async function frameShot(page: Page, options: { path: string }) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  await page.screenshot(options);
+}
 async function scene(page: Page, name: string) {
   await page.waitForFunction(() => "__arena" in window);
   await expect.poll(async () => (await snapshot(page))?.scene).toBe(name);
@@ -67,6 +79,13 @@ async function click(page: Page, id: string) {
   const point = s.buttons[id];
   expect(point, `button ${id}`).toBeTruthy();
   const box = await page.locator("canvas").boundingBox();
+  // A scene restart can expose matching button IDs before input registration.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
   await page.mouse.click(
     box!.x + (point.x * box!.width) / 1280,
     box!.y + (point.y * box!.height) / 720,
@@ -116,20 +135,20 @@ test("startup, battle, animation, victory and persisted rewards", async ({
   page.on("pageerror", (e) => errors.push(e.message));
   await launch(page);
   await expect(page.locator("canvas")).toBeVisible();
-  await page.screenshot({ path: "test-results/screenshots/menu.png" });
+  await frameShot(page, { path: "test-results/screenshots/menu.png" });
   await click(page, "battle");
   await scene(page, "ArenaScene");
   const initial = (await snapshot(page)).battle!;
   expect(initial.player.hp).toBe(100);
   expect(initial.enemy.hp).toBe(80);
   expect(initial.player.stamina).toBe(100);
-  await page.screenshot({ path: "test-results/screenshots/arena.png" });
+  await frameShot(page, { path: "test-results/screenshots/arena.png" });
   await click(page, "quick");
   await expect
     .poll(async () => (await snapshot(page)).battle?.state)
     .toBe("PlayerAnimating");
   await page.waitForTimeout(250);
-  await page.screenshot({ path: "test-results/screenshots/attack.png" });
+  await frameShot(page, { path: "test-results/screenshots/attack.png" });
   await expect
     .poll(async () => (await snapshot(page)).battle?.player.stamina)
     .toBe(88);
@@ -141,7 +160,7 @@ test("startup, battle, animation, victory and persisted rewards", async ({
   expect((await snapshot(page)).player.gold).toBe(150);
   expect((await snapshot(page)).player.xp).toBe(40);
   await page.waitForTimeout(1300);
-  await page.screenshot({ path: "test-results/screenshots/victory.png" });
+  await frameShot(page, { path: "test-results/screenshots/victory.png" });
   await page.reload();
   await scene(page, "MainMenuScene");
   expect((await snapshot(page)).player.gold).toBe(150);
@@ -162,7 +181,7 @@ test("shop, equip, navigation and reload", async ({ page }) => {
   await click(page, "character");
   await click(page, "equip-rust");
   expect((await snapshot(page)).player.equipment.weapon).toBe("rust");
-  await page.screenshot({ path: "test-results/screenshots/character.png" });
+  await frameShot(page, { path: "test-results/screenshots/character.png" });
   await page.reload();
   await scene(page, "MainMenuScene");
   expect((await snapshot(page)).player.equipment.weapon).toBe("rust");
@@ -183,7 +202,7 @@ test("defeat pays once and fight again works", async ({ page }) => {
   expect(p.xp).toBe(10);
   expect(p.progress).toBe(0);
   expect(p.rewarded).toHaveLength(1);
-  await page.screenshot({ path: "test-results/screenshots/defeat.png" });
+  await frameShot(page, { path: "test-results/screenshots/defeat.png" });
   await click(page, "again");
   await scene(page, "ArenaScene");
   expect((await snapshot(page)).player.gold).toBe(110);
@@ -199,7 +218,7 @@ test("keyboard, scene shutdown, gear, small viewport and portrait", async ({
   await click(page, "character");
   await click(page, "equip-cap");
   await click(page, "equip-shield");
-  await page.screenshot({ path: "test-results/screenshots/equipment.png" });
+  await frameShot(page, { path: "test-results/screenshots/equipment.png" });
   await page.keyboard.press("Escape");
   await click(page, "battle");
   await page.keyboard.press("2");
@@ -215,7 +234,7 @@ test("keyboard, scene shutdown, gear, small viewport and portrait", async ({
     .poll(async () => (await snapshot(page)).battle?.player.guard)
     .toBe(true);
   await page.setViewportSize({ width: 960, height: 600 });
-  await page.screenshot({
+  await frameShot(page, {
     path: "test-results/screenshots/small-landscape.png",
   });
   const box = await page.locator("canvas").boundingBox();
@@ -224,7 +243,7 @@ test("keyboard, scene shutdown, gear, small viewport and portrait", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator("#rotate")).toBeVisible();
   await expect(page.locator("#rotate")).toContainText("Rotate your device");
-  await page.screenshot({ path: "test-results/screenshots/portrait.png" });
+  await frameShot(page, { path: "test-results/screenshots/portrait.png" });
 });
 
 test("default renderer starts without runtime errors", async ({ page }) => {
@@ -233,7 +252,7 @@ test("default renderer starts without runtime errors", async ({ page }) => {
   await page.goto("/");
   await scene(page, "MainMenuScene");
   await expect(page.locator("canvas")).toBeVisible();
-  await page.screenshot({
+  await frameShot(page, {
     path: "test-results/screenshots/default-renderer.png",
   });
   expect(errors).toEqual([]);
@@ -261,7 +280,7 @@ test("attribute allocation and all equipment persist through battle initializati
   await click(page, "shop");
   for (const id of ["iron", "plate", "cap", "shield"])
     await click(page, `buy-${id}`);
-  await page.screenshot({ path: "test-results/screenshots/shop.png" });
+  await frameShot(page, { path: "test-results/screenshots/shop.png" });
   await click(page, "back");
   await click(page, "character");
   for (const id of ["iron", "plate", "cap", "shield"])
@@ -270,7 +289,7 @@ test("attribute allocation and all equipment persist through battle initializati
   await click(page, "attribute-strength");
   expect((await snapshot(page)).player.attributes.vitality).toBe(11);
   expect((await snapshot(page)).player.points).toBe(0);
-  await page.screenshot({
+  await frameShot(page, {
     path: "test-results/screenshots/full-equipment.png",
   });
   await page.reload();
@@ -280,7 +299,7 @@ test("attribute allocation and all equipment persist through battle initializati
   expect((await snapshot(page)).battle!.player.model.equipment.weapon).toBe(
     "iron",
   );
-  await page.screenshot({
+  await frameShot(page, {
     path: "test-results/screenshots/equipped-arena.png",
   });
 });
@@ -292,31 +311,31 @@ test("style studio preserves progress, previews motion, and restores the origina
   const before = (await snapshot(page)).player;
   await click(page, "studio");
   await scene(page, "StyleStudioScene");
-  await page.screenshot({
+  await frameShot(page, {
     path: "test-results/screenshots/style-comparison.png",
   });
   await click(page, "preview-gear");
-  await page.screenshot({
+  await frameShot(page, {
     path: "test-results/screenshots/style-unarmored.png",
   });
   await click(page, "preview-heavy");
   await page.waitForTimeout(250);
   await expectPreviewFits(page);
-  await page.screenshot({ path: "test-results/screenshots/style-heavy.png" });
+  await frameShot(page, { path: "test-results/screenshots/style-heavy.png" });
   await click(page, "preview-hit");
   await click(page, "preview-defend");
   await click(page, "preview-recover");
   await click(page, "preview-death");
   await page.waitForTimeout(1200);
   await expectPreviewFits(page);
-  await page.screenshot({ path: "test-results/screenshots/style-death.png" });
+  await frameShot(page, { path: "test-results/screenshots/style-death.png" });
   await click(page, "preview-victory");
   await page.waitForTimeout(1400);
   await expectPreviewFits(page);
-  await page.screenshot({ path: "test-results/screenshots/style-victory.png" });
+  await frameShot(page, { path: "test-results/screenshots/style-victory.png" });
   await click(page, "preview-idle");
   await click(page, "preview-mirror");
-  await page.screenshot({
+  await frameShot(page, {
     path: "test-results/screenshots/style-mirrored.png",
   });
   await click(page, "style-bronze");
@@ -336,7 +355,7 @@ test("style studio preserves progress, previews motion, and restores the origina
   await expect
     .poll(async () => (await snapshot(page)).battle?.state, { timeout: 15000 })
     .toBe("PlayerTurn");
-  await page.screenshot({ path: "test-results/screenshots/bronze-arena.png" });
+  await frameShot(page, { path: "test-results/screenshots/bronze-arena.png" });
   await page.keyboard.press("Escape");
   await scene(page, "MainMenuScene");
   await click(page, "studio");
@@ -351,7 +370,7 @@ test("style studio preserves progress, previews motion, and restores the origina
   await expect
     .poll(async () => (await snapshot(page)).battle?.state, { timeout: 15000 })
     .toBe("PlayerTurn");
-  await page.screenshot({ path: "test-results/screenshots/ash-arena.png" });
+  await frameShot(page, { path: "test-results/screenshots/ash-arena.png" });
   await page.keyboard.press("Escape");
   await scene(page, "MainMenuScene");
   await click(page, "studio");
@@ -394,7 +413,7 @@ for (const style of ["bronze", "ash"] as const) {
       .poll(async () => (await snapshot(page)).battle?.enemy.hp)
       .toBe(0);
     await page.waitForTimeout(1100);
-    await page.screenshot({
+    await frameShot(page, {
       path: `test-results/screenshots/${style}-death-arena.png`,
     });
     await scene(page, "ResultScene");
@@ -429,7 +448,7 @@ test("grounded limbs keep fixed lengths, level soles, a planted rear foot, and a
   s = await snapshot(page);
   expect(s.rigs![0].far.heel.y).toBeCloseTo(initial.far.heel.y, 3);
   expect(s.rigs![0].near.heel.y).toBeCloseTo(initial.near.heel.y, 3);
-  await page.screenshot({ path: "test-results/screenshots/anatomy-idle.png" });
+  await frameShot(page, { path: "test-results/screenshots/anatomy-idle.png" });
   await click(page, "heavy");
   let lifted = false;
   for (let frame = 0; frame < 16; frame++) {
@@ -441,7 +460,7 @@ test("grounded limbs keep fixed lengths, level soles, a planted rear foot, and a
     expect(rig.near.heel.y).toBeLessThanOrEqual(initial.near.heel.y + 0.01);
     if (rig.near.heel.y < initial.near.heel.y - 2) lifted = true;
     if ([2, 5, 8, 12].includes(frame))
-      await page.screenshot({
+      await frameShot(page, {
         path: `test-results/screenshots/anatomy-heavy-${frame}.png`,
       });
     await page.waitForTimeout(65);
@@ -468,7 +487,7 @@ test("Legacy restores every previous rig and motion without changing progress", 
       (await snapshot(page)).preview?.rigs.every((r) => !r.physical),
     )
     .toBe(true);
-  await page.screenshot({
+  await frameShot(page, {
     path: "test-results/screenshots/anatomy-legacy.png",
   });
   await page.reload();
@@ -481,11 +500,218 @@ test("Legacy restores every previous rig and motion without changing progress", 
     true,
   );
   await click(page, "preview-mirror");
-  await page.screenshot({
+  await frameShot(page, {
     path: "test-results/screenshots/anatomy-mirrored.png",
   });
   await page.reload();
   await scene(page, "MainMenuScene");
   expect((await snapshot(page)).motion).toBe("grounded");
   expect((await snapshot(page)).player).toEqual(player);
+});
+
+function expectWeaponGrips(rig: RigMeasurement, paired: boolean) {
+  expect(rig.weapons).toHaveLength(paired ? 2 : 1);
+  const same = (a: Point, b: Point) =>
+    expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeLessThan(0.01);
+  if (paired) {
+    same(rig.weapons[0], rig.far.hand);
+    same(rig.weapons[1], rig.near.hand);
+    expect(rig.shield).toBe(false);
+  } else same(rig.weapons[0], rig.near.hand);
+}
+test("new gear showcase renders spears, horns, tower shields and twin blades without granting items", async ({
+  page,
+}) => {
+  await launch(page);
+  const before = (await snapshot(page)).player;
+  await click(page, "studio");
+  await click(page, "preview-gear");
+  await expect
+    .poll(async () => (await snapshot(page)).preview?.loadout)
+    .toBe("owned");
+  await click(page, "preview-gear");
+  await expect
+    .poll(async () => (await snapshot(page)).preview?.loadout)
+    .toBe("spear");
+  await expectPreviewFits(page);
+  await frameShot(page, {
+    path: "test-results/screenshots/gear-spear-kit.png",
+  });
+  await click(page, "preview-quick");
+  await page.waitForTimeout(270);
+  await expectPreviewFits(page);
+  await frameShot(page, {
+    path: "test-results/screenshots/gear-spear-thrust.png",
+  });
+  await click(page, "preview-mirror");
+  await expectPreviewFits(page);
+  await frameShot(page, {
+    path: "test-results/screenshots/gear-spear-mirrored.png",
+  });
+  await click(page, "preview-gear");
+  await expect
+    .poll(async () => (await snapshot(page)).preview?.loadout)
+    .toBe("glaives");
+  await click(page, "preview-idle");
+  await expectPreviewFits(page);
+  (await snapshot(page)).preview!.rigs.forEach((r) =>
+    expectWeaponGrips(r, true),
+  );
+  await frameShot(page, {
+    path: "test-results/screenshots/gear-twin-glaives.png",
+  });
+  await click(page, "preview-heavy");
+  await page.waitForTimeout(600);
+  await expectPreviewFits(page);
+  await frameShot(page, {
+    path: "test-results/screenshots/gear-glaive-strike.png",
+  });
+  await click(page, "preview-death");
+  await page.waitForTimeout(1200);
+  await expectPreviewFits(page);
+  await frameShot(page, {
+    path: "test-results/screenshots/gear-glaive-collapse.png",
+  });
+  await click(page, "preview-victory");
+  await page.waitForTimeout(1400);
+  await expectPreviewFits(page);
+  await click(page, "preview-motion");
+  await expect.poll(async () => (await snapshot(page)).motion).toBe("legacy");
+  await expectPreviewFits(page);
+  await frameShot(page, {
+    path: "test-results/screenshots/gear-glaives-legacy.png",
+  });
+  expect((await snapshot(page)).player).toEqual(before);
+});
+
+test("paginated catalog and inventory purchase, equip, hand conflicts and reload", async ({
+  page,
+}) => {
+  await launch(page);
+  const p = (await snapshot(page)).player;
+  p.gold = 1000;
+  await page.evaluate(
+    (p) =>
+      localStorage.setItem(
+        "arena-of-ash.v1",
+        JSON.stringify({ version: 1, player: p }),
+      ),
+    p,
+  );
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  await click(page, "shop");
+  for (const id of [
+    "rust",
+    "iron",
+    "spear",
+    "leather",
+    "plate",
+    "cap",
+    "shield",
+  ])
+    await click(page, `buy-${id}`);
+  await click(page, "shop-next");
+  await expect
+    .poll(async () => Boolean((await snapshot(page)).buttons["buy-war-spear"]))
+    .toBe(true);
+  await frameShot(page, {
+    path: "test-results/screenshots/gear-shop-page-two.png",
+  });
+  for (const id of ["war-spear", "viking", "tower", "glaives"])
+    await click(page, `buy-${id}`);
+  expect((await snapshot(page)).player.gold).toBe(120);
+  expect((await snapshot(page)).player.inventory).toHaveLength(12);
+  await click(page, "back");
+  await click(page, "character");
+  await click(page, "equip-plate");
+  await click(page, "inventory-next");
+  for (const id of ["war-spear", "viking", "tower"])
+    await click(page, `equip-${id}`);
+  await frameShot(page, {
+    path: "test-results/screenshots/gear-equipped-spear.png",
+  });
+  await click(page, "back");
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  expectWeaponGrips((await snapshot(page)).rigs![0], false);
+  expect((await snapshot(page)).rigs![0].shield).toBe(true);
+  await click(page, "quick");
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.player.stamina)
+    .toBe(88);
+  await frameShot(page, {
+    path: "test-results/screenshots/gear-spear-arena.png",
+  });
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.state, { timeout: 15000 })
+    .toBe("PlayerTurn");
+  await page.keyboard.press("Escape");
+  await scene(page, "MainMenuScene");
+  await click(page, "character");
+  await click(page, "inventory-next");
+  await click(page, "equip-glaives");
+  expect((await snapshot(page)).player.equipment.shield).toBeUndefined();
+  expect((await snapshot(page)).player.inventory).toContain("tower");
+  await click(page, "equip-tower");
+  expect((await snapshot(page)).player.equipment.shield).toBeUndefined();
+  await frameShot(page, {
+    path: "test-results/screenshots/gear-equipped-glaives.png",
+  });
+  await click(page, "back");
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  expectWeaponGrips((await snapshot(page)).rigs![0], true);
+  await click(page, "quick");
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.enemy.hp)
+    .toBe(53);
+  await frameShot(page, {
+    path: "test-results/screenshots/gear-glaive-arena.png",
+  });
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  const loaded = (await snapshot(page)).player;
+  expect(loaded.equipment.weapon).toBe("glaives");
+  expect(loaded.equipment.helmet).toBe("viking");
+  expect(loaded.equipment.shield).toBeUndefined();
+  expect(loaded.gold).toBe(120);
+  expect(loaded.inventory).toHaveLength(12);
+});
+
+test("paired-blade defeat keeps both hand attachments and rewards the result once", async ({
+  page,
+}) => {
+  await launch(page);
+  const p = (await snapshot(page)).player;
+  p.inventory.push("glaives");
+  p.equipment = { weapon: "glaives" };
+  p.attributes.vitality = 0;
+  p.attributes.defense = 0;
+  await page.evaluate(
+    (p) =>
+      localStorage.setItem(
+        "arena-of-ash.v1",
+        JSON.stringify({ version: 1, player: p }),
+      ),
+    p,
+  );
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  await click(page, "battle");
+  for (let i = 0; i < 500; i++) {
+    const s = await snapshot(page);
+    if (s.battle?.player.hp === 0) break;
+    if (s.battle?.state === "PlayerTurn") await click(page, "recover");
+    await page.waitForTimeout(120);
+  }
+  expect((await snapshot(page)).battle!.player.hp).toBe(0);
+  await page.waitForTimeout(1150);
+  expectWeaponGrips((await snapshot(page)).rigs![0], true);
+  await frameShot(page, {
+    path: "test-results/screenshots/gear-glaive-defeat.png",
+  });
+  await scene(page, "ResultScene");
+  expect((await snapshot(page)).player.gold).toBe(110);
+  expect((await snapshot(page)).player.rewarded).toHaveLength(1);
 });

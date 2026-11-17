@@ -8,6 +8,7 @@ export const attributes = [
 export type Attribute = (typeof attributes)[number];
 export type Attributes = Record<Attribute, number>;
 export type Slot = "weapon" | "helmet" | "chest" | "shield";
+export type WeaponType = "sword" | "spear" | "glaives";
 export interface Item {
   id: string;
   name: string;
@@ -16,6 +17,9 @@ export interface Item {
   attack: number;
   armor: number;
   visual: string;
+  weaponType?: WeaponType;
+  occupiesOffhand?: boolean;
+  description?: string;
 }
 export interface Player {
   id: string;

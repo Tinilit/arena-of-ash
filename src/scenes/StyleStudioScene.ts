@@ -1,10 +1,16 @@
 import type Phaser from "phaser";
+import {
+  previewLoadouts,
+  showcaseKits,
+  type PreviewLoadout,
+} from "../data/showcase";
 import { BaseScene } from "./BaseScene";
 import { Gladiator } from "../characters/Gladiator";
 import { visualStyles, type VisualStyle } from "../characters/presentation";
 import { label, panel } from "../ui/widgets";
 import { en } from "../ui/strings";
 interface Preview {
+  loadout?: PreviewLoadout;
   kit?: boolean;
   mirrored?: boolean;
   clip?: string;
@@ -13,6 +19,7 @@ export class StyleStudioScene extends BaseScene {
   private rigs: Gladiator[] = [];
   private status!: Phaser.GameObjects.Text;
   private kit = true;
+  private loadout: PreviewLoadout = "classic";
   private mirrored = false;
   private clip = "idle";
   constructor() {
@@ -21,7 +28,8 @@ export class StyleStudioScene extends BaseScene {
   create(data: Preview = {}) {
     this.prepare(en.studioTitle);
     this.rigs = [];
-    this.kit = data.kit ?? true;
+    this.loadout = data.loadout ?? (data.kit === false ? "owned" : "classic");
+    this.kit = this.loadout !== "owned";
     this.mirrored = data.mirrored ?? false;
     this.clip = data.clip ?? "idle";
     label(this, 640, 100, en.studioHint, 20).setOrigin(0.5);
@@ -41,13 +49,8 @@ export class StyleStudioScene extends BaseScene {
         .setAlign("center");
       const model = structuredClone(this.services.player);
       // Showcase ownership is intentionally confined to cloned preview models.
-      if (this.kit)
-        model.equipment = {
-          weapon: "iron",
-          chest: "plate",
-          helmet: "cap",
-          shield: "shield",
-        };
+      if (this.loadout !== "owned")
+        model.equipment = { ...showcaseKits[this.loadout] };
       const rig = new Gladiator(
         this,
         x,
@@ -98,18 +101,15 @@ export class StyleStudioScene extends BaseScene {
       );
     });
     this.back();
-    this.button(
-      "preview-gear",
-      450,
-      670,
-      300,
-      this.kit ? en.previewKit : en.previewOwned,
-      () =>
-        this.scene.restart({
-          kit: !this.kit,
-          mirrored: this.mirrored,
-          clip: this.clip,
-        }),
+    this.button("preview-gear", 450, 670, 300, en.gearKits[this.loadout], () =>
+      this.scene.restart({
+        loadout:
+          previewLoadouts[
+            (previewLoadouts.indexOf(this.loadout) + 1) % previewLoadouts.length
+          ],
+        mirrored: this.mirrored,
+        clip: this.clip,
+      }),
     );
     this.button(
       "preview-mirror",
@@ -120,6 +120,7 @@ export class StyleStudioScene extends BaseScene {
       () =>
         this.scene.restart({
           kit: this.kit,
+          loadout: this.loadout,
           mirrored: !this.mirrored,
           clip: this.clip,
         }),
@@ -136,6 +137,7 @@ export class StyleStudioScene extends BaseScene {
         );
         this.scene.restart({
           kit: this.kit,
+          loadout: this.loadout,
           mirrored: this.mirrored,
           clip: this.clip,
         });
@@ -186,6 +188,7 @@ export class StyleStudioScene extends BaseScene {
       ...super.snapshot(),
       preview: {
         kit: this.kit,
+        loadout: this.loadout,
         mirrored: this.mirrored,
         clip: this.clip,
         rigs: this.rigs.map((rig) => rig.jointSnapshot()),

@@ -36,3 +36,7 @@ Procedural Graphics do not supply geometry bounds in Phaser. The visual adapters
 ## Grounded and Legacy motion
 
 Style Studio now has an independent **Motion: Grounded / Motion: Legacy** switch. Grounded is the default correction for limb proportions, waist pivot, elbow/knee mechanics, wrist grip and planted feet. Legacy restores the original skeleton and previously supplied motion sets for every style. Selecting Original preserves the original artwork; combine it with Legacy to restore the full M1 presentation. Motion choice persists under its own key and never changes progression. See [anthropometry](ANTHROPOMETRY.md).
+
+## Additional preview equipment
+
+The gear control now cycles Classic kit, Equipped items, Spear & tower, and Twin glaives. Every kit can be compared across all three art styles and both motion modes, with every animation and mirrored facing. These remain preview-only cloned models; real purchases are made separately in Shop. See [equipment](EQUIPMENT.md).

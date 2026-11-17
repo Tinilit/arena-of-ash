@@ -13,3 +13,7 @@ Opponents: Arena Novice → Iron Pit Fighter → Veteran Gladiator. Wins advance
 Level threshold = 100 + 50 × (level − 1). Each level grants 2 attribute points. Excess XP carries over through multiple level gains. Spend points on any base attribute in the character scene.
 
 Eight items cover four slots: four weapons (Wooden Sword, Rusty Sword, Iron Sword, Training Spear), two chest pieces (Leather Vest, Iron Chestplate), Leather Helmet and Wooden Shield. One instance per definition; no selling. Buy, then equip in the character scene. Weapons, chest, helmet and shield affect both stats and the modular rig.
+
+## Expanded catalog
+
+Four additions bring the catalog to twelve: Ashwood War Spear (+10 attack, 115 gold), Viking Warhelm (+3 armor, 60 gold), Tower Shield (+5 armor, 85 gold), and Ashfang Warglaives (+14 attack once for the pair, 160 gold). Paired blades occupy the shield hand; equipping them unequips an owned shield without removing it from inventory. See [equipment rules](EQUIPMENT.md). Presentation changes do not alter combat action costs or multipliers.

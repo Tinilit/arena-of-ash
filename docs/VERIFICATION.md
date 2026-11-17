@@ -45,3 +45,17 @@ Final local results: strict type check passed; ESLint passed; **109 unit tests p
 Visual review included idle, wind-up, impact, recovery, mirrored/full-equipment views, both new held collapses, menu and character-screen layout. One late review found a collapsed foot entering the controls; final poses and the sampled heel/toe floor constraint corrected it, followed by another full browser pass. Initial standing joint angles were not accepted as adequate evidence for the whole animation.
 
 The production bundle retains the existing size warning (~357 KB gzip). Remote CI/deployment completion remains unverified from this environment because GitHub's management API and Pages hostname are blocked. The unchanged deployment workflow runs these checks before publishing pushes to main.
+
+## Equipment expansion — 2026-11-17
+
+The catalog now has twelve items: four additions (War Spear, Viking Warhelm, Tower Shield and paired Ashfang Warglaives) plus every previous definition. Training Spear has a shaft/head visual in Grounded and retains its earlier placeholder in Legacy. New weapon presentation is selected independently from combat resolution. Shop/inventory use pages; the studio includes preview-only spear/tower and paired-blade sets.
+
+Final checks: type checking passed; ESLint passed; **147 unit tests passed**; **14 browser tests passed**; the Pages production build passed. The bundle retains the existing size warning (~360 KB gzip). Tests cover exact purchase costs, single-count paired attack bonuses, shield-slot conflicts, save normalization without progression loss, one impact per action, grounded joint mechanics, whole-shaft and both-crescent face clearance, and actual weapon-to-hand transforms. Full browser coverage includes all twelve purchases across pages, both new arena weapon types, reload persistence and a paired-blade defeat/result lifecycle. Console and uncaught-error assertions passed.
+
+Visual review included full-kit/mirrored previews across three art styles, spear thrusts, both rendered glaives, new shop thumbnails, inventory pagination and held collapse. The tower shield renders over the torso but below the weapon arm to keep its tall silhouette visible. A sampled test caught an offhand crescent passing the face during a fall; the grip orientation and hand path were corrected, and the complete final suites passed.
+
+New artifacts under `test-results/screenshots/` include `gear-spear-kit.png`, `gear-spear-thrust.png`, `gear-spear-mirrored.png`, `gear-twin-glaives.png`, `gear-glaive-strike.png`, `gear-glaive-collapse.png`, `gear-glaives-legacy.png`, `gear-shop-page-two.png`, `gear-equipped-spear.png`, `gear-equipped-glaives.png`, `gear-spear-arena.png`, `gear-glaive-arena.png` and `gear-glaive-defeat.png`. Screenshot capture waits for two browser animation frames so queued scene restarts finish rendering navigation controls.
+
+Remote deployment completion is still not observable from this environment because GitHub management/Pages access is blocked by the runtime network policy. The existing workflow validates and deploys pushes to main.
+
+After the final tower-shield draw-order adjustment and input-readiness waits, the complete 14-test browser suite passed again. A production preview smoke check opened both new studio loadouts using actual pointer input, found no console/uncaught errors or failed asset requests, and confirmed the development diagnostic API was absent. `gear-production-spear.png` and `gear-production-glaives.png` were visually inspected.

@@ -47,7 +47,7 @@ Enter the arena from camp. Keys **1–4** select Quick Attack, Heavy Attack, Def
 
 ## Scope
 
-Six scenes, three increasingly strong opponents, eight equipment definitions, five attributes, leveling, versioned saves, and modular keyframed character animation. The final enemy repeats. Fight health and stamina reset each battle; unfinished fights are not saved. Placeholder art, no audio, no backend, no mobile app, no production balance pass. Browser saves are local to their origin and device. Browser storage failure falls back to session-only play with a warning. The Phaser bundle is large (~350 KB gzip), reported by Vite as a size warning.
+Six scenes, three increasingly strong opponents, twelve equipment definitions, five attributes, leveling, versioned saves, and modular keyframed character animation. The final enemy repeats. Fight health and stamina reset each battle; unfinished fights are not saved. Placeholder art, no audio, no backend, no mobile app, no production balance pass. Browser saves are local to their origin and device. Browser storage failure falls back to session-only play with a warning. The Phaser bundle is large (~350 KB gzip), reported by Vite as a size warning.
 
 See [architecture](docs/ARCHITECTURE.md), [animation](docs/ANIMATION_SYSTEM.md), [art contract](docs/ART_PIPELINE.md), [game design](docs/GAME_DESIGN.md), and [roadmap](docs/ROADMAP.md).
 
@@ -60,3 +60,7 @@ See [architecture](docs/ARCHITECTURE.md), [animation](docs/ANIMATION_SYSTEM.md),
 Open **Style Studio** in camp to compare **Original**, **Bronze Hero**, and **Ash Vanguard**. Preview all animations, toggle demonstration equipment, mirror the figures, and select a style for actual battles. Selection persists independently of game progress. The original graphics and animations are preserved and remain selectable at any time. See [visual variants](docs/VISUAL_VARIANTS.md).
 
 The default **Grounded** motion corrects limb proportions, waist pivot, joint flexion, wrist grip and planted-foot stepping. **Motion: Legacy** in Style Studio retains every previous rig/animation option. See [anthropometry and anatomy references](docs/ANTHROPOMETRY.md).
+
+## New equipment
+
+Shop page 2 offers **Ashwood War Spear**, **Viking Warhelm**, **Tower Shield**, and **Ashfang Warglaives**. The spear uses a real wooden shaft and thrust attacks; the matched glaives occupy both hands and unequip a shield without deleting it. Shop and inventory now have page controls. Try the new showcase sets without spending gold through **Style Studio → Gear**. See [equipment rules and art](docs/EQUIPMENT.md).

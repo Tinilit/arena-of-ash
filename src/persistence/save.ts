@@ -1,6 +1,6 @@
 import { attributes, createPlayer, type Player } from "../domain/model";
 import { item } from "../data/catalog";
-import { threshold } from "../domain/progression";
+import { isPairedWeapon, threshold } from "../domain/progression";
 export const SAVE_KEY = "arena-of-ash.v1";
 export function serialize(p: Player) {
   return JSON.stringify({ version: 1, player: p });
@@ -38,6 +38,7 @@ export function deserialize(raw: string | null): Player {
       !p.rewarded.every((id) => typeof id === "string")
     )
       throw Error();
+    if (isPairedWeapon(p)) delete p.equipment.shield;
     return p;
   } catch {
     return createPlayer();

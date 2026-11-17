@@ -2,8 +2,7 @@ import Phaser from "phaser";
 import { item } from "../data/catalog";
 import type { Player } from "../domain/model";
 import { drawPart, drawGear } from "../rendering/characterVisuals";
-import { motionProfiles } from "./motionProfiles";
-import { groundedMotion } from "./groundedMotion";
+import { equipmentMotion } from "./equipmentMotion";
 import { groundedPose, skeleton } from "./kinematics";
 import type { VisualStyle, MotionMode } from "./presentation";
 import { Animator } from "./animation";
@@ -19,6 +18,7 @@ export class Gladiator {
   private physical: boolean;
   private bodyScale: number;
   private shieldMount?: Phaser.GameObjects.Container;
+  private weapons: Phaser.GameObjects.Container[] = [];
   constructor(
     private scene: Phaser.Scene,
     x: number,
@@ -32,9 +32,9 @@ export class Gladiator {
   ) {
     this.physical = motion === "grounded";
     this.bodyScale = scale;
-    this.animator = new Animator(
-      this.physical ? groundedMotion[style] : motionProfiles[style],
-    );
+    const weapon = item(model.equipment.weapon ?? "");
+    const paired = weapon?.occupiesOffhand === true;
+    this.animator = new Animator(equipmentMotion(style, motion, weapon));
     const physical = this.physical;
     this.originX = x;
     this.originY = y;
@@ -124,13 +124,20 @@ export class Gladiator {
       physical ? skeleton.forearm : 35,
       "hand",
     );
-    if (model.equipment.shield) {
+    if (model.equipment.shield && !paired) {
       this.shieldMount = drawGear(
         scene,
         item(model.equipment.shield)?.visual ?? "shield",
         style,
       );
       farHand.add(this.shieldMount);
+    }
+    if (paired) {
+      const offhand = drawGear(scene, weapon!.visual, style).setRotation(
+        Math.PI / 2,
+      );
+      farHand.add(offhand);
+      this.weapons.push(offhand);
     }
     torso.add(
       drawPart(scene, "torso", skin, style).setY(
@@ -200,14 +207,26 @@ export class Gladiator {
       physical ? skeleton.forearm : 35,
       "hand",
     );
-    if (model.equipment.weapon)
-      nearHand.add(
-        drawGear(
-          scene,
-          item(model.equipment.weapon)?.visual ?? "wood",
-          style,
-        ).setRotation(physical ? Math.PI / 2 : Math.PI),
+    if (model.equipment.weapon) {
+      const mainWeapon = drawGear(
+        scene,
+        !physical && model.equipment.weapon === "spear"
+          ? "spear-legacy"
+          : (weapon?.visual ?? "wood"),
+        style,
+      ).setRotation(
+        physical || (weapon?.weaponType === "spear" && weapon.id !== "spear")
+          ? Math.PI / 2
+          : Math.PI,
       );
+      nearHand.add(mainWeapon);
+      this.weapons.push(mainWeapon);
+    }
+    // A tower shield is carried in front of the torso, below the weapon arm.
+    if (model.equipment.shield === "tower" && !paired) {
+      torso.bringToTop(farArm);
+      torso.bringToTop(nearArm);
+    }
     scene.events.once("shutdown", () => this.animator.stop());
   }
   update(delta: number) {
@@ -257,6 +276,11 @@ export class Gladiator {
     };
     return {
       physical: this.physical,
+      shield: Boolean(this.shieldMount),
+      weapons: this.weapons.map((weapon) => {
+        const p = weapon.getWorldTransformMatrix().transformPoint(0, 0);
+        return { x: p.x, y: p.y };
+      }),
       scale: Math.abs(this.root.scaleY),
       near: {
         hip: point("nearThigh"),

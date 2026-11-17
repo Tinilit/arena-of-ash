@@ -1,4 +1,15 @@
 export const en = {
+  previous: "← Previous",
+  nextPage: "Next →",
+  page: "Page",
+  blocked: "Blocked",
+  pairedHint: "Two hands: switch weapon before equipping a shield.",
+  gearKits: {
+    classic: "Gear: Classic kit",
+    spear: "Gear: Spear & tower",
+    glaives: "Gear: Twin glaives",
+    owned: "Gear: Equipped items",
+  },
   motionGrounded: "Motion: Grounded",
   motionLegacy: "Motion: Legacy",
   styleNeutralStatus: "Preview only • Progress unchanged",

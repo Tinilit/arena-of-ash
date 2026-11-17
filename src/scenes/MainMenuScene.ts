@@ -27,13 +27,17 @@ export class MainMenuScene extends BaseScene {
     this.button("studio", 1100, 668, 265, en.studio, () =>
       this.scene.start("StyleStudioScene"),
     );
+    const large =
+      ["spear", "war-spear", "glaives"].includes(
+        this.services.player.equipment.weapon ?? "",
+      ) || this.services.player.equipment.helmet === "viking";
     this.rig = new Gladiator(
       this,
       867,
       548,
       this.services.player,
       false,
-      this.services.motion === "grounded" ? 0.92 : 1.05,
+      large ? 0.82 : this.services.motion === "grounded" ? 0.92 : 1.05,
     );
     label(
       this,

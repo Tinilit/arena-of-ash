@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { extendedGear, extendedGearBounds } from "./extendedGear";
 import type { VisualStyle } from "../characters/presentation";
 import { part, gear, type PartVisual } from "./parts";
 
@@ -278,6 +279,11 @@ export function drawGear(
   id: string,
   style: VisualStyle,
 ): Phaser.GameObjects.Container {
+  if (id === "spear-legacy") id = "spear";
+  else {
+    const extended = extendedGear(scene, id, style);
+    if (extended) return bounded(scene, extended, extendedGearBounds[id]);
+  }
   if (style === "original")
     return bounded(scene, gear(scene, id), equipmentBounds(id));
   const p = palettes[style],
