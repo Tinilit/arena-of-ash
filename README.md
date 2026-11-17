@@ -1,66 +1,56 @@
-# Arena of Ash — M1: Playable Foundation
+# Arena of Ash
 
-An original single-player gladiator RPG built with TypeScript, Phaser **3.90.0**, and Vite. The interface is English. All artwork is procedural; no external assets, accounts, services, or credentials are required.
+An original, single-player, turn-based gladiator RPG built with TypeScript, Phaser **3.90.0**, Vite and procedural artwork. The interface is English. The game uses **Ash Vanguard** artwork and **Grounded** joint mechanics exclusively. There is no style studio, alternate style selector or paired-blade item.
 
 ## Run
 
-Use **Node.js 22 LTS**, npm, and an ordinary landscape desktop browser.
+Use Node.js **22 LTS** and npm:
 
 ```sh
 npm ci
 npm run dev
 ```
 
-The server binds to `0.0.0.0:5173`. Open the locally served application in your browser. The 1280 × 720 canvas scales to fit. Portrait screens display a rotation message.
+The logical canvas is 1280×720 with FIT scaling. Portrait screens display a rotation message. No backend, login, app secrets or external art assets are required.
 
 ```sh
 npm run typecheck
 npm run lint
-npm run test
+npm test
+npm run test:e2e
 npm run build
 npm run preview
 npm run format
 ```
 
-## Browser tests
+Install Playwright Chromium on a standard machine:
 
 ```sh
 PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install --with-deps chromium
-npm run test:e2e
 ```
 
-On this managed cloud machine, a system Chromium is already available; the browser download domain is blocked. Use:
-
-```sh
-export PATH=/workspace/.arena-tools/node_modules/.bin:$PATH
-export CHROMIUM_PATH=/usr/bin/chromium
-npm run test:e2e
-```
-
-Playwright starts Vite automatically when needed. Tests interact with actual canvas controls. They select Canvas rendering for predictable speed on machines without hardware GPU acceleration; normal builds prefer WebGL and fall back to Canvas. A separate test checks default renderer startup. Development-only query parameters `seed=42` and `renderer=canvas` support deterministic tests. `window.__arena.snapshot()` exposes a cloned, read-only snapshot only in development; production builds have no diagnostic API or test controls.
-
-Screenshots are written to `test-results/screenshots/`; failures include screenshots and traces. CI uploads those artifacts. Browser tests cover victory, defeat, purchases, equipment, persistence, keyboard input, scene shutdown, reset confirmation, and viewport scaling.
+On the managed cloud machine, system Chromium is detected automatically. Activate the prepared Node toolchain with `export PATH=/workspace/.arena-tools/node_modules/.bin:$PATH`. An alternative browser executable can be supplied with `CHROMIUM_PATH`. Browser tests start Vite when needed and write screenshots/traces under `test-results/`. Gameplay tests use deterministic seeded Canvas rendering on headless software graphics; a separate test covers the normal renderer. Development-only `seed=42` and `renderer=canvas` query parameters and the read-only `window.__arena.snapshot()` helper are unavailable in production.
 
 ## Play
 
-Enter the arena from camp. Keys **1–4** select Quick Attack, Heavy Attack, Defend, and Recover. Mouse and touch also work. **Escape** returns to camp and abandons the current fight without rewards. Action controls lock during animation and the enemy turn. Recover restores stamina; Defend mitigates the next attack. Victory earns 50 gold and 40 XP; defeat earns 10 of each. Spend gold at the shop, equip owned items, and allocate two attribute points per level in the character screen. Progress saves automatically in localStorage; reset requires confirmation.
+Start from camp, enter the arena, buy equipment and allocate level-up points in Character. Mouse/touch and keys **1–4** select Quick Attack, Heavy Attack, Defend and Recover. **Escape** returns to camp, abandoning an unresolved fight without rewards. Combat inputs lock while an action or enemy turn resolves.
 
-## Scope
+Victory earns 50 gold and 40 XP; defeat earns 10 of each. Every level grants two attribute points. Saves are automatic in localStorage. Reset Progress requires confirmation. There is no special migration for retired catalog items or old appearance preferences.
 
-Six scenes, three increasingly strong opponents, twelve equipment definitions, five attributes, leveling, versioned saves, and modular keyframed character animation. The final enemy repeats. Fight health and stamina reset each battle; unfinished fights are not saved. Placeholder art, no audio, no backend, no mobile app, no production balance pass. Browser saves are local to their origin and device. Browser storage failure falls back to session-only play with a warning. The Phaser bundle is large (~350 KB gzip), reported by Vite as a size warning.
+## Equipment
 
-See [architecture](docs/ARCHITECTURE.md), [animation](docs/ANIMATION_SYSTEM.md), [art contract](docs/ART_PIPELINE.md), [game design](docs/GAME_DESIGN.md), and [roadmap](docs/ROADMAP.md).
+The catalog has **11 items** across weapon, helmet, chest and shield slots. Shop and inventory have page controls. Shop page 2 contains:
 
-## Public playtesting
+- **Ashwood War Spear** — 115 gold, +10 attack; wooden haft, leaf head and thrust animations.
+- **Viking Warhelm** — 60 gold, +3 armor; horned fantasy helmet.
+- **Tower Shield** — 85 gold, +5 armor; tall reinforced shield carried in front of the torso.
 
-[GitHub Pages deployment instructions](docs/DEPLOYMENT.md) describe the one-time repository setting and automatic deployment after validated pushes to `main`. The public build uses `/arena-of-ash/` as its base path. Saves remain in each tester's browser across compatible updates.
+Training Spear also uses a real haft/head design. All original eight catalog definitions remain. See [equipment](docs/EQUIPMENT.md).
 
-## Choose character art and animation
+## Scope and documentation
 
-Open **Style Studio** in camp to compare **Original**, **Bronze Hero**, and **Ash Vanguard**. Preview all animations, toggle demonstration equipment, mirror the figures, and select a style for actual battles. Selection persists independently of game progress. The original graphics and animations are preserved and remain selectable at any time. See [visual variants](docs/VISUAL_VARIANTS.md).
+Six scenes, three opponents, five attributes, leveling, persistent saves and a modular articulated rig. The veteran opponent repeats. Fight HP/stamina reset each battle; unfinished fights are not saved. Artwork remains procedural, balance is basic, and there is no audio or backend. Storage failure permits session-only play with a warning. The Phaser bundle produces a size warning.
 
-The default **Grounded** motion corrects limb proportions, waist pivot, joint flexion, wrist grip and planted-foot stepping. **Motion: Legacy** in Style Studio retains every previous rig/animation option. See [anthropometry and anatomy references](docs/ANTHROPOMETRY.md).
+See [architecture](docs/ARCHITECTURE.md), [animation](docs/ANIMATION_SYSTEM.md), [anatomy and references](docs/ANTHROPOMETRY.md), [art contract](docs/ART_PIPELINE.md), [game design](docs/GAME_DESIGN.md), [roadmap](docs/ROADMAP.md), and [verification](docs/VERIFICATION.md).
 
-## New equipment
-
-Shop page 2 offers **Ashwood War Spear**, **Viking Warhelm**, **Tower Shield**, and **Ashfang Warglaives**. The spear uses a real wooden shaft and thrust attacks; the matched glaives occupy both hands and unequip a shield without deleting it. Shop and inventory now have page controls. Try the new showcase sets without spending gold through **Style Studio → Gear**. See [equipment rules and art](docs/EQUIPMENT.md).
+[GitHub Pages deployment](docs/DEPLOYMENT.md) publishes validated pushes to `main` using `/arena-of-ash/` as the base path. The public site and local development server keep separate browser saves.

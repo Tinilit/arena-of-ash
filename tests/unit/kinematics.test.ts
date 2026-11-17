@@ -9,12 +9,7 @@ import {
   rotate,
   add,
 } from "../../src/characters/kinematics";
-import {
-  visualStyles,
-  parseMotion,
-  loadMotion,
-  saveMotion,
-} from "../../src/characters/presentation";
+import { visualStyles } from "../../src/characters/presentation";
 const distance = (a: { x: number; y: number }, b: { x: number; y: number }) =>
   Math.hypot(a.x - b.x, a.y - b.y);
 describe("anatomical joint mechanics", () => {
@@ -41,13 +36,6 @@ describe("anatomical joint mechanics", () => {
     expect(
       distance(chain(40, 34, elbow.angle, elbow.bend).tip, { x: 50, y: 40 }),
     ).toBeLessThan(1e-8);
-  });
-  it("defaults to corrected motion and keeps explicit legacy preferences", () => {
-    expect(parseMotion(null)).toBe("grounded");
-    expect(parseMotion("corrupted")).toBe("grounded");
-    expect(parseMotion("legacy")).toBe("legacy");
-    expect(loadMotion()).toBe("grounded");
-    expect(saveMotion("legacy")).toBe(false);
   });
   for (const style of visualStyles) {
     for (const name of Object.keys(groundedMotion[style])) {
@@ -97,7 +85,7 @@ describe("anatomical joint mechanics", () => {
   }
   it("keeps the rear sole locked throughout a lunge and return", () => {
     for (const name of ["quick", "heavy"]) {
-      const a = new Animator(groundedMotion.bronze);
+      const a = new Animator(groundedMotion.ash);
       a.play(name);
       for (let i = 0; i < 80; i++) {
         const p = a.update(16);

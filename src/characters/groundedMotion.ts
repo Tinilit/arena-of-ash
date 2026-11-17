@@ -1,7 +1,6 @@
-import { basePose, type Pose, type Clip } from "./animation";
+import { type Pose, type Clip } from "./animation";
 import type { VisualStyle } from "./presentation";
 export const groundedNeutral: Pose = {
-  ...basePose,
   rootX: 0,
   rootY: 0,
   rootR: 0,
@@ -27,10 +26,10 @@ export const groundedNeutral: Pose = {
 };
 const pose = (p: Pose): Pose => ({ ...groundedNeutral, ...p });
 function library(style: VisualStyle): Record<string, Clip> {
-  const heavy = style === "ash";
+  void style;
   return {
     idle: {
-      duration: heavy ? 2400 : 2100,
+      duration: 2400,
       loop: true,
       frames: [
         { time: 0, pose: pose({}) },
@@ -42,7 +41,7 @@ function library(style: VisualStyle): Record<string, Clip> {
       ],
     },
     quick: {
-      duration: heavy ? 650 : 600,
+      duration: 650,
       frames: [
         { time: 0, pose: pose({}) },
         {
@@ -112,7 +111,7 @@ function library(style: VisualStyle): Record<string, Clip> {
       ],
     },
     heavy: {
-      duration: heavy ? 1100 : 1050,
+      duration: 1100,
       frames: [
         { time: 0, pose: pose({}) },
         {
@@ -417,7 +416,5 @@ function library(style: VisualStyle): Record<string, Clip> {
   };
 }
 export const groundedMotion: Record<VisualStyle, Record<string, Clip>> = {
-  original: library("original"),
-  bronze: library("bronze"),
   ash: library("ash"),
 };

@@ -42,19 +42,8 @@ export class ArenaScene extends BaseScene {
       this.rng,
     );
     this.rigs = [
-      new Gladiator(
-        this,
-        this.services.motion === "grounded" ? 490 : 450,
-        533,
-        this.battle.player.model,
-      ),
-      new Gladiator(
-        this,
-        this.services.motion === "grounded" ? 790 : 830,
-        533,
-        this.battle.enemy.model,
-        true,
-      ),
+      new Gladiator(this, 490, 533, this.battle.player.model),
+      new Gladiator(this, 790, 533, this.battle.enemy.model, true),
     ];
     label(this, 44, 83, this.battle.player.model.name, 23);
     label(this, 1235, 83, this.battle.enemy.model.name, 23).setOrigin(1, 0.5);

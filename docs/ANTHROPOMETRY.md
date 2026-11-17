@@ -4,7 +4,7 @@
 
 The prior rig rotated its torso around the upper chest rather than the waist. Both legs used independently keyed angles, including a negative far-knee bend. Feet inherited thigh and shin rotation. Large root translations slid the entire body without a supporting step. The sword was locked along the forearm, without a wrist. These faults were visible even when all health, stamina and animation event tests passed.
 
-The corrected **Grounded** mode is the default for every art style. **Motion: Legacy** in Style Studio restores the complete previous skeleton, attachment angles and original/enhanced clip libraries. No legacy art or clip data has been removed. Art style and motion mode are independent preferences; the player save schema is unchanged.
+The game uses the corrected Grounded rig and Ash Vanguard artwork exclusively. Alternate styles, legacy-motion selection and the studio have been removed. The player save schema remains unchanged.
 
 ## References consulted
 
@@ -44,12 +44,12 @@ The sword mount is perpendicular to a neutral forearm grip, with the hand/wrist 
 
 ## State, tests and visual review
 
-`arena-of-ash.motion.v1` stores `grounded` or `legacy`, independently of `arena-of-ash.presentation.v1` and the player's save. Missing/invalid values select Grounded; failed storage permits session-only selection.
+Appearance and motion are fixed, not loaded from old preference keys. There is no settings migration.
 
-Unit tests sample every grounded clip for every art style: segment lengths, joint limits, reachable planted targets, rear-foot stability, finite transforms, and single impact/completion events. Browser tests measure the actual Phaser hip/knee/ankle/shoulder/elbow/hand transforms, verify level heel/toe points in both facing directions, track the planted rear foot through an entire heavy attack, and verify a real front-foot lift. They also test Legacy persistence and restoration without changing progression. These checks run in the arena, where the studio's automatic preview framing cannot conceal sliding.
+Unit tests sample every grounded clip for Ash Vanguard: segment lengths, joint limits, reachable planted targets, rear-foot stability, finite transforms, and single impact/completion events. Browser tests measure the actual Phaser hip/knee/ankle/shoulder/elbow/hand transforms, verify level heel/toe points in both facing directions, track the planted rear foot through an entire heavy attack, and verify a real front-foot lift. They also verify that old appearance preferences cannot re-enable removed styles. These checks run in the arena, where preview framing cannot conceal sliding.
 
-Review artifacts include `anatomy-idle.png`, `anatomy-heavy-2.png`, `anatomy-heavy-5.png`, `anatomy-heavy-8.png`, `anatomy-heavy-12.png`, `anatomy-legacy.png`, and `anatomy-mirrored.png` in `test-results/screenshots/`, alongside the normal full-battle and style screenshots.
+Review artifacts include `arena.png`, `anatomy-heavy-2.png`, `anatomy-heavy-5.png`, `anatomy-heavy-8.png`, `new-equipment-character.png` and `new-equipment-arena.png` in `test-results/screenshots/`, alongside the normal full-battle screenshots.
 
-A further sampled check transforms the sword/spear blade centerline into the moving head's frame and tests it against the central facial region. The longest catalog blade is checked every 8 ms for every clip/style. Heavy wind-up and victory now lift the hilt outside the face before drawing the weapon overhead; a separate forward keyframe precedes the cut. This supplements joint-limit tests, which alone cannot detect a weapon passing through a face. It is a presentation clearance check, not gameplay collision detection.
+A further sampled check transforms the sword/spear blade centerline into the moving head's frame and tests it against the central facial region. The longest catalog blade is checked every 8 ms for every Ash clip. Heavy wind-up and victory now lift the hilt outside the face before drawing the weapon overhead; a separate forward keyframe precedes the cut. This supplements joint-limit tests, which alone cannot detect a weapon passing through a face. It is a presentation clearance check, not gameplay collision detection.
 
 Released feet also have a heel/toe floor constraint during the fall. Any interpolated sole penetration translates the already-solved assembly upward without changing bone lengths or feeding the correction back into the IK solution. The held collapse uses folded legs and a raised root so the corpse remains on the sand rather than extending into the action controls. Sampled tests cover both sole endpoints throughout this transition.

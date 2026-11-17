@@ -5,7 +5,6 @@ import { ArenaScene } from "../scenes/ArenaScene";
 import { CharacterScene } from "../scenes/CharacterScene";
 import { ShopScene } from "../scenes/ShopScene";
 import { ResultScene } from "../scenes/ResultScene";
-import { StyleStudioScene } from "../scenes/StyleStudioScene";
 export const config: Phaser.Types.Core.GameConfig = {
   type:
     import.meta.env.DEV &&
@@ -25,7 +24,6 @@ export const config: Phaser.Types.Core.GameConfig = {
     CharacterScene,
     ShopScene,
     ResultScene,
-    StyleStudioScene,
   ],
   render: { antialias: true },
 };

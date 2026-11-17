@@ -1,9 +1,7 @@
 import { item, enemies, rewards } from "../data/catalog";
 import type { Player, Slot, Attribute } from "./model";
 export function stats(p: Player) {
-  const gear = Object.entries(p.equipment)
-    .filter(([slot]) => slot !== "shield" || !isPairedWeapon(p))
-    .map(([, id]) => item(id!));
+  const gear = Object.values(p.equipment).map((id) => item(id!));
   return {
     hp: 60 + p.attributes.vitality * 4,
     stamina: 50 + p.attributes.endurance * 5,
@@ -22,22 +20,13 @@ export function purchase(p: Player, id: string) {
   p.inventory.push(id);
   return true;
 }
-export function isPairedWeapon(p: Player) {
-  return item(p.equipment.weapon ?? "")?.occupiesOffhand === true;
-}
 export function canEquip(p: Player, id: string, slot: Slot) {
   const i = item(id);
-  return Boolean(
-    i &&
-    i.slot === slot &&
-    p.inventory.includes(id) &&
-    !(slot === "shield" && isPairedWeapon(p)),
-  );
+  return Boolean(i && i.slot === slot && p.inventory.includes(id));
 }
 export function equip(p: Player, id: string, slot: Slot) {
   const i = item(id);
   if (!i || !canEquip(p, id, slot)) return false;
-  if (i.occupiesOffhand) delete p.equipment.shield;
   p.equipment[slot] = id;
   return true;
 }

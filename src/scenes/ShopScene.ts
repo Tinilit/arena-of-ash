@@ -18,16 +18,7 @@ export class ShopScene extends BaseScene {
       const x = 42 + (i % 2) * 626,
         y = 192 + Math.floor(i / 2) * 108;
       panel(this, x + 285, y + 20, 570, 96);
-      const visual = it.occupiesOffhand
-          ? this.add.container(0, 0, [
-              drawGear(this, it.visual, this.services.style)
-                .setPosition(-16, 0)
-                .setAngle(-12),
-              drawGear(this, it.visual, this.services.style)
-                .setPosition(16, 0)
-                .setAngle(12),
-            ])
-          : drawGear(this, it.visual, this.services.style),
+      const visual = drawGear(this, it.visual),
         b = visual.getBounds(),
         scale = Math.min(58 / b.width, 74 / b.height);
       visual

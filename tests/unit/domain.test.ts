@@ -20,7 +20,9 @@ import {
 import { decide } from "../../src/combat/ai";
 import { serialize, deserialize, SaveStore } from "../../src/persistence/save";
 import { seeded } from "../../src/utils/random";
-import { Animator, clips } from "../../src/characters/animation";
+import { Animator } from "../../src/characters/animation";
+import { groundedMotion } from "../../src/characters/groundedMotion";
+const clips = groundedMotion.ash;
 const make = () =>
   new Battle(createPlayer(), opponent(createPlayer()), () => 0.4);
 describe("character and equipment", () => {
@@ -246,7 +248,7 @@ describe("progression and persistence", () => {
 });
 describe("animation lifecycle", () => {
   it("emits one impact despite repeated updates", () => {
-    const a = new Animator();
+    const a = new Animator(clips);
     let hits = 0,
       done = 0;
     a.play(
@@ -259,7 +261,7 @@ describe("animation lifecycle", () => {
     expect(done).toBe(1);
   });
   it("stops callbacks on shutdown or interruption", () => {
-    const a = new Animator();
+    const a = new Animator(clips);
     let hits = 0;
     a.play("heavy", () => hits++);
     a.stop();
@@ -271,7 +273,7 @@ describe("animation lifecycle", () => {
     expect(hits).toBe(0);
   });
   it("supports repeated attacks followed by defend", () => {
-    const a = new Animator();
+    const a = new Animator(clips);
     let hits = 0;
     for (const clip of ["quick", "quick", "heavy", "defend"]) {
       a.play(clip, () => hits++);
@@ -280,7 +282,7 @@ describe("animation lifecycle", () => {
     expect(hits).toBe(4);
   });
   it("holds defeated pose", () => {
-    const a = new Animator();
+    const a = new Animator(clips);
     a.play("death");
     const final = a.update(clips.death.duration);
     expect(a.update(1000)).toEqual(final);

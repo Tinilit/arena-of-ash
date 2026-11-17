@@ -105,18 +105,6 @@ export const items: Item[] = [
     visual: "tower",
     description: "Tall wooden boards with iron reinforcement.",
   },
-  {
-    id: "glaives",
-    name: "Ashfang Warglaives",
-    slot: "weapon",
-    price: 160,
-    attack: 14,
-    armor: 0,
-    visual: "glaives",
-    weaponType: "glaives",
-    occupiesOffhand: true,
-    description: "Twin crescent blades. Unequips your shield.",
-  },
 ];
 export const item = (id: string) => items.find((i) => i.id === id);
 export const enemies = [

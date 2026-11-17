@@ -1,6 +1,4 @@
 import Phaser from "phaser";
-import { glaiveOutline } from "../data/gearGeometry";
-import type { VisualStyle } from "../characters/presentation";
 export const extendedGearBounds: Record<
   string,
   [number, number, number, number]
@@ -9,19 +7,14 @@ export const extendedGearBounds: Record<
   "war-spear": [-19, -154, 38, 244],
   viking: [-60, -83, 120, 104],
   tower: [-42, -71, 84, 169],
-  glaives: [-14, -90, 86, 180],
 };
-export function extendedGear(
-  scene: Phaser.Scene,
-  id: string,
-  style: VisualStyle,
-) {
+export function extendedGear(scene: Phaser.Scene, id: string) {
   if (!extendedGearBounds[id]) return null;
   const g = scene.add.graphics();
   const ink = 0x232a2c,
-    metal = style === "bronze" ? 0xc39c58 : 0x9cb6bd,
+    metal = 0x9cb6bd,
     light = 0xe2e8d7,
-    trim = style === "ash" ? 0x8daaba : 0xd6b46d;
+    trim = 0x8daaba;
   g.lineStyle(2, ink);
   const polygon = (points: { x: number; y: number }[], color: number) => {
     g.fillStyle(color);
@@ -142,7 +135,7 @@ export function extendedGear(
     );
     g.lineStyle(1.5, 0xba8c57);
     for (const x of [-17, -5, 7, 19]) g.lineBetween(x, -54, x, 79);
-    g.fillStyle(style === "ash" ? 0x354e60 : 0x8d3f35);
+    g.fillStyle(0x354e60);
     g.fillRect(-11, -56, 22, 138);
     g.lineStyle(4, metal);
     g.lineBetween(-29, -22, 29, -22);
@@ -156,68 +149,6 @@ export function extendedGear(
         g.fillStyle(light);
         g.fillCircle(x, y, 2.5);
       }
-  } else {
-    // Original twin crescent silhouette: two hooks around a central hand grip.
-    g.lineStyle(2.5, ink);
-    polygon(glaiveOutline, 0x3f695c);
-    polygon(
-      [
-        { x: 3, y: -85 },
-        { x: 34, y: -70 },
-        { x: 57, y: -38 },
-        { x: 66, y: 0 },
-        { x: 52, y: -13 },
-        { x: 43, y: -40 },
-        { x: 27, y: -63 },
-      ],
-      0x9fe78d,
-    );
-    polygon(
-      [
-        { x: 66, y: 0 },
-        { x: 57, y: 38 },
-        { x: 34, y: 70 },
-        { x: 3, y: 85 },
-        { x: 27, y: 63 },
-        { x: 43, y: 40 },
-        { x: 52, y: 13 },
-      ],
-      0x71c99a,
-    );
-    g.lineStyle(2, 0xc8f7a0);
-    g.lineBetween(29, -62, 46, -37);
-    g.lineBetween(46, 37, 29, 62);
-    polygon(
-      [
-        { x: -7, y: -12 },
-        { x: 37, y: -22 },
-        { x: 43, y: -10 },
-        { x: 9, y: 7 },
-      ],
-      0x657780,
-    );
-    polygon(
-      [
-        { x: -7, y: 12 },
-        { x: 37, y: 22 },
-        { x: 43, y: 10 },
-        { x: 9, y: -7 },
-      ],
-      metal,
-    );
-    g.fillStyle(0x2b2831);
-    g.fillRoundedRect(-6, -18, 12, 36, 3);
-    g.strokeRoundedRect(-6, -18, 12, 36, 3);
-    g.lineStyle(1, trim);
-    for (let y = -12; y < 16; y += 6) g.lineBetween(-4, y, 4, y + 2);
-    g.fillStyle(0x315e43);
-    g.fillCircle(37, 0, 12);
-    g.lineStyle(2, trim);
-    g.strokeCircle(37, 0, 12);
-    g.fillStyle(0xb1f58b);
-    g.fillTriangle(32, 0, 38, -7, 43, 0);
-    g.fillStyle(0x64c588);
-    g.fillTriangle(32, 0, 43, 0, 38, 8);
   }
   return g;
 }

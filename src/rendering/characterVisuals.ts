@@ -1,7 +1,6 @@
 import Phaser from "phaser";
 import { extendedGear, extendedGearBounds } from "./extendedGear";
-import type { VisualStyle } from "../characters/presentation";
-import { part, gear, type PartVisual } from "./parts";
+type PartVisual = Phaser.GameObjects.Graphics | Phaser.GameObjects.Image;
 
 // Graphics has no geometry bounds in Phaser. A non-rendering Zone supplies a
 // conservative local art envelope for framing articulated preview poses.
@@ -39,34 +38,20 @@ interface Palette {
   trim: number;
   cloth: number;
 }
-const palettes: Record<Exclude<VisualStyle, "original">, Palette> = {
-  bronze: {
-    ink: 0x392724,
-    shade: 0x985c40,
-    light: 0xefbd87,
-    metal: 0xc19652,
-    trim: 0xf2d292,
-    cloth: 0x98513f,
-  },
-  ash: {
-    ink: 0x202c34,
-    shade: 0x805e51,
-    light: 0xd7af8c,
-    metal: 0x758d99,
-    trim: 0xc3d1ce,
-    cloth: 0x3d5968,
-  },
+const palette: Palette = {
+  ink: 0x202c34,
+  shade: 0x805e51,
+  light: 0xd7af8c,
+  metal: 0x758d99,
+  trim: 0xc3d1ce,
+  cloth: 0x3d5968,
 };
 export function drawPart(
   scene: Phaser.Scene,
   kind: string,
   color: number,
-  style: VisualStyle,
 ): Phaser.GameObjects.Container {
-  if (style === "original")
-    return bounded(scene, part(scene, kind, color), bodyBounds[kind]);
-  const p = palettes[style],
-    heroic = style === "bronze";
+  const p = palette;
   const g = scene.add.graphics();
   g.lineStyle(2.5, p.ink, 1);
   g.fillStyle(color);
@@ -117,24 +102,9 @@ export function drawPart(
     g.fillCircle(20, -12, 2.5);
     g.lineStyle(2, p.ink);
     g.lineBetween(17, 5, 25, 4);
-    if (heroic) {
-      g.fillStyle(p.ink, 0.8);
-      g.fillPoints(
-        [
-          { x: -6, y: 6 },
-          { x: 4, y: 13 },
-          { x: 21, y: 11 },
-          { x: 16, y: 20 },
-          { x: 1, y: 22 },
-          { x: -8, y: 15 },
-        ],
-        true,
-      );
-    } else {
-      g.lineStyle(1.5, 0xa65f51);
-      g.lineBetween(9, -8, 14, 1);
-      g.lineBetween(11, -7, 8, -4);
-    }
+    g.lineStyle(1.5, 0xa65f51);
+    g.lineBetween(9, -8, 14, 1);
+    g.lineBetween(11, -7, 8, -4);
   } else if (kind === "torso") {
     shape([
       { x: -27, y: 0 },
@@ -229,15 +199,7 @@ export function drawPart(
     const len =
       kind === "thigh" ? 48 : kind === "shin" ? 46 : kind === "upper" ? 41 : 37;
     const width =
-      kind === "thigh"
-        ? 29
-        : kind === "upper"
-          ? heroic
-            ? 25
-            : 22
-          : kind === "shin"
-            ? 21
-            : 20;
+      kind === "thigh" ? 29 : kind === "upper" ? 22 : kind === "shin" ? 21 : 20;
     g.fillRoundedRect(-width / 2, -6, width, len + 12, width / 2);
     g.strokeRoundedRect(-width / 2, -6, width, len + 12, width / 2);
     g.fillStyle(p.shade, 0.4);
@@ -277,16 +239,10 @@ export function drawPart(
 export function drawGear(
   scene: Phaser.Scene,
   id: string,
-  style: VisualStyle,
 ): Phaser.GameObjects.Container {
-  if (id === "spear-legacy") id = "spear";
-  else {
-    const extended = extendedGear(scene, id, style);
-    if (extended) return bounded(scene, extended, extendedGearBounds[id]);
-  }
-  if (style === "original")
-    return bounded(scene, gear(scene, id), equipmentBounds(id));
-  const p = palettes[style],
+  const extended = extendedGear(scene, id);
+  if (extended) return bounded(scene, extended, extendedGearBounds[id]);
+  const p = palette,
     g = scene.add.graphics();
   g.lineStyle(2.5, p.ink);
   if (id === "shield") {

@@ -10,192 +10,19 @@ export interface Clip {
   loop?: boolean;
   hold?: boolean;
 }
-const neutral: Pose = {
-  rootX: 0,
-  rootY: 0,
-  rootR: 0,
-  torso: 0,
-  head: 0,
-  nearArm: -0.25,
-  nearElbow: -0.55,
-  farArm: 0.2,
-  farElbow: -0.45,
-  nearThigh: -0.18,
-  farThigh: 0.22,
-  nearShin: 0.15,
-  farShin: -0.15,
-};
-export const basePose = neutral;
-export const clips: Record<string, Clip> = {
-  idle: {
-    duration: 1800,
-    loop: true,
-    frames: [
-      { time: 0, pose: neutral },
-      {
-        time: 0.5,
-        pose: { ...neutral, rootY: -3, torso: 0.025, nearArm: -0.2 },
-      },
-      { time: 1, pose: neutral },
-    ],
-  },
-  quick: {
-    duration: 600,
-    frames: [
-      { time: 0, pose: neutral },
-      {
-        time: 0.25,
-        pose: { ...neutral, torso: -0.13, nearArm: 1.2, nearElbow: -1 },
-      },
-      {
-        time: 0.48,
-        impact: true,
-        pose: {
-          ...neutral,
-          rootX: 140,
-          torso: 0.2,
-          nearArm: -1.35,
-          nearElbow: -0.2,
-        },
-      },
-      { time: 1, pose: neutral },
-    ],
-  },
-  heavy: {
-    duration: 1000,
-    frames: [
-      { time: 0, pose: neutral },
-      {
-        time: 0.45,
-        pose: {
-          ...neutral,
-          rootY: 6,
-          torso: -0.2,
-          nearArm: 2.6,
-          nearElbow: -0.2,
-          nearThigh: -0.35,
-        },
-      },
-      {
-        time: 0.65,
-        impact: true,
-        pose: {
-          ...neutral,
-          rootX: 160,
-          torso: 0.32,
-          nearArm: -1.7,
-          nearElbow: 0,
-        },
-      },
-      { time: 1, pose: neutral },
-    ],
-  },
-  defend: {
-    duration: 500,
-    frames: [
-      { time: 0, pose: neutral },
-      {
-        time: 0.45,
-        impact: true,
-        pose: {
-          ...neutral,
-          farArm: -0.9,
-          farElbow: -0.8,
-          torso: -0.08,
-          rootY: 5,
-        },
-      },
-      { time: 1, pose: neutral },
-    ],
-  },
-  recover: {
-    duration: 650,
-    frames: [
-      { time: 0, pose: neutral },
-      {
-        time: 0.5,
-        impact: true,
-        pose: { ...neutral, rootY: 8, head: 0.12, nearArm: 0.15 },
-      },
-      { time: 1, pose: neutral },
-    ],
-  },
-  hit: {
-    duration: 350,
-    frames: [
-      { time: 0, pose: neutral },
-      {
-        time: 0.25,
-        pose: { ...neutral, rootX: -17, torso: -0.22, head: -0.3 },
-      },
-      { time: 1, pose: neutral },
-    ],
-  },
-  death: {
-    duration: 950,
-    hold: true,
-    frames: [
-      { time: 0, pose: neutral },
-      {
-        time: 0.45,
-        pose: {
-          ...neutral,
-          rootY: 20,
-          torso: -0.3,
-          nearThigh: -0.7,
-          farThigh: 0.7,
-        },
-      },
-      {
-        time: 1,
-        pose: {
-          ...neutral,
-          rootY: 23,
-          rootR: -1.45,
-          nearArm: 0.8,
-          nearElbow: 0.3,
-          nearThigh: -0.4,
-          nearShin: 1,
-        },
-      },
-    ],
-  },
-  victory: {
-    duration: 1200,
-    hold: true,
-    frames: [
-      { time: 0, pose: neutral },
-      {
-        time: 0.6,
-        pose: {
-          ...neutral,
-          nearArm: 2.9,
-          nearElbow: -0.25,
-          farArm: -0.8,
-          head: -0.08,
-          rootY: -5,
-        },
-      },
-      {
-        time: 1,
-        pose: { ...neutral, nearArm: 2.8, nearElbow: -0.25, farArm: -0.6 },
-      },
-    ],
-  },
-};
 export class Animator {
   private elapsed = 0;
-  private clip: Clip = clips.idle;
+  private clip: Clip;
   private fired = false;
   private onImpact?: () => void;
   private onComplete?: () => void;
   private stopped = false;
-  private current: Pose = { ...neutral };
+  private current: Pose;
   private rest: Pose;
   private poseKeys: string[];
-  constructor(private library: Record<string, Clip> = clips) {
+  constructor(private library: Record<string, Clip>) {
     this.clip = library.idle;
-    this.rest = { ...neutral, ...library.idle.frames[0].pose };
+    this.rest = { ...library.idle.frames[0].pose };
     this.current = { ...this.rest };
     this.poseKeys = [
       ...new Set(

@@ -7,7 +7,6 @@ import {
   allocate,
   equip,
   canEquip,
-  isPairedWeapon,
   stats,
   threshold,
 } from "../domain/progression";
@@ -23,18 +22,11 @@ export class CharacterScene extends BaseScene {
     const pages = Math.max(1, Math.ceil(p.inventory.length / 8)),
       page = Math.max(0, Math.min(data.page ?? 0, pages - 1));
     const large =
-      ["spear", "war-spear", "glaives"].includes(p.equipment.weapon ?? "") ||
+      ["spear", "war-spear"].includes(p.equipment.weapon ?? "") ||
       p.equipment.helmet === "viking";
     panel(this, 268, 352, 460, 400);
     panel(this, 880, 368, 678, 432);
-    this.rig = new Gladiator(
-      this,
-      255,
-      432,
-      p,
-      false,
-      large ? 0.74 : this.services.motion === "grounded" ? 0.82 : 0.9,
-    );
+    this.rig = new Gladiator(this, 255, 432, p, false, large ? 0.74 : 0.82);
     label(this, 70, 183, `${p.name} • ${en.level} ${p.level}`, 25);
     const xp = new ProgressBar(this, 70, 468, 390, colors.gold);
     xp.update(p.xp, threshold(p.level));
@@ -96,7 +88,6 @@ export class CharacterScene extends BaseScene {
         19,
       );
     });
-    if (isPairedWeapon(p)) label(this, 568, 570, en.pairedHint, 14);
     this.button(
       "inventory-prev",
       941,

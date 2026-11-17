@@ -24,11 +24,8 @@ export class MainMenuScene extends BaseScene {
       this.scene.start("ShopScene"),
     );
     this.button("reset", 350, 501, 350, en.reset, () => this.confirmReset());
-    this.button("studio", 1100, 668, 265, en.studio, () =>
-      this.scene.start("StyleStudioScene"),
-    );
     const large =
-      ["spear", "war-spear", "glaives"].includes(
+      ["spear", "war-spear"].includes(
         this.services.player.equipment.weapon ?? "",
       ) || this.services.player.equipment.helmet === "viking";
     this.rig = new Gladiator(
@@ -37,7 +34,7 @@ export class MainMenuScene extends BaseScene {
       548,
       this.services.player,
       false,
-      large ? 0.82 : this.services.motion === "grounded" ? 0.92 : 1.05,
+      large ? 0.82 : 0.92,
     );
     label(
       this,
@@ -48,7 +45,7 @@ export class MainMenuScene extends BaseScene {
     ).setOrigin(0.5);
     label(
       this,
-      555,
+      640,
       668,
       `${en.next}: ${opponent(this.services.player).name}`,
       21,
