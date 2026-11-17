@@ -70,13 +70,15 @@ export class Gladiator {
       "upper",
     );
     const farElbow = joint("farElbow", farArm, 0, skeleton.upperArm, "forearm");
-    const farHand = joint("farHand", farElbow, 0, skeleton.forearm, "hand");
+    joint("farHand", farElbow, 0, skeleton.forearm, "hand");
     if (model.equipment.shield) {
       this.shieldMount = drawGear(
         scene,
         item(model.equipment.shield) ?? "shield",
       );
-      farHand.add(this.shieldMount);
+      // Container children render as a subtree: a shield inside the arm cannot
+      // sit behind the legs. Keep its drawing below the entire body instead.
+      this.root.addAt(this.shieldMount, 0);
     }
     torso.add(drawPart(scene, "torso", skin).setY(skeleton.torsoArtY));
     if (model.equipment.chest)
@@ -118,11 +120,8 @@ export class Gladiator {
       nearHand.add(mounted);
       this.weapons.push(mounted);
     }
-    if (item(model.equipment.shield ?? "")?.visual === "tower") {
-      torso.bringToTop(farArm);
-      torso.bringToTop(nearArm);
-    }
     scene.events.once("shutdown", () => this.animator.stop());
+    this.update(0);
   }
   update(delta: number) {
     const p = this.animator.update(delta),
@@ -139,17 +138,21 @@ export class Gladiator {
       this.joints[`${side}Elbow`].rotation = arm.bend;
       this.joints[`${side}Hand`].rotation = arm.wrist;
     }
-    if (this.shieldMount)
-      this.shieldMount.rotation = -(
-        solved.torso +
-        solved.farArm.angle +
-        solved.farArm.bend +
-        solved.farArm.wrist
-      );
     this.root.x =
       this.originX + solved.root.x * this.bodyScale * this.direction;
     this.root.y = this.originY + solved.root.y * this.bodyScale;
     this.root.rotation = solved.root.rotation * this.direction;
+    if (this.shieldMount) {
+      // Copy the actual hand attachment into root space after posing the rig.
+      // This preserves grip, mirror/scale and fall rotation without arm layering.
+      const hand = this.joints.farHand
+        .getWorldTransformMatrix()
+        .transformPoint(0, 0);
+      const local = this.root
+        .getWorldTransformMatrix()
+        .applyInverse(hand.x, hand.y);
+      this.shieldMount.setPosition(local.x, local.y);
+    }
     this.shadow.x = this.root.x;
   }
   jointSnapshot() {
@@ -162,6 +165,15 @@ export class Gladiator {
     return {
       physical: true,
       shield: Boolean(this.shieldMount),
+      shieldAttachment: this.shieldMount
+        ? {
+            ...this.shieldMount.getWorldTransformMatrix().transformPoint(0, 0),
+            behindBody:
+              this.shieldMount.parentContainer === this.root &&
+              this.root.getIndex(this.shieldMount) <
+                this.root.getIndex(this.joints.pelvis),
+          }
+        : null,
       weapons: this.weapons.map((weapon) => {
         const p = weapon.getWorldTransformMatrix().transformPoint(0, 0);
         return { x: p.x, y: p.y, texture: weapon.name || null };

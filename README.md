@@ -44,7 +44,7 @@ The catalog has **11 items** across weapon, helmet, chest and shield slots. Shop
 
 - **Ashwood War Spear** — 115 gold, +10 attack; wooden haft, leaf head and thrust animations.
 - **Viking Warhelm** — 60 gold, +3 armor; horned fantasy helmet.
-- **Tower Shield** — 85 gold, +5 armor; tall reinforced shield carried in front of the torso.
+- **Tower Shield** — 85 gold, +5 armor; tall reinforced shield drawn behind the body and attached to the far hand.
 
 Training Spear also uses a real haft/head design. All original eight catalog definitions remain. See [equipment](docs/EQUIPMENT.md).
 

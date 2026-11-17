@@ -8,9 +8,9 @@ Name parts `body/torso.png`, `body/head.png`, `body/near-upper-arm.png`, `body/n
 
 Supply metadata in logical pixels: `{texture, logicalWidth, logicalHeight, pivot:{x,y}, attachments:{...}}`. Shoulder/elbow/hip/knee pivots begin each limb; the distal joint must match the documented 40/34 arm and 54/52 leg lengths. The torso drawing sits 76 units above the waist joint; head origin is (0,-84) relative to waist. See [anatomy](ANTHROPOMETRY.md).
 
-A weapon's local grip is (0,0), with its blade toward negative Y. The hand mount rotates it by π/2, with separate wrist rotation. Shield artwork centers on its grip and is counter-rotated upright; helmet aligns to the head. Author parts facing +X; root mirroring handles the opponent. Do not duplicate mirrored assets or bake text into them.
+A weapon's local grip is (0,0), with its blade toward negative Y. The hand mount rotates it by π/2, with separate wrist rotation. Shield artwork centers on its grip and stays upright in the character root frame; helmet aligns to the head. Author parts facing +X; root mirroring handles the opponent. Do not duplicate mirrored assets or bake text into them.
 
-The adapters return containers with visuals and non-rendering local bounds Zones. Texture-backed images can replace the procedural drawing while preserving the bounds/pivots. Graphics alone do not supply geometry bounds in Phaser. Layer far limbs behind torso, then chest/head/helmet, near limbs and weapon; place the tower-shield arm above the torso below the weapon arm. Preload required textures in BootScene and keep procedural fallback for missing keys. Combat rules, AI, progression and saves must remain unchanged when art is replaced.
+The adapters return containers with visuals and non-rendering local bounds Zones. Texture-backed images can replace the procedural drawing while preserving the bounds/pivots. Graphics alone do not supply geometry bounds in Phaser. Layer far limbs behind torso, then chest/head/helmet, near limbs and weapon; keep shield artwork in the first root child, behind the entire body, with its grip following the far hand. See [render order](RENDER_ORDER.md). Preload required textures in BootScene and keep procedural fallback for missing keys. Combat rules, AI, progression and saves must remain unchanged when art is replaced.
 
 ## Runtime item images
 

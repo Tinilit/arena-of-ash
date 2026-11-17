@@ -40,7 +40,7 @@ Targets outside a limb's reachable annulus are clamped instead of stretching a b
 
 Ankle targets live in the initial floor frame. Inverse root transformation removes body translation and rotation before solving the two leg chains. Ankle rotation counters thigh, knee and root rotation, keeping the sole level. Idle breathing therefore does not lift the feet. The rear foot stays planted throughout quick/heavy attacks; the front foot lifts, advances, lands before impact, and steps back during recovery. Smaller root travel and a closer fighting distance replace the old large body slide. The fall gradually releases foot support before using constrained folded-leg poses; a collapsed fighter is no longer treated as a standing support chain.
 
-The sword mount is perpendicular to a neutral forearm grip, with the hand/wrist supplying the additional cut angle. A carried shield counter-rotates relative to the forearm to remain upright during guard. Both stay attached to their hands.
+The sword mount is perpendicular to a neutral forearm grip, with the hand/wrist supplying the additional cut angle. A carried shield uses the character root frame to remain upright during guard; its separate rear drawing follows the actual far-hand transform. Both stay attached to their hands.
 
 ## State, tests and visual review
 

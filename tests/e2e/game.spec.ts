@@ -20,6 +20,7 @@ interface Rig {
   physical: boolean;
   scale: number;
   shield: boolean;
+  shieldAttachment: (Point & { behindBody: boolean }) | null;
   weapons: (Point & { texture: string | null })[];
   near: Limb;
   far: Limb;
@@ -526,4 +527,85 @@ test("invalid external data and undecodable image files keep the game playable",
   await expect
     .poll(async () => (await snapshot(page)).battle?.enemy.hp)
     .toBe(66);
+});
+
+test("tower shields stay behind the entire body and attached to both facing hands", async ({
+  page,
+}) => {
+  // The veteran uses the shield definition; give it tower artwork to cover the
+  // mirrored rig as well as the player's normal tower item.
+  const content = structuredClone(bundled);
+  content.items.find((i) => i.id === "shield")!.visual = "tower";
+  await page.route("**/content/items.json?_=*", (route) =>
+    route.fulfill({ json: content }),
+  );
+  await launch(page);
+  const player = (await snapshot(page)).player;
+  player.progress = 2;
+  player.inventory = ["wood", "war-spear", "plate", "viking", "tower"];
+  player.equipment = {
+    weapon: "war-spear",
+    chest: "plate",
+    helmet: "viking",
+    shield: "tower",
+  };
+  await page.evaluate(
+    (p) =>
+      localStorage.setItem(
+        "arena-of-ash.v1",
+        JSON.stringify({ version: 1, player: p }),
+      ),
+    player,
+  );
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  await click(page, "character");
+  await scene(page, "CharacterScene");
+  await shot(page, "tower-shield-character");
+  await click(page, "back");
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  await shot(page, "tower-shield-both-facing");
+  await click(page, "heavy");
+  const samples = await page.evaluate(
+    () =>
+      new Promise<Rig[][]>((resolve) => {
+        const snapshots: Rig[][] = [],
+          end = performance.now() + 2300;
+        const sample = () => {
+          snapshots.push(
+            (
+              window as unknown as { __arena: { snapshot: () => Snapshot } }
+            ).__arena.snapshot().rigs!,
+          );
+          if (performance.now() < end) requestAnimationFrame(sample);
+          else resolve(snapshots);
+        };
+        requestAnimationFrame(sample);
+      }),
+  );
+  for (const rigs of samples)
+    for (const rig of rigs) {
+      expect(rig.shieldAttachment?.behindBody).toBe(true);
+      expect(
+        Math.hypot(
+          rig.shieldAttachment!.x - rig.far.hand.x,
+          rig.shieldAttachment!.y - rig.far.hand.y,
+        ),
+      ).toBeLessThan(0.02);
+    }
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.state, { timeout: 15000 })
+    .toBe("PlayerTurn");
+  await click(page, "defend");
+  await shot(page, "tower-shield-guard");
+  for (const rig of (await snapshot(page)).rigs!) {
+    expect(rig.shieldAttachment?.behindBody).toBe(true);
+    expect(
+      Math.hypot(
+        rig.shieldAttachment!.x - rig.far.hand.x,
+        rig.shieldAttachment!.y - rig.far.hand.y,
+      ),
+    ).toBeLessThan(0.02);
+  }
 });
