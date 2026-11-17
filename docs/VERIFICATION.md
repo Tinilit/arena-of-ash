@@ -23,3 +23,15 @@ Screenshots are generated under `test-results/screenshots/`: `menu.png`, `arena.
 The managed network blocks the Playwright download CDN; the installed system Chromium works through the configured fallback. No additional network domains or credentials are required for this current environment. Standard CI uses Playwright's normal Chromium installation.
 
 The environment draft contains tested `install_script` and `start_skill` fields. Saving a draft does not publish the environment or prove restoration in a new task. The initial remote repository had no commits; this implementation is committed locally and is not pushed. Push the local commit to GitHub before depending on a fresh remote checkout. Local-only commit restoration has not been validated.
+
+## Visual variants update — 2026-11-17
+
+The earlier M1 handoff above predates the GitHub Pages setup, which subsequently pushed the implementation to GitHub. The visual-variants update adds Original / Bronze Hero / Ash Vanguard without removing the original art or clip data.
+
+Current local checks: strict type checking passed; lint passed; **74 unit tests passed** (43 domain/lifecycle tests plus 31 profile/preference tests); **9 browser tests passed**. The Pages production build passed with `/arena-of-ash/` as its base path. The existing large-bundle warning remains (~354 KB gzip). Screenshots of the three-way comparison, unarmored variants, mirrored poses, heavy wind-up, held death/victory, both new arena styles and killing blows were visually inspected. Browser checks assert no console or uncaught runtime errors, unchanged progression during style selection, persisted selection, restoration of Original, single reward payout and preview bounds clear of UI controls.
+
+New screenshot artifacts include `style-comparison.png`, `style-unarmored.png`, `style-heavy.png`, `style-death.png`, `style-victory.png`, `style-mirrored.png`, `bronze-arena.png`, `ash-arena.png`, `bronze-death-arena.png`, and `ash-death-arena.png` under `test-results/screenshots/`.
+
+This environment still blocks GitHub's management API and direct access to the Pages hostname, so local validation does not establish that a new public deployment has completed. The existing deployment workflow publishes validated pushes to `main`; its remote result must be checked separately.
+
+After the final adjustment that keeps the collapsed fighter above the arena controls, all 74 unit tests and the Pages build passed again; the 3 affected browser checks (studio and both killing-blow presentations) were rerun and passed. The other 6 browser checks had passed in the preceding full 9-test run.

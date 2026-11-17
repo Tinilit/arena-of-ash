@@ -69,6 +69,10 @@ export class Button extends Phaser.GameObjects.Container {
     });
     s.add.existing(this);
   }
+  setCaption(text: string) {
+    this.title.setText(text);
+    return this;
+  }
   setEnabled(value: boolean) {
     this.enabled = value;
     this.setAlpha(value ? 1 : 0.4);

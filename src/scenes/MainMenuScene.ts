@@ -24,6 +24,9 @@ export class MainMenuScene extends BaseScene {
       this.scene.start("ShopScene"),
     );
     this.button("reset", 350, 501, 350, en.reset, () => this.confirmReset());
+    this.button("studio", 1100, 668, 265, en.studio, () =>
+      this.scene.start("StyleStudioScene"),
+    );
     this.rig = new Gladiator(this, 867, 548, this.services.player, false, 1.05);
     label(
       this,
@@ -34,7 +37,7 @@ export class MainMenuScene extends BaseScene {
     ).setOrigin(0.5);
     label(
       this,
-      640,
+      555,
       668,
       `${en.next}: ${opponent(this.services.player).name}`,
       21,

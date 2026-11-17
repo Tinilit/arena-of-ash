@@ -191,6 +191,9 @@ export class Animator {
   private onComplete?: () => void;
   private stopped = false;
   private current: Pose = { ...neutral };
+  constructor(private library: Record<string, Clip> = clips) {
+    this.clip = library.idle;
+  }
   get running() {
     return (
       !this.stopped &&
@@ -198,7 +201,7 @@ export class Animator {
     );
   }
   play(name: string, impact?: () => void, complete?: () => void) {
-    const source = clips[name] ?? clips.idle;
+    const source = this.library[name] ?? this.library.idle;
     this.clip = {
       ...source,
       frames: source.frames.map((f, i) =>

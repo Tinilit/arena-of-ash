@@ -54,3 +54,7 @@ See [architecture](docs/ARCHITECTURE.md), [animation](docs/ANIMATION_SYSTEM.md),
 ## Public playtesting
 
 [GitHub Pages deployment instructions](docs/DEPLOYMENT.md) describe the one-time repository setting and automatic deployment after validated pushes to `main`. The public build uses `/arena-of-ash/` as its base path. Saves remain in each tester's browser across compatible updates.
+
+## Choose character art and animation
+
+Open **Style Studio** in camp to compare **Original**, **Bronze Hero**, and **Ash Vanguard**. Preview all animations, toggle demonstration equipment, mirror the figures, and select a style for actual battles. Selection persists independently of game progress. The original graphics and animations are preserved and remain selectable at any time. See [visual variants](docs/VISUAL_VARIANTS.md).

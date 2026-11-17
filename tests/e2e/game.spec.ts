@@ -17,6 +17,9 @@ interface Snapshot {
   scene: string;
   player: Player;
   buttons: Record<string, { x: number; y: number }>;
+  preview?: {
+    bounds: { x: number; y: number; width: number; height: number }[];
+  };
   battle?: {
     state: State;
     player: Fighter;
@@ -47,6 +50,21 @@ async function click(page: Page, id: string) {
     box!.y + (point.y * box!.height) / 720,
   );
   await page.waitForTimeout(60);
+}
+async function expectPreviewFits(page: Page) {
+  await expect
+    .poll(async () =>
+      (await snapshot(page)).preview?.bounds.every((b, index) => {
+        const center = 220 + index * 420;
+        return (
+          b.x >= center - 175.01 &&
+          b.x + b.width <= center + 175.01 &&
+          b.y >= 259.99 &&
+          b.y + b.height <= 490.01
+        );
+      }),
+    )
+    .toBe(true);
 }
 async function launch(page: Page) {
   await page.goto("/?seed=42&renderer=canvas");
@@ -244,3 +262,121 @@ test("attribute allocation and all equipment persist through battle initializati
     path: "test-results/screenshots/equipped-arena.png",
   });
 });
+
+test("style studio preserves progress, previews motion, and restores the original", async ({
+  page,
+}) => {
+  await launch(page);
+  const before = (await snapshot(page)).player;
+  await click(page, "studio");
+  await scene(page, "StyleStudioScene");
+  await page.screenshot({
+    path: "test-results/screenshots/style-comparison.png",
+  });
+  await click(page, "preview-gear");
+  await page.screenshot({
+    path: "test-results/screenshots/style-unarmored.png",
+  });
+  await click(page, "preview-heavy");
+  await page.waitForTimeout(250);
+  await expectPreviewFits(page);
+  await page.screenshot({ path: "test-results/screenshots/style-heavy.png" });
+  await click(page, "preview-hit");
+  await click(page, "preview-defend");
+  await click(page, "preview-recover");
+  await click(page, "preview-death");
+  await page.waitForTimeout(1200);
+  await expectPreviewFits(page);
+  await page.screenshot({ path: "test-results/screenshots/style-death.png" });
+  await click(page, "preview-victory");
+  await page.waitForTimeout(1400);
+  await expectPreviewFits(page);
+  await page.screenshot({ path: "test-results/screenshots/style-victory.png" });
+  await click(page, "preview-idle");
+  await click(page, "preview-mirror");
+  await page.screenshot({
+    path: "test-results/screenshots/style-mirrored.png",
+  });
+  await click(page, "style-bronze");
+  expect((await snapshot(page)).player).toEqual(before);
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("arena-of-ash.presentation.v1"),
+    ),
+  ).toBe("bronze");
+  await click(page, "battle");
+  await click(page, "quick");
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.player.stamina)
+    .toBe(88);
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.state, { timeout: 15000 })
+    .toBe("PlayerTurn");
+  await page.screenshot({ path: "test-results/screenshots/bronze-arena.png" });
+  await page.keyboard.press("Escape");
+  await scene(page, "MainMenuScene");
+  await click(page, "studio");
+  await click(page, "style-ash");
+  await click(page, "back");
+  await scene(page, "MainMenuScene");
+  await click(page, "battle");
+  await click(page, "heavy");
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.player.stamina)
+    .toBe(75);
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.state, { timeout: 15000 })
+    .toBe("PlayerTurn");
+  await page.screenshot({ path: "test-results/screenshots/ash-arena.png" });
+  await page.keyboard.press("Escape");
+  await scene(page, "MainMenuScene");
+  await click(page, "studio");
+  await click(page, "style-original");
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect((await snapshot(page)).player).toEqual(before);
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("arena-of-ash.presentation.v1"),
+    ),
+  ).toBe("original");
+});
+
+for (const style of ["bronze", "ash"] as const) {
+  test(`${style} killing blow completes its new death animation`, async ({
+    page,
+  }) => {
+    await launch(page);
+    // An allocated high-level fixture isolates the presentation of a killing blow.
+    // The normal starter victory/defeat cases above still play entire battles.
+    const p = (await snapshot(page)).player;
+    p.level = 46;
+    p.attributes.strength = 100;
+    await page.evaluate(
+      ({ p, style }) => {
+        localStorage.setItem(
+          "arena-of-ash.v1",
+          JSON.stringify({ version: 1, player: p }),
+        );
+        localStorage.setItem("arena-of-ash.presentation.v1", style);
+      },
+      { p, style },
+    );
+    await page.reload();
+    await scene(page, "MainMenuScene");
+    await click(page, "battle");
+    await click(page, "quick");
+    await expect
+      .poll(async () => (await snapshot(page)).battle?.enemy.hp)
+      .toBe(0);
+    await page.waitForTimeout(1100);
+    await page.screenshot({
+      path: `test-results/screenshots/${style}-death-arena.png`,
+    });
+    await scene(page, "ResultScene");
+    expect((await snapshot(page)).player.rewarded).toHaveLength(1);
+    expect((await snapshot(page)).player.gold).toBe(150);
+  });
+}

@@ -49,6 +49,7 @@ export class BaseScene extends Phaser.Scene {
   snapshot() {
     return {
       scene: this.scene.key,
+      style: this.services.style,
       player: structuredClone(this.services.player),
       buttons: Object.fromEntries(
         Object.entries(this.buttons).map(([id, b]) => [id, { x: b.x, y: b.y }]),

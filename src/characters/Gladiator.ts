@@ -1,11 +1,13 @@
 import Phaser from "phaser";
 import { item } from "../data/catalog";
 import type { Player } from "../domain/model";
-import { part, gear } from "../rendering/parts";
+import { drawPart, drawGear } from "../rendering/characterVisuals";
+import { motionProfiles } from "./motionProfiles";
+import type { VisualStyle } from "./presentation";
 import { Animator } from "./animation";
 export class Gladiator {
   root: Phaser.GameObjects.Container;
-  animator = new Animator();
+  animator: Animator;
   private joints: Record<string, Phaser.GameObjects.Container> = {};
   private shadow: Phaser.GameObjects.Ellipse;
   private jointNames: string[] = [];
@@ -19,7 +21,10 @@ export class Gladiator {
     model: Player,
     enemy = false,
     scale = 1.25,
+    style: VisualStyle = scene.registry.get("services")?.style ?? "original",
+    private motionScale = 1,
   ) {
+    this.animator = new Animator(motionProfiles[style]);
     this.originX = x;
     this.originY = y;
     this.direction = enemy ? -1 : 1;
@@ -40,7 +45,7 @@ export class Gladiator {
       parent.add(c);
       this.joints[name] = c;
       this.jointNames.push(name);
-      if (kind) c.add(part(scene, kind, color));
+      if (kind) c.add(drawPart(scene, kind, color, style));
       return c;
     };
     const pelvis = joint("pelvis", this.root, 0, -95);
@@ -53,15 +58,27 @@ export class Gladiator {
     const farHand = joint("farHand", farElbow, 0, 35, "hand");
     if (model.equipment.shield)
       farHand.add(
-        gear(scene, item(model.equipment.shield)?.visual ?? "shield"),
+        drawGear(
+          scene,
+          item(model.equipment.shield)?.visual ?? "shield",
+          style,
+        ),
       );
-    torso.add(part(scene, "torso", skin));
+    torso.add(drawPart(scene, "torso", skin, style));
     if (model.equipment.chest)
-      torso.add(gear(scene, item(model.equipment.chest)?.visual ?? "leather"));
+      torso.add(
+        drawGear(
+          scene,
+          item(model.equipment.chest)?.visual ?? "leather",
+          style,
+        ),
+      );
     const head = joint("head", torso, 0, -8, "head");
     if (model.equipment.helmet)
-      head.add(gear(scene, item(model.equipment.helmet)?.visual ?? "cap"));
-    pelvis.add(part(scene, "pelvis", enemy ? 0x623e3b : 0x3e5c61));
+      head.add(
+        drawGear(scene, item(model.equipment.helmet)?.visual ?? "cap", style),
+      );
+    pelvis.add(drawPart(scene, "pelvis", enemy ? 0x623e3b : 0x3e5c61, style));
     const nearThigh = joint("nearThigh", pelvis, -14, 14, "thigh");
     const nearShin = joint("nearShin", nearThigh, 0, 44, "shin");
     joint("nearFoot", nearShin, 0, 43, "foot", 0x694634);
@@ -70,9 +87,11 @@ export class Gladiator {
     const nearHand = joint("nearHand", nearElbow, 0, 35, "hand");
     if (model.equipment.weapon)
       nearHand.add(
-        gear(scene, item(model.equipment.weapon)?.visual ?? "wood").setRotation(
-          Math.PI,
-        ),
+        drawGear(
+          scene,
+          item(model.equipment.weapon)?.visual ?? "wood",
+          style,
+        ).setRotation(Math.PI),
       );
     scene.events.once("shutdown", () => this.animator.stop());
   }
@@ -80,7 +99,8 @@ export class Gladiator {
     const p = this.animator.update(delta);
     for (const name of this.jointNames)
       if (p[name] !== undefined) this.joints[name].rotation = p[name]!;
-    this.root.x = this.originX + (p.rootX ?? 0) * this.direction;
+    this.root.x =
+      this.originX + (p.rootX ?? 0) * this.direction * this.motionScale;
     this.shadow.x = this.root.x;
     this.root.y = this.originY + (p.rootY ?? 0);
     this.root.rotation = (p.rootR ?? 0) * this.direction;

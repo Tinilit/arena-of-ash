@@ -11,3 +11,7 @@ The pure `Animator` reads `clips`: duration in milliseconds, normalized keyframe
 Required clips: idle, quick (600 ms), heavy (1000 ms), defend (500 ms), recover (650 ms), hit (350 ms), death (950 ms), victory (1200 ms). Attack and stance frames mark impact explicitly. Impact fires once when playback crosses the marked time, even if a frame skips over it. Completion fires once after the last frame. The presentation controller applies the precomputed pending combat event at impact, updates bars and displays reaction text. It advances turns only on completion. Death remains held while the other fighter celebrates.
 
 To add a clip, add a typed frame sequence to `clips`, using the neutral pose as the baseline. Set an impact keyframe for actions. Keep all joints in local coordinates and end at neutral unless `hold` is intended. Unit tests cover one-shot impacts, repeat playback, defend after attack, held death, interruption and stop. Browser tests exercise killing blows, enemy killing the player, keyboard interruption and equipment replacement between scenes.
+
+## Alternative motion libraries
+
+The original `clips` remain intact. `Animator` accepts an optional clip library, and `motionProfiles` selects either those original clips or the Bronze Hero / Ash Vanguard additions. New libraries add anticipation, leg bracing, secondary motion, follow-through and a staged collapse. Each keeps exactly one impact event per combat action. See [visual variants](VISUAL_VARIANTS.md) for comparison controls and non-destructive rollback.

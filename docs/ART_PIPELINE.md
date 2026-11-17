@@ -11,3 +11,7 @@ Supply per-part metadata in logical pixels: `{ texture, logicalWidth, logicalHei
 Depth is explicit container order: far limbs/shield → torso/chest → head/helmet → skirt → near leg → near arm/weapon. Keep face visible in side view; author characters facing positive X. Enemy mirroring happens at root, including equipment; do not duplicate mirrored PNGs. Avoid text baked into mirrored artwork.
 
 Replace `part(scene,kind,color)` or `gear(scene,id)` with image objects in `rendering/parts.ts`. Set display size to logical size and normalized image origin to `pivot / logical dimensions`; return the same PartVisual union. Preload textures in BootScene before entering the menu. Keep procedural visuals as fallback for absent keys. No animator, combat formula, AI, save schema, or scene positioning should need to change. Start by integrating one complete fighter and verify every joint at idle, wind-up, impact, death and mirrored poses before expanding the catalog.
+
+## Preserved visual alternatives
+
+`rendering/parts.ts` remains the original M1 artwork. The `drawPart` / `drawGear` adapters in `rendering/characterVisuals.ts` dispatch to those originals or the additive Bronze Hero / Ash Vanguard variants. All variants retain the same local pivots, attachment transforms and equipment IDs, so future PNG integration can be introduced as another option without removing the existing artwork. See [visual variants](VISUAL_VARIANTS.md).
