@@ -50,3 +50,7 @@ Enter the arena from camp. Keys **1–4** select Quick Attack, Heavy Attack, Def
 Six scenes, three increasingly strong opponents, eight equipment definitions, five attributes, leveling, versioned saves, and modular keyframed character animation. The final enemy repeats. Fight health and stamina reset each battle; unfinished fights are not saved. Placeholder art, no audio, no backend, no mobile app, no production balance pass. Browser saves are local to their origin and device. Browser storage failure falls back to session-only play with a warning. The Phaser bundle is large (~350 KB gzip), reported by Vite as a size warning.
 
 See [architecture](docs/ARCHITECTURE.md), [animation](docs/ANIMATION_SYSTEM.md), [art contract](docs/ART_PIPELINE.md), [game design](docs/GAME_DESIGN.md), and [roadmap](docs/ROADMAP.md).
+
+## Public playtesting
+
+[GitHub Pages deployment instructions](docs/DEPLOYMENT.md) describe the one-time repository setting and automatic deployment after validated pushes to `main`. The public build uses `/arena-of-ash/` as its base path. Saves remain in each tester's browser across compatible updates.
