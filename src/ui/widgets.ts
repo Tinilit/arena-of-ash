@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { displayFor } from "../app/display";
 export const colors = {
   ink: 0x201c1c,
   panel: 0x292a29,
@@ -17,9 +18,17 @@ export function label(
   size = 22,
   color = colors.light,
 ) {
-  return s.add
-    .text(x, y, text, { fontFamily: "Georgia, serif", fontSize: size, color })
+  const display = displayFor(s.game);
+  const result = s.add
+    .text(x, y, text, {
+      fontFamily: "Georgia, serif",
+      fontSize: size,
+      color,
+      resolution: display.density,
+    })
     .setOrigin(0, 0.5);
+  display.track(result);
+  return result;
 }
 export function panel(
   s: Phaser.Scene,

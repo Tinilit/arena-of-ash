@@ -3,10 +3,12 @@ import type { Services } from "../app/services";
 import { arena } from "../rendering/arena";
 import { Button, label } from "../ui/widgets";
 import { en } from "../ui/strings";
+import { prepareDisplay } from "../app/display";
 export class BaseScene extends Phaser.Scene {
   services!: Services;
   buttons: Record<string, Button> = {};
   prepare(title: string) {
+    prepareDisplay(this);
     this.services = this.registry.get("services");
     this.buttons = {};
     arena(this);

@@ -11,7 +11,7 @@ npm ci
 npm run dev
 ```
 
-The logical canvas is 1280×720 with FIT scaling. Portrait screens display a rotation message. No backend, login, app secrets or external art assets are required.
+The logical game area is 1280×720 with FIT scaling. The canvas backing buffer and text textures adapt to window size and device pixel ratio for sharp large-screen/Retina rendering. See [display scaling](docs/DISPLAY_SCALING.md). Portrait screens display a rotation message. No backend, login, app secrets or external art assets are required.
 
 ```sh
 npm run typecheck

@@ -1,6 +1,6 @@
 # Architecture
 
-`main.ts` owns one Phaser game and destroys it on hot replacement. `app/config.ts` defines 1280×720 FIT scaling, WebGL preference/Canvas fallback, and six scenes. Boot loads `Services` into the Phaser registry; it owns the player and SaveStore. Appearance is fixed to Ash Vanguard and motion to Grounded, independently of any obsolete browser preference values.
+`main.ts` owns one Phaser game and destroys it on hot replacement. `app/config.ts` defines a 1280×720 logical area with FIT scaling, WebGL preference/Canvas fallback, and six scenes. Boot loads `Services` into the Phaser registry; it owns the player and SaveStore. Appearance is fixed to Ash Vanguard and motion to Grounded, independently of any obsolete browser preference values.
 
 Scene flow: Boot → MainMenu → Arena / Character / Shop. Arena → Result → MainMenu / Arena. Escape returns to camp and abandons unresolved combat. There is no studio or style-selection scene.
 
@@ -19,3 +19,7 @@ Shop and inventory page their lists without changing definitions or ownership. N
 ## Runtime catalog
 
 Boot fetches and validates `public/content/items.json`, installs a session catalog, decodes optional item images, then loads the player save and starts camp. Gameplay rules keep synchronous catalog lookups. `src/content/schema.ts` is independent of Phaser; `loadCatalog.ts` owns timeout/fallback behavior; `textures.ts` registers runtime artwork. `src/data/catalog.ts` retains opponent/reward definitions and the catalog lookup API. The JSON imported at build time is only an included fallback. See [runtime content](RUNTIME_CONTENT.md) for the separate publication path.
+
+## Display density
+
+`app/display.ts` manages physical canvas size, camera zoom and text raster resolution while retaining 1280×720 world coordinates. Every scene prepares its camera before creating content; the shared label factory registers text for density changes and removes destroyed labels. Window resizing and DPR changes update existing scenes without recreating combat or player state. Graphics render at the higher backing resolution; label textures are rerasterized rather than enlarged from a 1× bitmap. See [display scaling](DISPLAY_SCALING.md).
