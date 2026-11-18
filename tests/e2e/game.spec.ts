@@ -1844,9 +1844,15 @@ test("belt axe uses an overarm airborne throw while the front hand attacks indep
   let s = await snapshot(page);
   expect(s.battle!.player.handActions.front?.name).toBe("quick");
   expect(s.battle!.player.handActions.rear?.name).toBe("throw");
-  expect(s.rigs![0].far.hand.y).toBeLessThan(s.rigs![0].far.shoulder.y - 35);
   expect(s.battle!.player.y).toBeLessThan(0);
-  await page.clock.runFor(170);
+  // Observe the cock/extension phase instead of assuming an exact rendered frame.
+  let highRelease = false;
+  for (let i = 0; i < 11; i++) {
+    await page.clock.runFor(16);
+    const rig = (await snapshot(page)).rigs![0];
+    highRelease ||= rig.far.hand.y < rig.far.shoulder.y - 55;
+  }
+  expect(highRelease).toBe(true);
   s = await snapshot(page);
   expect(s.battle!.projectiles[0].itemId).toBe("throwing-axe");
   expect(s.battle!.projectiles[0].spin).not.toBe(0);
