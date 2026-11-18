@@ -725,23 +725,31 @@ test("camp supports both stances, forward/back walks, running and a grounded jum
     startX = initial.rigs![0].origin.x;
   expect(initial.rigs![0].primaryHand).toBe("rear");
   await page.keyboard.down("d");
-  await page.waitForTimeout(420);
-  expect((await snapshot(page)).rigs![0].animation).toBe("walkForward");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].animation)
+    .toBe("walkForward");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].origin.x)
+    .toBeGreaterThan(startX + 10);
   const forward = (await snapshot(page)).rigs![0].origin.x;
   expect(forward).toBeGreaterThan(startX + 10);
   await shot(page, "camp-walk-forward");
   await page.keyboard.up("d");
   const backwardStart = (await snapshot(page)).rigs![0].origin.x;
   await page.keyboard.down("a");
-  await page.waitForTimeout(420);
-  expect((await snapshot(page)).rigs![0].animation).toBe("walkBackward");
-  expect((await snapshot(page)).rigs![0].origin.x).toBeLessThan(backwardStart);
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].animation)
+    .toBe("walkBackward");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].origin.x)
+    .toBeLessThan(backwardStart - 10);
   await shot(page, "camp-walk-backward");
   await page.keyboard.up("a");
   await page.keyboard.down("Shift");
   await page.keyboard.down("d");
-  await page.waitForTimeout(350);
-  expect((await snapshot(page)).rigs![0].animation).toBe("run");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].animation)
+    .toBe("run");
   await shot(page, "camp-run");
   await page.keyboard.up("d");
   await page.keyboard.up("Shift");
@@ -750,12 +758,41 @@ test("camp supports both stances, forward/back walks, running and a grounded jum
     .toBe("idleRelaxed");
   await page.waitForTimeout(220);
   const grounded = (await snapshot(page)).rigs![0].near.heel.y;
-  await click(page, "move-jump");
-  await page.waitForTimeout(320);
-  const airborne = (await snapshot(page)).rigs![0];
-  expect(airborne.animation).toBe("jump");
-  expect(airborne.near.heel.y).toBeLessThan(grounded - 20);
-  await shot(page, "camp-jump");
+  const [flight] = await Promise.all([
+    page.evaluate(
+      () =>
+        new Promise<{ seen: boolean; minimum: number }>((resolve, reject) => {
+          let seen = false,
+            minimum = Infinity;
+          const deadline = performance.now() + 8000;
+          const sample = () => {
+            const rig = (
+              window as unknown as { __arena: { snapshot: () => Snapshot } }
+            ).__arena.snapshot().rigs![0];
+            if (rig.animation === "jump") {
+              seen = true;
+              minimum = Math.min(minimum, rig.near.heel.y);
+            }
+            if (seen && rig.animation === "idleRelaxed") {
+              resolve({ seen, minimum });
+              return;
+            }
+            if (performance.now() > deadline) {
+              reject(Error("Jump did not complete"));
+              return;
+            }
+            requestAnimationFrame(sample);
+          };
+          requestAnimationFrame(sample);
+        }),
+    ),
+    (async () => {
+      await click(page, "move-jump");
+      await shot(page, "camp-jump");
+    })(),
+  ]);
+  expect(flight.seen).toBe(true);
+  expect(flight.minimum).toBeLessThan(grounded - 20);
   await expect
     .poll(async () => (await snapshot(page)).rigs![0].animation)
     .toBe("idleRelaxed");
