@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import bundled from "../fixtures/catalog.json" with { type: "json" };
 import type { Player } from "../../src/domain/model";
+import { createPlayer } from "../../src/domain/model";
 import type {
   ArenaFighter,
   ArenaState,
@@ -213,6 +214,18 @@ test("Ash Vanguard is the only appearance, with no studio or old preference cont
 test("complete battle, animation impact and persisted victory rewards", async ({
   page,
 }) => {
+  // Owned armor keeps the victory reward scenario stable with equal baselines.
+  const player = createPlayer();
+  player.inventory.push("plate", "cap");
+  player.equipment.body = "plate";
+  player.equipment.helmet = "cap";
+  await page.addInitScript((p) => {
+    if (!localStorage.getItem("arena-of-ash.v3"))
+      localStorage.setItem(
+        "arena-of-ash.v3",
+        JSON.stringify({ version: 3, player: p }),
+      );
+  }, player);
   await launch(page);
   await click(page, "battle");
   await scene(page, "ArenaScene");
