@@ -1,11 +1,20 @@
-# Equipment
+# Equipment and loadout
 
-The default runtime catalog contains nine items: Wooden Sword, Rusty Sword, Iron Sword, Training Spear, Ashwood War Spear, Leather Vest, Iron Chestplate, Leather Helmet and Viking Warhelm. Slots currently used are weapon, chest and helmet. Shields are temporarily omitted from the catalog and all opponent loadouts. Dormant shield drawings/slot support remain available for a later explicit restoration.
+The default runtime catalog contains eleven items: five swords/spears, two helmets, two chest pieces, Folded Arena Net and Clay Training Flask. Shields and paired warglaives remain absent. Item categories in JSON remain `weapon`, `helmet`, `chest` and `utility`; they are distinct from the character's equipment positions.
 
-Ashwood War Spear costs 115 gold and adds +10 attack. Viking Warhelm costs 60 gold and adds +3 armor. Spears have a wooden haft, socketed head and butt cap and use thrust animations. The helmet has a horned dome, riveted brow and nasal guard. All artwork uses Ash Vanguard colors.
+| Position    | Accepted category | Behavior                                                         |
+| ----------- | ----------------- | ---------------------------------------------------------------- |
+| Helmet      | helmet            | Head attachment and armor                                        |
+| Body        | chest             | Torso attachment and armor                                       |
+| Right hand  | weapon            | Primary rear-hand weapon                                         |
+| Left hand   | weapon            | Carried second weapon; becomes active if the right hand is empty |
+| Belt slot 1 | utility           | Visible inactive waist attachment                                |
+| Belt slot 2 | utility           | Visible inactive waist attachment                                |
 
-Shop and inventory display eight definitions per page. In the default catalog, the war spear is on shop page 1 and the Viking helmet is on page 2. A purchased item retains its page while the scene refreshes. Buy once, then equip through the character screen. There is no paired weapon or studio.
+Select a slot card on Character, then equip an owned compatible item from the filtered, paginated list. The × button removes gear without deleting ownership. Equipping an ID in another compatible position moves it instead of creating a duplicate. The save validator enforces category, ownership and one equipped instance per ID. Save version 2 starts a new loadout rather than migrating old layouts.
 
-Definitions live in `public/content/items.json`; images can be added under `public/content/items/`. Rendering uses the equipped item metadata, keeping gameplay rules independent of Phaser. No migration or refund logic is added for removed items. See [runtime content](RUNTIME_CONTENT.md) for validation and publication without a game rebuild.
+Right-hand attacks retain the rear/far shoulder. Left-hand fallback selects the existing front-hand action library and its actual weapon matrix for contact. When both hands are equipped, only the right weapon contributes attack stats or damage; the left weapon remains carried. Active helmet/body/primary-weapon bonuses are counted; carried offhand and utility bonuses are excluded. Utility attachments contribute no stats or use actions. The starter owns and wears the net and flask on the two belt mounts. Their drawings follow the pelvis above the skirt and below the foreground arm.
 
-The character uses continuous limb silhouettes, full-width calf greaves and leather ankle boots. The free front arm renders behind the torso, while the rear arm and primary weapon render in front; both thighs are under the skirt. See [rig refinement](RIG_REFINEMENT.md).
+Shop displays eight definitions per page. Ashwood War Spear remains on page 1 and Viking Warhelm on page 2. Character inventory displays up to eight compatible owned items per page. The runtime catalog/image workflow remains file-based; adding a new utility item using the `net` or `flask` fallback requires no new game build. See [runtime content](RUNTIME_CONTENT.md).
+
+Throwing is currently an animation preview: press T in camp or Throw preview on Character. It does not consume either hand weapon or belt item, spawn a damaging projectile or alter progression. The clip's single release marker is the future integration point for spear, net or grenade projectiles. See [throw animation](THROW_ANIMATION.md).

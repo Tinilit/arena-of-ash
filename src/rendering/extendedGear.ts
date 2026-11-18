@@ -7,6 +7,8 @@ export const extendedGearBounds: Record<
   "war-spear": [-19, -154, 38, 244],
   viking: [-60, -83, 120, 104],
   tower: [-42, -71, 84, 169],
+  net: [-16, -5, 32, 49],
+  flask: [-15, -5, 30, 44],
 };
 export function extendedGear(scene: Phaser.Scene, id: string) {
   if (!extendedGearBounds[id]) return null;
@@ -21,7 +23,31 @@ export function extendedGear(scene: Phaser.Scene, id: string) {
     g.fillPoints(points, true);
     g.strokePoints(points, true);
   };
-  if (id === "spear" || id === "war-spear") {
+  if (id === "net") {
+    g.fillStyle(0x5a4632);
+    g.fillRoundedRect(-12, 5, 24, 32, 8);
+    g.strokeRoundedRect(-12, 5, 24, 32, 8);
+    g.lineStyle(2, 0xc2a270);
+    for (let x = -12; x <= 10; x += 6) {
+      g.lineBetween(x, 7, Math.min(12, x + 16), 33);
+      g.lineBetween(x, 33, Math.min(12, x + 16), 7);
+    }
+    g.lineStyle(3, 0x795a35);
+    g.strokeEllipse(0, 6, 21, 10);
+    g.lineBetween(0, -4, 0, 7);
+  } else if (id === "flask") {
+    g.fillStyle(0xa76e46);
+    g.fillEllipse(0, 22, 25, 30);
+    g.strokeEllipse(0, 22, 25, 30);
+    g.fillRoundedRect(-6, 0, 12, 13, 3);
+    g.strokeRoundedRect(-6, 0, 12, 13, 3);
+    g.fillStyle(0xd3af74);
+    g.fillRect(-5, -3, 10, 6);
+    g.lineStyle(2, 0x594733);
+    g.lineBetween(-12, 15, 10, 31);
+    g.lineStyle(2, 0xe4bd88, 0.6);
+    g.strokeEllipse(3, 20, 13, 18);
+  } else if (id === "spear" || id === "war-spear") {
     const war = id === "war-spear",
       tip = war ? -150 : -132,
       socket = war ? -113 : -99,

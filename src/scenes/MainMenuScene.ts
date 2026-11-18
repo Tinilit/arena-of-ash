@@ -33,7 +33,7 @@ export class MainMenuScene extends BaseScene {
     this.modalOpen = false;
     const equipped = this.services.player.equipment;
     const large =
-      item(equipped.weapon ?? "")?.weaponType === "spear" ||
+      item(equipped.rightHand ?? "")?.weaponType === "spear" ||
       item(equipped.helmet ?? "")?.visual === "viking";
     this.rig = new Gladiator(
       this,
@@ -51,9 +51,13 @@ export class MainMenuScene extends BaseScene {
       run: "SHIFT",
       jump: "SPACE",
       stance: "R",
+      throw: "T",
     }) as Record<string, Phaser.Input.Keyboard.Key> | undefined;
     this.keys?.jump.on("down", () => {
       if (!this.modalOpen) this.movement.jump();
+    });
+    this.keys?.throw.on("down", () => {
+      if (!this.modalOpen) this.movement.throw();
     });
     this.keys?.stance.on("down", () => {
       if (!this.modalOpen) this.movement.toggle();
@@ -81,9 +85,10 @@ export class MainMenuScene extends BaseScene {
       ["move-run", en.run, () => this.movement.demonstrate("run")],
       ["move-jump", en.jump, () => this.movement.jump()],
       ["move-stance", en.stance, () => this.movement.toggle()],
+      ["move-throw", en.throwAction, () => this.movement.throw()],
     ] as const;
     controls.forEach(([id, text, run], i) =>
-      this.button(id, 760 + i * 96, 649, 86, text, run, 36),
+      this.button(id, 720 + i * 96, 649, 86, text, run, 36),
     );
     label(
       this,

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "revision": "2026-11-17-2",
+  "revision": "2026-11-18-loadout",
   "items": [
     {
       "id": "wood",
@@ -87,6 +87,26 @@
       "armor": 3,
       "visual": "viking",
       "description": "Horned fantasy helm with a nasal guard."
+    },
+    {
+      "id": "net",
+      "name": "Folded Arena Net",
+      "slot": "utility",
+      "price": 20,
+      "attack": 0,
+      "armor": 0,
+      "visual": "net",
+      "description": "Carried on the belt. Not usable yet."
+    },
+    {
+      "id": "flask",
+      "name": "Clay Training Flask",
+      "slot": "utility",
+      "price": 15,
+      "attack": 0,
+      "armor": 0,
+      "visual": "flask",
+      "description": "Carried on the belt. Not usable yet."
     }
   ]
 }

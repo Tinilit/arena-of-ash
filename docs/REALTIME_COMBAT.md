@@ -1,6 +1,6 @@
 # Real-time arena combat
 
-Arena combat supports walking forward/back, running, jumping, quick/heavy attacks, guard, recovery and relaxed/combat stance. Actions and locomotion run together. The old turn-based Battle/AI and precomputed hit rolls have been removed.
+Arena combat supports walking forward/back, running, jumping, quick/heavy attacks and relaxed/combat stance. Actions and locomotion run together. The old turn-based Battle/AI and precomputed hit rolls have been removed.
 
 ## Simulation and contact
 
@@ -26,7 +26,7 @@ Fighters face the opponent when free and lock facing through an action or direct
 
 ## Controls and lifecycle
 
-A/D or Left/Right move, Shift runs, Space jumps, A/D+Space hops backward/forward relative to facing, J/1 quick-attacks, K/2 heavy-attacks, L/3 holds guard, F/4 recovers, and R toggles stance. Escape abandons the fight without a reward. Mouse/touch: hold arrow/Run buttons, tap Jump/attacks and toggle Defend. Holding a direction while tapping Jump performs the matching hop; its caption shows the stamina cost. Multiple pointers support movement plus actions. Jump/action buttons reflect affordability and action state. Movement, input and combat stop on outcome; a short death/victory presentation precedes ResultScene.
+A/D or Left/Right move, Shift runs, Space jumps, A/D+Space hops backward/forward relative to facing, J/1 quick-attacks, K/2 heavy-attacks, and R toggles stance. Escape abandons the fight without a reward. Mouse/touch: hold arrow/Run buttons, tap Jump/attacks. Holding a direction while tapping Jump performs the matching hop; its caption shows the stamina cost. Multiple pointers support movement plus actions. Jump/action buttons reflect affordability and action state. Movement, input and combat stop on outcome; a short death/victory presentation precedes ResultScene.
 
 Losing focus pauses simulation, clears queued/held input and discards backlog. Shutdown removes focus, keyboard and pointer listeners. Restarting the scene creates fresh HP/stamina/action/contact state. Read-only development snapshots include fighter motion, composed rigs, collision geometry and recent contacts; production exposes no diagnostic API. `?hitboxes=1` draws shapes only in development.
 
@@ -43,3 +43,9 @@ Only a living, grounded player with sufficient stamina and no current hop/cooldo
 `hopPose.ts` compresses planted knees, folds/re-extends the legs smoothly around takeoff/touchdown, and absorbs the landing. Actual world altitude comes from the simulation, not an extra vertical animation offset. The same rendered transforms feed collision geometry.
 
 References consulted: [Godot CharacterBody2D platformer example](https://docs.godotengine.org/en/stable/tutorials/physics/using_character_body_2d.html) for delta-scaled gravity, a grounded launch impulse and landing reset; [Game Programming Patterns: State](https://gameprogrammingpatterns.com/state.html) for explicit movement phases and preventing invalid airborne transitions. The implementation remains Phaser-independent and does not import either engine's controller.
+
+## Continuous stamina and active hands
+
+Every fighting step restores 14 stamina/second to both fighters, including during attack anticipation/contact/recovery, normal jumps and all hop phases. Running still costs 10/second, so net stamina rises by 4/second while running. Upfront attack/jump/hop costs are unchanged, and the result is clamped to the maximum. Pause and outcomes stop simulation/regen. Defense and Recover buttons and L/3/F/4 bindings are removed. The AI waits for passive recovery when it cannot afford an attack; it does not request the old recovery action. Existing guard/recover clips and pure engine support remain dormant for player controls.
+
+The right hand attacks when equipped; an empty right hand falls back to the left. The same selected weapon supplies animation, stats and the damaging capsule. A second equipped weapon is carried and adds no automatic extra hits or stats. Belt attachments have no usable action, damage or stat effect yet. See [equipment](EQUIPMENT.md).

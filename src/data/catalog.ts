@@ -17,7 +17,7 @@ export const enemies = [
       defense: 5,
       endurance: 6,
     },
-    equipment: { weapon: "wood" },
+    equipment: { rightHand: "wood" },
   },
   {
     name: "Iron Pit Fighter",
@@ -28,7 +28,7 @@ export const enemies = [
       defense: 10,
       endurance: 10,
     },
-    equipment: { weapon: "rust", chest: "leather" },
+    equipment: { rightHand: "rust", body: "leather" },
   },
   {
     name: "Veteran Gladiator",
@@ -40,8 +40,8 @@ export const enemies = [
       endurance: 13,
     },
     equipment: {
-      weapon: "iron",
-      chest: "plate",
+      rightHand: "iron",
+      body: "plate",
       helmet: "cap",
     },
   },

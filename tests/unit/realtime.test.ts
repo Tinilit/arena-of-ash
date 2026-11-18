@@ -158,14 +158,15 @@ describe("real-time arena rules", () => {
     b.resolve([geometry(), geometry()]);
     expect(b.enemy.hp).toBeLessThan(80);
   });
-  it("reduces contact damage while guarding and drains guard stamina", () => {
+  it("reduces contact damage while AI guarding and continuously regenerates stamina", () => {
     const b = make();
     begin(b);
+    b.enemy.stamina = 60;
     b.advance(330, [{}, { guard: true }]);
     const [event] = b.resolve([geometry(), geometry()]);
     expect(event.blocked).toBe(true);
     expect(event.damage).toBe(7);
-    expect(b.enemy.stamina).toBeLessThan(80);
+    expect(b.enemy.stamina).toBeCloseTo(61.98);
   });
   it("resolves simultaneous lethal contacts as a draw, then ignores further hits", () => {
     const b = make();
@@ -246,9 +247,9 @@ describe("real-time arena rules", () => {
     b.player.stamina = 30;
     b.advance(0, [{ recover: true }, {}]);
     b.advance(740, [{}, {}]);
-    expect(b.player.stamina).toBe(30);
+    expect(b.player.stamina).toBeCloseTo(40.36);
     b.advance(10, [{}, {}]);
-    expect(b.player.stamina).toBeCloseTo(55.14);
+    expect(b.player.stamina).toBeCloseTo(65.5);
     b.advance(5000, [{}, {}]);
     expect(b.player.stamina).toBe(100);
     expect(p).toEqual(initial);
@@ -291,14 +292,15 @@ describe("real-time arena rules", () => {
     ])
       expect(start[key]).toBeCloseTo(displayed[key]!);
   });
-  it("AI closes the distance and selects affordable attacks, guard, jumps or recovery", () => {
+  it("AI closes the distance and selects affordable attacks, guard or jumps and waits for passive regeneration", () => {
     const b = make(),
       ai = new ArenaAI(() => 0.8);
     expect(ai.update(600, b.enemy, b.player).move).toBe(-1);
     b.enemy.x = b.player.x + 120;
     expect(ai.update(600, b.enemy, b.player).attack).toBe("heavy");
     b.enemy.stamina = 5;
-    expect(ai.update(600, b.enemy, b.player).recover).toBe(true);
+    expect(ai.update(600, b.enemy, b.player).recover).toBeUndefined();
+    expect(ai.update(600, b.enemy, b.player).attack).toBeUndefined();
   });
 });
 describe("runtime weapon contact geometry", () => {

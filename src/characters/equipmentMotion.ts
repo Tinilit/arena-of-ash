@@ -3,6 +3,7 @@ import type { Clip, Pose } from "./animation";
 import { rearHandMotion } from "./rearHandMotion";
 import { locomotionClips, type WeaponHand } from "./locomotion";
 import { groundedMotion } from "./groundedMotion";
+import { throwClip } from "./throwMotion";
 const base = groundedMotion.ash;
 let spearLibrary: Record<string, Clip> | undefined;
 /** Spears thrust; the equipment renderer does not alter combat rules. */
@@ -161,7 +162,11 @@ export function equipmentMotion(
   if (!libraries.has(key)) {
     const front = frontEquipmentMotion(weapon);
     const action = hand === "rear" ? rearHandMotion(front, spear) : front;
-    const library = { ...action, ...locomotionClips(hand) };
+    const library: Record<string, Clip> = {
+      ...action,
+      ...locomotionClips(hand),
+      throw: throwClip(hand),
+    };
     library.idle = library.idleCombat;
     libraries.set(key, library);
   }

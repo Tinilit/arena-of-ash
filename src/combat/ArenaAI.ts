@@ -1,4 +1,4 @@
-import { item } from "../data/catalog";
+import { primaryWeapon } from "../domain/progression";
 import { weaponHitbox } from "./weaponGeometry";
 import type { Random } from "../utils/random";
 import type { ArenaFighter, ArenaInput } from "./realtime";
@@ -14,7 +14,7 @@ export class ArenaAI {
     this.jumpCooldown -= delta;
     const gap = Math.abs(target.x - self.x),
       toward = Math.sign(target.x - self.x);
-    const blade = weaponHitbox(item(self.model.equipment.weapon ?? ""));
+    const blade = weaponHitbox(primaryWeapon(self.model));
     const reach = Math.max(95, Math.abs(blade?.startY ?? -95) + 35);
     const input: ArenaInput = {
       move: gap > reach ? toward : gap < 85 ? -toward : 0,
@@ -23,8 +23,7 @@ export class ArenaAI {
     };
     if (self.action || this.thinking > 0) return input;
     this.thinking = 250 + this.rng() * 350;
-    if (self.stamina < 15) input.recover = true;
-    else if (gap <= reach + 20) {
+    if (self.stamina >= 12 && gap <= reach + 20) {
       const roll = this.rng();
       if (target.action && roll < 0.16) {
         this.guardFor = 650;

@@ -201,6 +201,7 @@ for (const hand of ["rear", "front"] as const)
               -(r + torso + (p.head ?? 0)),
             );
           };
+          if ((p.throwPreview ?? 0) > 0.01) continue;
           expect(
             intersects(
               local(id === "wood" ? -95 : -150),
@@ -301,7 +302,7 @@ it("prepares a relaxed spear for an arena attack or guard without crossing the f
     { guard: true },
   ]) {
     const player = createPlayer();
-    player.equipment.weapon = "war-spear";
+    player.equipment.rightHand = "war-spear";
     const battle = new RealtimeBattle(player, opponent(player)),
       motion = new ArenaMotion(battle.player.model);
     battle.player.relaxed = true;

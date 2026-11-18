@@ -35,7 +35,7 @@ Key times, durations and impact events remain authored exactly as before. The ch
 
 Unit checks cover nonzero continuous speed through a monotone key, interval bounds with irregular timing, turnaround/end behavior, fixed bone lengths, joint limits, foot support and full blade/shaft clearance. Browser checks inspect actual Phaser transforms for both facing directions during motion: hip placement inside the garment, both leg branches below the skirt, the free front arm behind the torso and the rear arm above it, and shoulders at the torso silhouette. Screenshots include unarmored idle/heavy, equipped spear/helmet, guard, victory and collapse. Production WebGL is reviewed separately from the Canvas gameplay tests.
 
-Shields are temporarily absent from the current catalog and all opponents. The optional rendering/slot support is retained for a later restoration, while the character screen hides inactive slots.
+Shields are temporarily absent from the current catalog and all opponents. Fallback shield art is retained for a later explicit restoration; the character loadout currently exposes helmet, body, two weapon hands and two utility belt mounts.
 
 ## Free arm and hand
 

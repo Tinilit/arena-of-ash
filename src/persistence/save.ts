@@ -1,14 +1,20 @@
-import { attributes, createPlayer, type Player } from "../domain/model";
+import {
+  attributes,
+  createPlayer,
+  slotCategory,
+  type EquipmentSlot,
+  type Player,
+} from "../domain/model";
 import { item } from "../data/catalog";
 import { threshold } from "../domain/progression";
-export const SAVE_KEY = "arena-of-ash.v1";
+export const SAVE_KEY = "arena-of-ash.v2";
 export function serialize(p: Player) {
-  return JSON.stringify({ version: 1, player: p });
+  return JSON.stringify({ version: 2, player: p });
 }
 export function deserialize(raw: string | null): Player {
   try {
     const data = JSON.parse(raw ?? "null");
-    if (data?.version !== 1) throw Error();
+    if (data?.version !== 2) throw Error();
     const p = data.player as Player;
     const integer = (n: unknown) => Number.isSafeInteger(n) && Number(n) >= 0;
     if (
@@ -28,10 +34,13 @@ export function deserialize(raw: string | null): Player {
       !p.inventory.every((id) => typeof id === "string" && item(id)) ||
       !p.equipment ||
       Array.isArray(p.equipment) ||
+      new Set(Object.values(p.equipment)).size !==
+        Object.values(p.equipment).length ||
       !Object.entries(p.equipment).every(
         ([slot, id]) =>
           typeof id === "string" &&
-          item(id)?.slot === slot &&
+          Object.hasOwn(slotCategory, slot) &&
+          item(id)?.slot === slotCategory[slot as EquipmentSlot] &&
           p.inventory.includes(id),
       ) ||
       !Array.isArray(p.rewarded) ||

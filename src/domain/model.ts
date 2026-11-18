@@ -7,7 +7,24 @@ export const attributes = [
 ] as const;
 export type Attribute = (typeof attributes)[number];
 export type Attributes = Record<Attribute, number>;
-export type Slot = "weapon" | "helmet" | "chest" | "shield";
+export type Slot = "weapon" | "helmet" | "chest" | "shield" | "utility";
+export const equipmentSlots = [
+  "helmet",
+  "body",
+  "rightHand",
+  "leftHand",
+  "belt1",
+  "belt2",
+] as const;
+export type EquipmentSlot = (typeof equipmentSlots)[number];
+export const slotCategory: Record<EquipmentSlot, Slot> = {
+  helmet: "helmet",
+  body: "chest",
+  rightHand: "weapon",
+  leftHand: "weapon",
+  belt1: "utility",
+  belt2: "utility",
+};
 export type WeaponType = "sword" | "spear";
 export interface WeaponHitbox {
   startY: number;
@@ -43,7 +60,7 @@ export interface Player {
   attributes: Attributes;
   points: number;
   inventory: string[];
-  equipment: Partial<Record<Slot, string>>;
+  equipment: Partial<Record<EquipmentSlot, string>>;
   progress: number;
   rewarded: string[];
 }
@@ -61,8 +78,8 @@ export const createPlayer = (): Player => ({
     endurance: 10,
   },
   points: 0,
-  inventory: ["wood"],
-  equipment: { weapon: "wood" },
+  inventory: ["wood", "net", "flask"],
+  equipment: { rightHand: "wood", belt1: "net", belt2: "flask" },
   progress: 0,
   rewarded: [],
 });

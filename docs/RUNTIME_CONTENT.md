@@ -51,7 +51,7 @@ The top level contains `version: 1`, a nonempty `revision` up to 64 characters, 
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `id`              | Unique stable ID, up to 64 characters; starts with a lowercase letter and contains only lowercase letters, digits or hyphens |
 | `name`            | English display name, 1–36 characters                                                                                        |
-| `slot`            | `weapon`, `helmet`, `chest` or `shield`                                                                                      |
+| `slot`            | `weapon`, `helmet`, `chest`, `utility` or `shield`                                                                           |
 | `price`           | Integer, 0–1,000,000 gold                                                                                                    |
 | `attack`, `armor` | Integer bonuses, 0–10,000 each                                                                                               |
 | `visual`          | Procedural fallback from the slot's list below; required even with a custom image                                            |
@@ -59,16 +59,17 @@ The top level contains `version: 1`, a nonempty `revision` up to 64 characters, 
 | `description`     | Optional English text, 1–64 characters                                                                                       |
 | `image`           | Optional image path, logical dimensions and normalized pivot coordinates                                                     |
 
-| Slot   | Valid procedural fallbacks                   |
-| ------ | -------------------------------------------- |
-| Weapon | `wood`, `rust`, `iron`, `spear`, `war-spear` |
-| Helmet | `cap`, `viking`                              |
-| Chest  | `leather`, `plate`                           |
-| Shield | `shield`, `tower`                            |
+| Slot    | Valid procedural fallbacks                   |
+| ------- | -------------------------------------------- |
+| Weapon  | `wood`, `rust`, `iron`, `spear`, `war-spear` |
+| Helmet  | `cap`, `viking`                              |
+| Chest   | `leather`, `plate`                           |
+| Utility | `net`, `flask`                               |
+| Shield  | `shield`, `tower`                            |
 
-New sword or spear designs, helmets, chest pieces and shields need no new game code. New slots, effects, weapon behaviors or animations require an engine change. A database can later serve the same JSON contract through an API; a browser cannot directly query a private database.
+New sword or spear designs, helmets, chest pieces and utility attachments need no new game code. Shield drawings can be defined, but restoring an equippable shield position requires a game change. New slots, effects, weapon behaviors or animations require an engine change. A database can later serve the same JSON contract through an API; a browser cannot directly query a private database.
 
-Keep IDs `wood`, `rust`, `iron`, `leather`, `plate` and `cap` in their existing slots because the starter and opponents reference them. Their names, prices, bonuses and images may change. No migration or refund handling is added for removed items; saves with unknown IDs retain the existing reset behavior.
+Keep IDs `wood`, `rust`, `iron`, `leather`, `plate`, `cap`, `net` and `flask` in their existing slots because the starter and opponents reference them. Their names, prices, bonuses and images may change. No migration or refund handling is added for removed items; saves with unknown IDs retain the existing reset behavior.
 
 ## Image alignment
 
@@ -86,7 +87,7 @@ Useful starting values matching existing silhouettes:
 | Horned helmet | 120 × 104      | 0.5 / 0.80   |
 | Chest armor   | 70 × 59        | 0.5 / 0.05   |
 
-Carried shield artwork, including the `tower` fallback and custom images, renders behind the entire body while following the front hand. See [render order](RENDER_ORDER.md). Artwork is a rigid attachment; an image cannot introduce extra moving joints. Inspect grip, face clearance and UI framing after adding a new silhouette. Existing anatomy checks establish the authored motion, not clearance for every possible custom drawing.
+Shields are not currently equippable; restoring them requires an explicit position/renderer rule. See [render order](RENDER_ORDER.md). Artwork is a rigid attachment; an image cannot introduce extra moving joints. Inspect grip, face clearance and UI framing after adding a new silhouette. Existing anatomy checks establish the authored motion, not clearance for every possible custom drawing.
 
 ## Failure handling
 
@@ -96,7 +97,7 @@ No polling, filesystem watching, arbitrary script execution or mid-session catal
 
 Gameplay tests use a fixed catalog fixture so new live definitions, reordering or balance edits do not require changing gameplay assertions. Content validation reads the actual publication file and checks every referenced local image.
 
-The current default catalog has nine items and intentionally omits shields. Shield slot/drawing support is retained for a later explicit restoration; no opponent currently references a shield definition, so the old `shield` ID is no longer mandatory. The character UI displays only slots present in the active catalog.
+The current default catalog has eleven items and intentionally omits shields. Shield fallback drawings are retained for a later explicit restoration, but there is no active shield equipment position; no opponent currently references a shield definition, so the old `shield` ID is no longer mandatory. The character UI exposes Helmet, Body, Right hand, Left hand and two Belt positions, filtering compatible catalog categories for each.
 
 ## Weapon contact shape
 

@@ -30,7 +30,7 @@ describe("character and equipment", () => {
   it("includes armor without mutating attributes", () => {
     const p = createPlayer();
     purchase(p, "leather");
-    equip(p, "leather", "chest");
+    equip(p, "leather", "body");
     expect(stats(p).armor).toBe(2);
     expect(p.attributes.defense).toBe(10);
   });
@@ -54,14 +54,14 @@ describe("character and equipment", () => {
   it("equips correct slot", () => {
     const p = createPlayer();
     purchase(p, "rust");
-    expect(equip(p, "rust", "weapon")).toBe(true);
-    expect(p.equipment.weapon).toBe("rust");
+    expect(equip(p, "rust", "rightHand")).toBe(true);
+    expect(p.equipment.rightHand).toBe("rust");
     expect(stats(p).attack).toBe(19);
   });
   it("rejects wrong slot and unowned items", () => {
     const p = createPlayer();
     expect(equip(p, "wood", "helmet")).toBe(false);
-    expect(equip(p, "iron", "weapon")).toBe(false);
+    expect(equip(p, "iron", "rightHand")).toBe(false);
   });
   it("allocates points once", () => {
     const p = createPlayer();
@@ -136,7 +136,7 @@ describe("progression and persistence", () => {
   it("round-trips a valid save", () => {
     const p = createPlayer();
     purchase(p, "rust");
-    equip(p, "rust", "weapon");
+    equip(p, "rust", "rightHand");
     expect(deserialize(serialize(p))).toEqual(p);
   });
   it.each([null, "bad", "{}", '{"version":2}', '{"version":1,"player":null}'])(
@@ -147,7 +147,7 @@ describe("progression and persistence", () => {
     const p = createPlayer();
     p.equipment.helmet = "wood";
     expect(deserialize(serialize(p))).toEqual(createPlayer());
-    p.equipment = { weapon: "wood" };
+    p.equipment = { rightHand: "wood" };
     p.gold = -1;
     expect(deserialize(serialize(p)).gold).toBe(100);
   });

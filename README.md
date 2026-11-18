@@ -34,22 +34,22 @@ On the managed cloud machine, system Chromium is detected automatically. Activat
 
 ## Play
 
-Start from camp, enter the arena, buy equipment and allocate level-up points in Character. Arena combat runs in real time. **A/D** or **Left/Right** move, **Shift** runs, **Space** jumps, **A/D+Space** performs a backward/forward hop relative to facing in the arena, **J/1** performs a quick attack, **K/2** performs a heavy attack, **L/3** holds guard and **F/4** recovers stamina. **R** changes relaxed/combat stance. Move, run and jump during an attack. **Escape** returns to camp without a reward for an unresolved fight.
+Start from camp, enter the arena, buy equipment and allocate level-up points in Character. Arena combat runs in real time. **A/D** or **Left/Right** move, **Shift** runs, **Space** jumps, **A/D+Space** performs a backward/forward hop relative to facing in the arena, **J/1** performs a quick attack, **K/2** performs a heavy attack. Stamina regenerates continuously, including during attacks and hops. **R** changes relaxed/combat stance. Move, run and jump during an attack. **Escape** returns to camp without a reward for an unresolved fight.
 
-Mouse/touch users can hold the arrow/Run buttons, tap Jump or an attack, and toggle Defend. The free front arm stays behind the torso; the rear hand holds the primary weapon. Camp retains its movement demonstration buttons and keyboard controls.
+Mouse/touch users can hold the arrow/Run buttons, tap Jump or an attack. The free front arm stays behind the torso; the right/rear hand holds the primary weapon by default, with a left/front fallback when the right hand is empty. Camp retains its movement demonstration buttons and keyboard controls; **T** previews throwing. Character also has a **Throw preview** button.
 
-Damage requires the active blade to contact a moving body part. A swing that misses costs stamina but no HP. Each swing can hit once; idle weapons, sword grips and spear shafts do not deal damage. Guard halves contact damage. Body and blade collision shapes follow the actual articulated rig, including jumps and mirrored facing. See [real-time combat](docs/REALTIME_COMBAT.md).
+Damage requires the active blade to contact a moving body part. A swing that misses costs stamina but no HP. Each swing can hit once; idle weapons, sword grips and spear shafts do not deal damage. Body and blade collision shapes follow the actual articulated rig, including jumps and mirrored facing. See [real-time combat](docs/REALTIME_COMBAT.md).
 
 Victory earns 50 gold and 40 XP; defeat earns 10 of each. Every level grants two attribute points. Saves are automatic in localStorage. Reset Progress requires confirmation. There is no special migration for retired catalog items or old appearance preferences.
 
 ## Equipment
 
-The default catalog has **9 items** across weapon, helmet and chest slots. Shields are temporarily removed while the character rig is refined. Shop and inventory have page controls. Ashwood War Spear is on shop page 1 and Viking Warhelm is on page 2:
+The default catalog has **11 items** across weapon, helmet, chest and utility categories. Shields are temporarily removed while the character rig is refined. Character has explicit Helmet, Body, Right hand, Left hand and two Belt mounts. Select a slot, then equip a compatible owned item; × removes it. A second hand weapon is carried, and the belt net/flask are visible but inactive. Shop and filtered inventory have page controls. Ashwood War Spear is on shop page 1 and Viking Warhelm is on page 2:
 
 - **Ashwood War Spear** — 115 gold, +10 attack; wooden haft, leaf head and thrust animations.
 - **Viking Warhelm** — 60 gold, +3 armor; horned fantasy helmet.
 
-Training Spear also uses a real haft/head design. The other seven active definitions remain. See [equipment](docs/EQUIPMENT.md).
+Training Spear also uses a real haft/head design. The two starter belt attachments are a folded net and clay flask. See [equipment](docs/EQUIPMENT.md).
 
 Item definitions live in [`public/content/items.json`](public/content/items.json). Add images under `public/content/items/` and edit the catalog to add or rebalance equipment without rebuilding the game. Refresh to load changes; the public game reads content directly from `main`. See the [runtime content guide](docs/RUNTIME_CONTENT.md) for a complete record, pivots, validation and publishing.
 

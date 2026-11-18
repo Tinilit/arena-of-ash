@@ -58,7 +58,9 @@ describe("player directional hops", () => {
       vy = b.player.vy;
     b.advance(arenaRules.step, [{ hop: 1, jump: true }, {}]);
     expect(b.player.hop).toBe(hop);
-    expect(b.player.stamina).toBe(stamina);
+    expect(b.player.stamina).toBeCloseTo(
+      stamina + (arenaRules.staminaRegen * arenaRules.step) / 1000,
+    );
     expect(b.player.vy).toBeGreaterThan(vy);
     const ordinary = make();
     ordinary.advance(8, [{ jump: true }, {}]);

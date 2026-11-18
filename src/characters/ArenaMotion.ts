@@ -1,12 +1,17 @@
 import { Animator, type Pose } from "./animation";
 import { equipmentMotion } from "./equipmentMotion";
 import { movementSpeeds } from "./locomotion";
-import { item } from "../data/catalog";
+import { primaryWeapon, primaryHand } from "../domain/progression";
 import type { ArenaFighter } from "../combat/realtime";
 import { hopPose } from "./hopPose";
 
 /** Turn a carried spear below the face before lifting its hand into guard. */
-function raisedWeapon(from: Pose, target: Pose, age: number): Pose {
+function raisedWeapon(
+  from: Pose,
+  target: Pose,
+  age: number,
+  prefix: string,
+): Pose {
   if ((from.weaponGrip ?? Math.PI / 2) <= Math.PI / 2 + 0.1) return target;
   const smooth = (n: number) => {
     const t = Math.max(0, Math.min(1, n));
@@ -18,7 +23,7 @@ function raisedWeapon(from: Pose, target: Pose, age: number): Pose {
     ...target,
     weaponGrip: from.weaponGrip! + (Math.PI / 2 - from.weaponGrip!) * grip,
   };
-  for (const key of ["farHandX", "farHandY", "farWrist"])
+  for (const key of [`${prefix}HandX`, `${prefix}HandY`, `${prefix}Wrist`])
     pose[key] = from[key]! + (target[key]! - from[key]!) * hand;
   return pose;
 }
@@ -32,9 +37,12 @@ export class ArenaMotion {
   private carryStart?: Pose;
   private guardStart?: Pose;
   private guardAge = 0;
+  private prefix: string;
   name = "idleCombat";
   constructor(model: ArenaFighter["model"]) {
-    const lib = equipmentMotion(item(model.equipment.weapon ?? ""));
+    const hand = primaryHand(model);
+    this.prefix = hand === "rear" ? "far" : "near";
+    const lib = equipmentMotion(primaryWeapon(model), hand);
     this.movement = new Animator(lib);
     this.action = new Animator(lib);
   }
@@ -90,12 +98,13 @@ export class ArenaMotion {
         this.carryStart!,
         this.action.update(starting ? 0 : delta),
         f.action.elapsed,
+        this.prefix,
       );
       this.guardStart = undefined;
       for (const [key, value] of Object.entries(overlay))
         if (
-          key.startsWith("farHand") ||
-          key === "farWrist" ||
+          key.startsWith(`${this.prefix}Hand`) ||
+          key === `${this.prefix}Wrist` ||
           key === "weaponGrip" ||
           key === "torso" ||
           key === "head"
@@ -114,13 +123,14 @@ export class ArenaMotion {
           this.guardStart,
           {
             ...base,
-            farHandX: 64,
-            farHandY: 30,
-            farWrist: 0.45,
+            [`${this.prefix}HandX`]: 64,
+            [`${this.prefix}HandY`]: 30,
+            [`${this.prefix}Wrist`]: 0.45,
             weaponGrip: Math.PI / 2,
             torso: 0.025,
           },
           this.guardAge,
+          this.prefix,
         ),
       );
       this.name = "defend";

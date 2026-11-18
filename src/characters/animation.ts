@@ -11,6 +11,7 @@ export interface Clip {
   hold?: boolean;
   blendIn?: number;
   blendRanges?: Record<string, [number, number]>;
+  discrete?: readonly string[];
   sample?: (phase: number) => Pose;
 }
 export class Animator {
@@ -143,6 +144,7 @@ export class Animator {
       );
     if (this.clip.blendIn && this.age < this.clip.blendIn) {
       for (const key of this.poseKeys) {
+        if (this.clip.discrete?.includes(key)) continue;
         const [start, end] = this.clip.blendRanges?.[key] ?? [0, 1];
         const v = Math.max(
           0,

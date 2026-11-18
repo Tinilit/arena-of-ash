@@ -1,14 +1,23 @@
 import { item, enemies, rewards } from "../data/catalog";
-import type { Player, Slot, Attribute } from "./model";
+import {
+  slotCategory,
+  type Player,
+  type EquipmentSlot,
+  type Attribute,
+} from "./model";
 export function stats(p: Player) {
-  const gear = Object.values(p.equipment).map((id) => item(id!));
+  const armor = [p.equipment.helmet, p.equipment.body].map((id) =>
+    item(id ?? ""),
+  );
+  const weapon = primaryWeapon(p);
+  const gear = [weapon, ...armor];
   return {
     hp: 60 + p.attributes.vitality * 4,
     stamina: 50 + p.attributes.endurance * 5,
     attack:
       6 +
       p.attributes.strength * 0.9 +
-      gear.reduce((n, i) => n + (i?.attack ?? 0), 0),
+      gear.reduce((sum, entry) => sum + (entry?.attack ?? 0), 0),
     armor: gear.reduce((n, i) => n + (i?.armor ?? 0), 0),
     defense: p.attributes.defense,
   };
@@ -20,13 +29,17 @@ export function purchase(p: Player, id: string) {
   p.inventory.push(id);
   return true;
 }
-export function canEquip(p: Player, id: string, slot: Slot) {
+export function canEquip(p: Player, id: string, slot: EquipmentSlot) {
   const i = item(id);
-  return Boolean(i && i.slot === slot && p.inventory.includes(id));
+  return Boolean(
+    i && i.slot === slotCategory[slot] && p.inventory.includes(id),
+  );
 }
-export function equip(p: Player, id: string, slot: Slot) {
+export function equip(p: Player, id: string, slot: EquipmentSlot) {
   const i = item(id);
   if (!i || !canEquip(p, id, slot)) return false;
+  for (const [position, worn] of Object.entries(p.equipment))
+    if (worn === id) delete p.equipment[position as EquipmentSlot];
   p.equipment[slot] = id;
   return true;
 }
@@ -66,4 +79,16 @@ export function opponent(p: Player): Player {
     attributes: { ...e.attributes },
     equipment: { ...e.equipment },
   };
+}
+
+export function unequip(p: Player, slot: EquipmentSlot) {
+  if (!p.equipment[slot]) return false;
+  delete p.equipment[slot];
+  return true;
+}
+export function primaryWeapon(p: Player) {
+  return item(p.equipment.rightHand ?? p.equipment.leftHand ?? "");
+}
+export function primaryHand(p: Player): "rear" | "front" {
+  return p.equipment.rightHand || !p.equipment.leftHand ? "rear" : "front";
 }

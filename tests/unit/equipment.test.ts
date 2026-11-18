@@ -19,9 +19,9 @@ const funded = () => {
   return p;
 };
 describe("equipment catalog", () => {
-  it("keeps nine definitions with shields paused and no paired weapon", () => {
-    expect(items).toHaveLength(9);
-    expect(new Set(items.map((i) => i.id)).size).toBe(9);
+  it("keeps eleven definitions with shields paused and no paired weapon", () => {
+    expect(items).toHaveLength(11);
+    expect(new Set(items.map((i) => i.id)).size).toBe(11);
     expect(item("glaives")).toBeUndefined();
     expect(items.some((it) => it.slot === "shield")).toBe(false);
   });
@@ -39,7 +39,7 @@ describe("equipment catalog", () => {
     const p = funded();
     for (const id of ["war-spear", "viking"]) {
       purchase(p, id);
-      expect(equip(p, id, item(id)!.slot)).toBe(true);
+      expect(equip(p, id, id === "viking" ? "helmet" : "rightHand")).toBe(true);
     }
     expect(stats(p).attack).toBe(25);
     expect(stats(p).armor).toBe(3);
@@ -49,8 +49,8 @@ describe("equipment catalog", () => {
     const p = funded();
     purchase(p, "viking");
     equip(p, "viking", "helmet");
-    expect(equip(p, "glaives", "weapon")).toBe(false);
-    expect(equip(p, "viking", "weapon")).toBe(false);
+    expect(equip(p, "glaives", "rightHand")).toBe(false);
+    expect(equip(p, "viking", "rightHand")).toBe(false);
     expect(p.equipment.helmet).toBe("viking");
   });
   it("does not mutate the shared Ash motion library", () => {
@@ -138,6 +138,7 @@ for (const id of ["spear", "war-spear"])
           const q = add(s.farArm.hand, rotate({ x: 0, y: length }, angle));
           return rotate({ x: q.x - head.x, y: q.y - head.y }, -headR);
         };
+        if ((p.throwPreview ?? 0) > 0.01) continue;
         expect(
           crossesFace(
             local(id === "war-spear" ? -150 : -132),

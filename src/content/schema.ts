@@ -11,6 +11,7 @@ const visuals: Record<Slot, readonly string[]> = {
   helmet: ["cap", "viking"],
   chest: ["leather", "plate"],
   shield: ["shield", "tower"],
+  utility: ["net", "flask"],
 };
 // Starter and opponent loadouts need these IDs and slots to remain available.
 const required: Record<string, Slot> = {
@@ -20,6 +21,8 @@ const required: Record<string, Slot> = {
   leather: "chest",
   plate: "chest",
   cap: "helmet",
+  net: "utility",
+  flask: "utility",
 };
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value))

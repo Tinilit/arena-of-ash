@@ -1,5 +1,5 @@
 import type { Player } from "../domain/model";
-import { item } from "../data/catalog";
+import { primaryWeapon } from "../domain/progression";
 import { stats } from "../domain/progression";
 import { actions, damage, fighter, type Fighter } from "./engine";
 import { hopDefinitions, hopKind, type Hop } from "./hops";
@@ -20,6 +20,7 @@ export const arenaRules = {
   gravity: 1350,
   jumpSpeed: 500,
   jumpCost: 10,
+  staminaRegen: 14,
 };
 export const attackTimings = {
   quick: { duration: 650, from: 0.3, to: 0.7 },
@@ -106,7 +107,7 @@ export class RealtimeBattle {
       f.hp > 0 &&
       !f.action &&
       f.stamina >= actions[name].cost &&
-      (name === "recover" || Boolean(item(f.model.equipment.weapon ?? "")))
+      (name === "recover" || Boolean(primaryWeapon(f.model)))
     );
   }
   canHop(f: ArenaFighter, direction: -1 | 1) {
@@ -227,7 +228,7 @@ export class RealtimeBattle {
         }
       }
       const drain = f.hop ? 0 : f.guard ? 8 : running && movement ? 10 : 0;
-      const regeneration = !f.action && !f.hop && !drain ? 14 : 0;
+      const regeneration = arenaRules.staminaRegen;
       f.stamina = Math.max(
         0,
         Math.min(

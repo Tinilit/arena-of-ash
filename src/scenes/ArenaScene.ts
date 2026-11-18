@@ -27,7 +27,6 @@ export class ArenaScene extends BaseScene {
   private keys: Record<string, Phaser.Input.Keyboard.Key> = {};
   private queued: ArenaInput = {};
   private held = new Map<string, Set<number>>();
-  private touchGuard = false;
   private battleId = "";
   private ending = false;
   private accumulator = 0;
@@ -44,7 +43,6 @@ export class ArenaScene extends BaseScene {
     this.accumulator = 0;
     this.queued = {};
     this.held.clear();
-    this.touchGuard = false;
     this.paused = false;
     const query = new URLSearchParams(location.search);
     const seed =
@@ -92,20 +90,15 @@ export class ArenaScene extends BaseScene {
     label(this, 855, 130, "SP", 14);
     this.status = label(this, 640, 92, en.fight, 23, "#e8bd72").setOrigin(0.5);
     label(this, 640, 166, en.arenaHint, 14).setOrigin(0.5);
-    (["quick", "heavy", "defend", "recover"] as const).forEach((a, i) =>
+    (["quick", "heavy"] as const).forEach((a, i) =>
       this.button(
         a,
-        173 + i * 310,
+        475 + i * 330,
         611,
-        280,
-        `${i + 1}  ${en[a]}${actions[a].cost ? "  " + actions[a].cost : ""}`,
+        300,
+        `${i + 1}  ${en[a]}  ${actions[a].cost}`,
         () => {
-          if (a === "defend") this.touchGuard = !this.touchGuard;
-          else if (a === "recover") this.queued.recover = true;
-          else {
-            this.touchGuard = false;
-            this.queued.attack = a;
-          }
+          this.queued.attack = a;
         },
       ),
     );
@@ -165,21 +158,16 @@ export class ArenaScene extends BaseScene {
         arrowRight: "RIGHT",
         run: "SHIFT",
         jump: "SPACE",
-        guard: "L",
-        guardNumber: "THREE",
       }) as typeof this.keys) ?? {};
     this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
       if (event.repeat || this.ending) return;
       const key = event.key.toLowerCase();
       if (key === "j" || key === "1") {
         this.queued.attack = "quick";
-        this.touchGuard = false;
       }
       if (key === "k" || key === "2") {
         this.queued.attack = "heavy";
-        this.touchGuard = false;
       }
-      if (key === "f" || key === "4") this.queued.recover = true;
       if (key === " ") this.queueJump();
       if (key === "r") this.queued.toggleStance = true;
     });
@@ -211,7 +199,6 @@ export class ArenaScene extends BaseScene {
   }
   private clearInput() {
     this.queued = {};
-    this.touchGuard = false;
     this.held.forEach((set) => set.clear());
     Object.values(this.keys).forEach((key) => key.reset());
   }
@@ -220,7 +207,6 @@ export class ArenaScene extends BaseScene {
       ...this.queued,
       move: this.direction(),
       run: this.down("run"),
-      guard: this.down("guard") || this.down("guardNumber") || this.touchGuard,
     };
     this.queued = {};
     return input;
@@ -264,12 +250,8 @@ export class ArenaScene extends BaseScene {
       this.bars[i * 2].update(f.hp, s.hp);
       this.bars[i * 2 + 1].update(Math.floor(f.stamina), s.stamina);
     });
-    for (const a of ["quick", "heavy", "recover"] as const)
+    for (const a of ["quick", "heavy"] as const)
       this.buttons[a].setEnabled(this.battle.canAttack(this.battle.player, a));
-    this.buttons.defend.setEnabled(!this.ending && !this.battle.player.action);
-    this.buttons.defend.setCaption(
-      this.battle.player.guard ? en.guarding : `3  ${en.defend}`,
-    );
     const player = this.battle.player,
       direction = this.direction();
     if (direction) {

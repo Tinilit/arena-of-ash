@@ -1,41 +1,35 @@
-# Directional hops, relaxed stance and display verification — 2026-11-18
+# Loadout, throwing and combat verification — 2026-11-18
 
-This release adds player-only directional hops and an upright relaxed stance while retaining the adaptive canvas and text raster density that corrected large-display blur. The existing real-time movement, running, jumping and overlapping rear-hand attacks are retained. The free front arm, refined shoulders, Ash Vanguard artwork, Grounded rig and nine-item shield-free catalog remain. Damage requires active blade/body contact; no animation marker or random accuracy roll changes HP.
+This release adds continuously regenerating combat stamina, removes the player Defense/Recover controls, replaces the character equipment list with anatomical slot cards, and adds a reusable throw preview. Ash Vanguard, Grounded anatomy, player-only hops, active blade/body contact and adaptive display density remain.
 
 ## Checks
 
-Validated with Node.js 22, Phaser 3.90.0 and system Chromium:
+Validated with Node.js 22, Phaser 3.90.0 and Chromium:
 
-| Check                  | Result                                 |
-| ---------------------- | -------------------------------------- |
-| Strict TypeScript      | Passed                                 |
-| ESLint                 | Passed                                 |
-| Vitest                 | 150 tests passed across 9 files        |
-| Playwright             | 21 browser scenarios passed            |
-| Pages production build | Passed with `/arena-of-ash/` base path |
+| Check                  | Result                     |
+| ---------------------- | -------------------------- |
+| Strict TypeScript      | Passed                     |
+| ESLint                 | Passed                     |
+| Vitest                 | 163 tests across 10 files  |
+| Playwright             | 24 browser scenarios       |
+| Pages production build | `/arena-of-ash/` base path |
 
-The 26 real-time unit checks cover capsule intersections, parallel/degenerate segments, fast sweeps, simultaneously moving targets, near misses, anticipation/recovery exclusion, facing changes, one hit per swing, guard, stamina, jumping, landing, bounds/body separation, simultaneous lethal trades, outcomes, recovery caps, source-model isolation, action/clip timing, layered locomotion, death continuity from the displayed composite pose, affordable AI decisions and runtime weapon geometry validation. Existing tests retain progression, equipment, saves, runtime content, IK constraints, fixed bone lengths, planted support, interpolation continuity and blade/face clearance.
+Thirteen new unit cases cover equipment category compatibility, unique equipped instances, moving/removing items, all-position persistence, primary-hand fallback, non-stacking secondary/belt stats, stamina regeneration during idle/attack/run/jump/hops, maximum/outcome behavior, both throw-hand libraries, immutable limb lengths, reachable hands, planted support a single release marker even across skipped frames, clean state on immediate replay, and preservation of live bonuses on active armor/weapon.
 
-Browser scenarios cover a distant missed attack, approaching and making real contact, full victory/defeat, single rewards, fresh battles, all purchases/equipment persistence, live item images/stats, invalid-art fallback, keyboard shutdown, responsive views, body/arm draw order and shoulder attachments, camp controls and arena run/jump/attack composition. The added contact scenario samples both HP counters and recorded contact shapes: every decrement equals new collision events, each recorded blade/body pair intersects and both fighters deal contact damage. The hold-control scenario covers mouse movement, guard toggling, jumping, bounds, stopped wall movement, focus pause and abandoning without rewards.
+Three new browser scenarios inspect actual hand/belt transforms, move equipment between anatomical positions, persist/reload a left-hand primary weapon, observe a complete throw with held/released prop and weapon visibility, confirm return to idle without inventory/progression changes, and sample increasing stamina during simultaneous attack/hop with no Defense/Recover buttons or bindings. Existing shop/live-content/save scenarios use the new slot/category contract and save version 2. Input helpers observe frames after a click so deferred scene restarts have completed before assertions.
 
-The prior real-time release passed all 15 gameplay scenarios in publishing CI. This update adds four large-display/Retina scenarios. Local runs exposed timing-sensitive camp assertions under a throttled renderer: they now observe movement state, sample at the actual direction change and track the whole jump rather than an arbitrary delayed frame. The corrected camp scenario also passed locally. The production entry exposes no development snapshot or hitbox overlay.
+The retained scenarios exercise progression, victory/defeat, one-time rewards, runtime JSON/images and fallback, shoulder/arm/garment depth, camp locomotion, attacks while moving/airborne, recorded physical contacts, focus cleanup, bounds, large displays, Retina, native 4K, fractional DPI and logical pointer targeting. Body/blade shapes remain articulated capsules rather than per-pixel masks. Dormant guard/recover animation/engine checks are retained, but those player controls are not exposed.
 
-Screenshots under `test-results/screenshots/` include `attack-missed-at-distance.png`, `arena-running-attack.png`, `arena-jumping-attack.png`, `realtime-contact-combat.png`, `arena-touch-jump.png`, full battle results and the preserved equipped/arm/shoulder/camp views. Capsule shapes approximate drawn body/blade silhouettes; these are not per-pixel alpha collisions or frame-rate measurements on every device. The existing Phaser bundle-size warning remains.
+Screenshots under `test-results/screenshots/` include `anatomical-loadout-both-hands-belt.png`, `left-hand-primary-arena.png`, `camp-throw-preview.png`, the updated Character/shop views and prior anatomy/contact/display captures.
 
-## Controls and publication
+## Controls and scope
 
-A/D or Left/Right move; Shift runs; Space jumps; A/D+Space hops backward/forward relative to facing; J/1 quick-attacks; K/2 heavy-attacks; hold L/3 to guard; F/4 recovers; R toggles stance; Escape returns to camp. Mouse/touch supports held movement/run buttons, Jump, attacks and a Defend toggle. See [real-time combat](REALTIME_COMBAT.md), [animation](ANIMATION_SYSTEM.md) and [runtime collision metadata](RUNTIME_CONTENT.md#weapon-contact-shape).
+Arena: A/D or arrows move, Shift runs, Space jumps, direction+Space hops, J/1 quick-attacks, K/2 heavy-attacks, R changes stance, Escape returns to camp. Stamina regenerates at 14/second throughout active simulation; running costs 10/second, leaving a positive net rate. L/3/F/4 do not start player actions. Bots wait for passive regeneration instead of requesting recovery; their existing ordinary jumps and occasional guard remain.
 
-The public playtest address is https://tinilit.github.io/arena-of-ash/. The `Validate and deploy game` workflow gates publication on the pushed commit's checks. Match its successful deployment to the exact commit and compare the served JavaScript bundle with the local `/arena-of-ash/` build; local test success alone does not establish a public update. Cloud environment publication and GitHub Pages deployment are separate operations.
+Camp T / Throw and Character Throw preview play the animation only. No spear/net/grenade projectile, belt activation, item consumption or thrown damage is implemented. A second hand weapon is carried; the right hand attacks by default and the left becomes active when the right is empty. Only the active weapon contributes attack stats/contact. Belt net/flask remain visible inactive attachments. See [equipment](EQUIPMENT.md), [throw motion and consulted guides](THROW_ANIMATION.md), [combat](REALTIME_COMBAT.md) and [runtime content](RUNTIME_CONTENT.md).
 
-## Large-display blur correction
+The new save key/format is `arena-of-ash.v2` / `{version:2,player}`. Old equipment layouts are not migrated. Fresh characters start with a wooden sword, folded net and clay flask. Shields and paired warglaives remain absent.
 
-The fixed backing canvas and 1× text textures have been replaced with adaptive physical render density while preserving the logical game area. At 2560×1440/DPR 1, the backing canvas is now 2560×1440 and button text uses 2× bitmaps. Both vector art and labels avoid enlargement from the old 1280×720 buffer. Window resizing and a live DPR change rerasterize existing text and preserve input/world coordinates. See [display scaling](DISPLAY_SCALING.md) for budgets and the browser matrix.
+## Publication
 
-The complete local suite passed: 138 unit tests and all 19 browser scenarios. The four added display cases cover both Canvas and WebGL, fractional DPI, native 4K, Retina, live resize/DPR changes and pointer targeting.
-
-## Directional hops and upright idle
-
-Nine added hop unit checks cover launch cost, anticipation/air/landing/cooldown, displacement and ballistic height, release/retrigger behavior, mirrored facing, bounds/body separation, manual overlapping attacks, retained vulnerability, enemy exclusion fixed-length leg posing and avoiding a duplicate post-hop landing bounce. Three added locomotion checks cover upright torso alignment, almost straight planted knees, lowered blade/floor clearance, and spear hand/grip transitions through stances, movement, attacks and guard. The published art direction, arm depth and shoulder attachments remain unchanged.
-
-Two added browser scenarios exercise the real A+Space/D+Space bindings, capture complete hops including landing, confirm no automatic player swing and no enemy hops, preserve ordinary Space jumping, and inspect actual rendered joint alignment and lowered blade geometry. The hold-control and arena movement scenarios now observe the actual guard/movement/jump state instead of assuming a simulation tick has completed within a fixed delay on a slow renderer. References and tuned timings are documented in [real-time combat](REALTIME_COMBAT.md#player-only-directional-hops) and [animation](ANIMATION_SYSTEM.md#upright-relaxed-stance-and-carried-weapons).
+The public playtest address is https://tinilit.github.io/arena-of-ash/. The `Validate and deploy game` workflow gates deployment on the pushed commit's full checks. Verify its successful deployment against the exact commit and compare the served JavaScript bundle with the local Pages build. Production must not expose the development snapshot API. Cloud environment publication and Pages deployment are separate operations.

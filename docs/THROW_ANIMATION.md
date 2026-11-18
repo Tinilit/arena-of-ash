@@ -1,0 +1,15 @@
+# Throw animation foundation
+
+`throwMotion.ts` supplies a 1250 ms one-shot clip for either hand. Equipment motion libraries include it independently of sword/spear style. The pose loads weight onto the rear leg, takes the hand behind the hip, raises the arm through a curved path, leads into elbow extension, opens the palm at the 56% release marker, follows through and returns to the chosen idle. Root/torso rotation and a short planted step support the arm rather than moving the wrist alone. Fixed 40/34 arm and 54/52 leg lengths, shoulder origins, IK limits and sole support are unchanged.
+
+Camp uses T or Throw preview; Character has its own Throw preview button. Repeated preview requests are ignored until completion. The normal weapon is temporarily hidden; a small training prop is shown in the actual hand mount until release, then hidden while an open palm is displayed. No inventory ID is removed, no arena action begins and no projectile or HP effect is created. The existing Animator marker callback fires once even if a frame skips over release. Preview/release states use discrete channels, so a new throw cannot inherit the previous clip's released state through entry blending. Future spear/net/grenade mechanics should subscribe to release and use the actual hand transform, then define projectile physics, ownership and collision independently. The preview prop is not a grenade mechanic.
+
+## Guides consulted
+
+- [OpenStax, Types of Body Movements](https://github.com/openstax/osbooks-anatomy-physiology/blob/main/modules/m46398/index.cnxml): elbow extension, shoulder internal/external rotation, and scapular protraction during a throw. The chapter distinguishes forearm pronation from rotation at the shoulder, so weapon/item grip rotation is not used to fake elbow movement.
+- [OpenStax, Muscles of the Pectoral Girdle and Upper Limbs](https://github.com/openstax/osbooks-anatomy-physiology/blob/main/modules/m46495/index.cnxml): pectoralis/shoulder rotation in throwing and rotator cuff attachment. This informs the shoulder-driven motion and forearm follow-through while retaining the existing shoulder anchors.
+- [Godot AnimationTree, OneShot and filtering](https://github.com/godotengine/godot-docs/blob/master/tutorials/animation/animation_tree.rst): execute once, blend from the current pose, and return to idle. The game uses its own Phaser-independent Animator and marker lifecycle.
+
+This is an authored two-dimensional projection. It does not attempt to reproduce all three-dimensional scapular motion or prescribe clinical throwing angles. Phase timing and hand targets are game tuning; they are not numeric recommendations from the anatomy references. The clip is shared preparation for future thrown objects, not a complete javelin run-up or a working net/grenade system.
+
+Verification samples both hand libraries for reachable fixed-length limbs, joint limits, floor support and one release/completion. Browser checks inspect actual prop/weapon visibility, open/released states, return to relaxed idle and unchanged saved inventory/progression.

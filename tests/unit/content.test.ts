@@ -154,10 +154,10 @@ describe("runtime content contract", () => {
     );
     const p = createPlayer();
     expect(purchase(p, "test-spear")).toBe(true);
-    expect(equip(p, "test-spear", "weapon")).toBe(true);
+    expect(equip(p, "test-spear", "rightHand")).toBe(true);
     expect(p.gold).toBe(80);
     expect(stats(p).attack).toBe(32);
-    expect(deserialize(serialize(p)).equipment.weapon).toBe("test-spear");
+    expect(deserialize(serialize(p)).equipment.rightHand).toBe("test-spear");
     expect(item("test-spear")?.attack).toBe(17);
   });
 });

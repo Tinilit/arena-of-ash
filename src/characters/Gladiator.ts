@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { item } from "../data/catalog";
+import { primaryWeapon, primaryHand } from "../domain/progression";
 import type { Player } from "../domain/model";
 import { LimbArt } from "../rendering/limbArt";
 import { drawPart, drawGear } from "../rendering/characterVisuals";
@@ -22,13 +23,17 @@ export class Gladiator {
   private joints: Record<string, Phaser.GameObjects.Container> = {};
   private shadow: Phaser.GameObjects.Ellipse;
   private direction: number;
-  private shieldMount?: Phaser.GameObjects.Container;
   private limbs: Record<string, LimbArt> = {};
   private skirt!: Phaser.GameObjects.Container;
   private weapons: Phaser.GameObjects.Container[] = [];
   private bladeProfile: ReturnType<typeof weaponHitbox>;
   private displayedAnimation?: string;
   private displayedPose: Pose = {};
+  private offhand?: Phaser.GameObjects.Container;
+  private beltItems: Phaser.GameObjects.Container[] = [];
+  private throwProp!: Phaser.GameObjects.Graphics;
+  private openPalm!: Phaser.GameObjects.Container;
+  private closedPalm!: Phaser.GameObjects.GameObject;
   constructor(
     private scene: Phaser.Scene,
     private originX: number,
@@ -38,13 +43,13 @@ export class Gladiator {
     private bodyScale = 1.25,
     options: RigOptions = {},
   ) {
-    const weapon = item(model.equipment.weapon ?? "");
+    const weapon = primaryWeapon(model);
     this.bladeProfile = weaponHitbox(
       weapon?.image && !scene.textures.exists(itemTextureKey(weapon.id))
         ? { ...weapon, image: undefined, hitbox: undefined }
         : weapon,
     );
-    this.primaryHand = options.weaponHand ?? "rear";
+    this.primaryHand = options.weaponHand ?? primaryHand(model);
     this.animator = new Animator(equipmentMotion(weapon, this.primaryHand));
     this.animator.setIdle(
       options.stance === "relaxed" ? "idleRelaxed" : "idleCombat",
@@ -93,19 +98,10 @@ export class Gladiator {
     }
     const backTorso = joint("backTorso", pelvis, 0, 0);
     const torso = joint("torso", pelvis, 0, 0);
-    if (model.equipment.shield) {
-      this.shieldMount = drawGear(
-        scene,
-        item(model.equipment.shield) ?? "shield",
-      );
-      // Container children render as a subtree: a shield inside the arm cannot
-      // sit behind the legs. Keep its drawing below the entire body instead.
-      this.root.addAt(this.shieldMount, 0);
-    }
     torso.add(drawPart(scene, "torso", skin).setY(skeleton.torsoArtY));
-    if (model.equipment.chest)
+    if (model.equipment.body)
       torso.add(
-        drawGear(scene, item(model.equipment.chest) ?? "leather").setY(
+        drawGear(scene, item(model.equipment.body) ?? "leather").setY(
           skeleton.torsoArtY,
         ),
       );
@@ -150,9 +146,45 @@ export class Gladiator {
       nearElbow,
       0,
       skeleton.forearm,
-      this.primaryHand === "front" ? "hand" : "relaxedHand",
+      this.primaryHand === "front" || model.equipment.leftHand
+        ? "hand"
+        : "relaxedHand",
     );
     this.handMounts = { rear: farHand, front: nearHand };
+    const primary = this.handMounts[this.primaryHand];
+    this.closedPalm = primary.list[0];
+    this.openPalm = drawPart(scene, "relaxedHand", skin);
+    primary.add(this.openPalm);
+    this.openPalm.setVisible(false);
+    this.throwProp = scene.add
+      .graphics()
+      .fillStyle(0xbc8351)
+      .fillCircle(0, -5, 8)
+      .lineStyle(2, 0x41332c)
+      .strokeCircle(0, -5, 8);
+    primary.addAt(this.throwProp, 0);
+    this.throwProp.setVisible(false);
+    if (model.equipment.rightHand && model.equipment.leftHand) {
+      const definition = item(model.equipment.leftHand);
+      if (definition) {
+        this.offhand = drawGear(scene, definition);
+        this.handMounts.front.addAt(this.offhand, 0);
+      }
+    }
+    for (const [i, position] of (["belt1", "belt2"] as const).entries()) {
+      const definition = item(model.equipment[position] ?? "");
+      if (definition) {
+        const attachment = drawGear(scene, definition);
+        const bounds = attachment.getBounds();
+        attachment
+          .setPosition(i === 0 ? -32 : 30, 2)
+          .setScale(Math.min(0.7, 30 / bounds.width, 40 / bounds.height))
+          .setName(position);
+        pelvis.addAt(attachment, pelvis.getIndex(frontTorso));
+        this.beltItems.push(attachment);
+      }
+    }
+
     if (weapon) {
       const mounted = drawGear(scene, weapon).setRotation(Math.PI / 2);
       this.handMounts[this.primaryHand].addAt(mounted, 0);
@@ -171,6 +203,18 @@ export class Gladiator {
     this.weapons.forEach((weapon) =>
       weapon.setRotation(p.weaponGrip ?? Math.PI / 2),
     );
+
+    const throwing = (p.throwPreview ?? 0) > 0.01,
+      released = (p.throwReleased ?? 0) > 0.5;
+    this.weapons.forEach((weapon) => weapon.setVisible(!throwing));
+    this.throwProp.setVisible(throwing && !released);
+    this.openPalm.setVisible(throwing && released);
+    (this.closedPalm as Phaser.GameObjects.Container).setVisible(
+      !(throwing && released),
+    );
+    if (this.offhand) {
+      this.offhand.setRotation((3 * Math.PI) / 4);
+    }
     this.joints.torso.rotation = solved.torso;
     this.joints.backTorso.rotation = solved.torso;
     this.joints.frontTorso.rotation = solved.torso;
@@ -191,17 +235,6 @@ export class Gladiator {
       this.originX + solved.root.x * this.bodyScale * this.direction;
     this.root.y = this.originY + solved.root.y * this.bodyScale;
     this.root.rotation = solved.root.rotation * this.direction;
-    if (this.shieldMount) {
-      // Copy the actual hand attachment into root space after posing the rig.
-      // This preserves grip, mirror/scale and fall rotation without arm layering.
-      const hand = this.handMounts.front
-        .getWorldTransformMatrix()
-        .transformPoint(0, 0);
-      const local = this.root
-        .getWorldTransformMatrix()
-        .applyInverse(hand.x, hand.y);
-      this.shieldMount.setPosition(local.x, local.y);
-    }
     this.shadow.x = this.root.x;
   }
   jointSnapshot() {
@@ -232,20 +265,29 @@ export class Gladiator {
         waist: frame("pelvis"),
         torso: frame("torso"),
       },
-      shield: Boolean(this.shieldMount),
-      shieldAttachment: this.shieldMount
-        ? {
-            ...this.shieldMount.getWorldTransformMatrix().transformPoint(0, 0),
-            behindBody:
-              this.shieldMount.parentContainer === this.root &&
-              this.root.getIndex(this.shieldMount) <
-                this.root.getIndex(this.joints.pelvis),
-          }
-        : null,
+      shield: false,
+      shieldAttachment: null,
       weapons: this.weapons.map((weapon) => {
         const p = weapon.getWorldTransformMatrix().transformPoint(0, 0);
-        return { x: p.x, y: p.y, texture: weapon.name || null };
+        return {
+          x: p.x,
+          y: p.y,
+          texture: weapon.name || null,
+          visible: weapon.visible,
+        };
       }),
+      belt: this.beltItems.map((attachment) => ({
+        slot: attachment.name,
+        ...attachment.getWorldTransformMatrix().transformPoint(0, 0),
+      })),
+      offhand: this.offhand
+        ? { ...this.offhand.getWorldTransformMatrix().transformPoint(0, 0) }
+        : null,
+      throwing: {
+        active: (this.displayedPose.throwPreview ?? 0) > 0.01,
+        released: (this.displayedPose.throwReleased ?? 0) > 0.5,
+        propVisible: this.throwProp.visible,
+      },
       scale: Math.abs(this.root.scaleY),
       near: {
         hip: point("nearThigh"),
