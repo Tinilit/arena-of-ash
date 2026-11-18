@@ -1006,7 +1006,11 @@ test("direction plus Space hops without an automatic attack and bots keep ordina
     await expect
       .poll(async () => (await snapshot(page)).battle!.player.hop)
       .toBeNull();
-    await page.waitForTimeout(200);
+    // Keep input checks outside melee range; real hits intentionally interrupt hops/jumps.
+    await page.keyboard.press("Escape");
+    await scene(page, "MainMenuScene");
+    await click(page, "battle");
+    await scene(page, "ArenaScene");
   }
   await page.keyboard.press("Space");
   await expect
