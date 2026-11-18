@@ -340,6 +340,12 @@ test("arena movement, running, jumping and attacks share fixed-length joint tran
   expect(moving.battle!.player.action?.name).toBe("heavy");
   expect(moving.rigs![0].animation).toBe("heavy");
   await shot(page, "arena-running-attack");
+  // A screenshot may outlast a swing on a slow renderer. Start a fresh action
+  // for the airborne composition rather than relying on the previous swing.
+  await expect
+    .poll(async () => (await snapshot(page)).battle!.player.action)
+    .toBeNull();
+  await page.keyboard.press("k");
   await page.keyboard.press("Space");
   await expect
     .poll(async () => (await snapshot(page)).battle!.player.y)
