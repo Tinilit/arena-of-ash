@@ -1,3 +1,4 @@
+import type { Hand } from "../domain/model";
 export interface Point {
   x: number;
   y: number;
@@ -10,6 +11,9 @@ export interface Capsule {
 export interface CombatGeometry {
   blade: Capsule | null;
   body: Capsule[];
+  blades?: Partial<Record<Hand, Capsule>>;
+  hands?: Record<Hand, Capsule>;
+  feet?: Record<Hand, Capsule>;
 }
 export interface SweptCollision {
   point: Point;

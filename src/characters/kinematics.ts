@@ -122,7 +122,8 @@ export function groundedPose(p: Pose, travelScale = 1) {
     const fk = chain(skeleton.thigh, skeleton.shin, angle, bend);
     const foot =
       (-root.rotation - angle - bend) * plant +
-      v(`${side}FootAngle`) * (1 - plant);
+      v(`${side}FootAngle`) * (1 - plant) +
+      v(`${side}FootRoll`);
     const ankle = world(add(hip, fk.tip));
     return {
       angle,
@@ -157,7 +158,11 @@ export function groundedPose(p: Pose, travelScale = 1) {
       skeleton.elbowMin,
       skeleton.elbowMax,
     );
-    const angle = clamp(ik.angle, skeleton.shoulderMin, skeleton.shoulderMax);
+    const angle = clamp(
+      Math.atan2(Math.sin(ik.angle), Math.cos(ik.angle)),
+      skeleton.shoulderMin,
+      skeleton.shoulderMax,
+    );
     const fk = chain(skeleton.upperArm, skeleton.forearm, angle, ik.bend);
     const toWorld = (q: Point) =>
       world(

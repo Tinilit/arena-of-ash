@@ -96,7 +96,7 @@ describe("player directional hops", () => {
   it("allows a manually requested swing and remains vulnerable to real weapon contact", () => {
     const b = make();
     b.advance(0, [{ hop: 1, attack: "quick" }, { attack: "quick" }]);
-    for (let i = 0; i < 40; i++) step(b);
+    for (let i = 0; i < 60; i++) step(b);
     expect(b.player.hop?.phase).toBe("air");
     expect(b.player.action?.name).toBe("quick");
     const capsule = { a: { x: 0, y: 0 }, b: { x: 0, y: 20 }, radius: 3 };

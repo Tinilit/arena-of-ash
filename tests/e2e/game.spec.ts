@@ -141,7 +141,7 @@ async function steer(page: Page, state: Snapshot) {
     else await page.keyboard.up(key);
   return gap < range + 20;
 }
-async function hitEnemy(page: Page, action: "quick" | "heavy" = "quick") {
+async function hitEnemy(page: Page) {
   const first = (await snapshot(page)).battle!.contacts.at(-1)?.id ?? 0;
   for (let i = 0; i < 100; i++) {
     const s = await snapshot(page);
@@ -156,7 +156,7 @@ async function hitEnemy(page: Page, action: "quick" | "heavy" = "quick") {
     if (s.scene !== "ArenaScene" || s.battle?.state !== "Fighting")
       throw Error("Fight ended before a player contact");
     if ((await steer(page, s)) && !s.battle.player.action)
-      await page.keyboard.press(action === "quick" ? "j" : "k");
+      await page.keyboard.press("k");
     await page.waitForTimeout(90);
   }
   throw Error("No physical weapon contact");
@@ -173,7 +173,7 @@ async function finish(page: Page, attack = true) {
       const inRange = await steer(page, s);
       if (!s.battle.player.action) {
         if (s.battle.player.stamina >= 12 && inRange)
-          await page.keyboard.press("j");
+          await page.keyboard.press("k");
       }
     }
     await page.waitForTimeout(100);
@@ -345,22 +345,16 @@ test("arena movement, running, jumping and attacks share fixed-length joint tran
     .toBeGreaterThan(initial.origin.x + 10);
   const moving = await snapshot(page);
   expect(moving.battle!.player.x).toBeGreaterThan(initial.origin.x + 10);
-  expect(moving.battle!.player.action?.name).toBe("heavy");
-  expect(moving.rigs![0].animation).toBe("heavy");
-  await shot(page, "arena-running-attack");
-  // A screenshot may outlast a swing on a slow renderer. Start a fresh action
-  // for the airborne composition rather than relying on the previous swing.
-  await expect
-    .poll(async () => (await snapshot(page)).battle!.player.action)
-    .toBeNull();
-  await page.keyboard.press("k");
+  expect(moving.battle!.player.action?.name).toBe("quick");
+  expect(moving.rigs![0].animation).toBe("quick");
+  // Jump during the same wind-up, before approaching the opponent can cause a stun.
   await page.keyboard.press("Space");
   await expect
     .poll(async () => (await snapshot(page)).battle!.player.y)
     .toBeLessThan(-25);
   const jumping = await snapshot(page);
   expect(jumping.battle!.player.y).toBeLessThan(-25);
-  expect(jumping.battle!.player.action?.name).toBe("heavy");
+  expect(jumping.battle!.player.action?.name).toBe("quick");
   jumping.rigs!.forEach((r) => anatomy(r, false));
   await shot(page, "arena-jumping-attack");
   await page.keyboard.up("d");
@@ -377,7 +371,7 @@ test("keyboard input, scene shutdown, reset confirmation and viewport scaling", 
   await page.keyboard.press("2");
   await expect
     .poll(async () => (await snapshot(page)).battle?.player.action?.name)
-    .toBe("heavy");
+    .toBe("quick");
   await page.keyboard.press("Escape");
   await scene(page, "MainMenuScene");
   await page.waitForTimeout(1300);
@@ -385,7 +379,6 @@ test("keyboard input, scene shutdown, reset confirmation and viewport scaling", 
   expect((await snapshot(page)).buttons.defend).toBeUndefined();
   expect((await snapshot(page)).buttons.recover).toBeUndefined();
   await page.keyboard.press("l");
-  await page.keyboard.press("f");
   expect((await snapshot(page)).battle!.player.guard).toBe(false);
   await page.setViewportSize({ width: 960, height: 600 });
   await shot(page, "small-landscape");
@@ -634,7 +627,7 @@ test("shields are absent and the free front arm stays behind the torso while the
   await click(page, "battle");
   await scene(page, "ArenaScene");
   await shot(page, "rig-armored-both-facing");
-  await click(page, "heavy");
+  await click(page, "quick");
   const samples = await page.evaluate(
     () =>
       new Promise<Rig[][]>((resolve) => {
@@ -683,7 +676,7 @@ test("both legs stay beneath the skirt and arms keep their own shoulder attachme
   await click(page, "battle");
   await scene(page, "ArenaScene");
   await shot(page, "rig-revised-idle");
-  await click(page, "heavy");
+  await click(page, "quick");
   const samples = await page.evaluate(
     () =>
       new Promise<Rig[][]>((resolve) => {
@@ -734,7 +727,7 @@ test("both legs stay beneath the skirt and arms keep their own shoulder attachme
   await expect
     .poll(async () => (await snapshot(page)).battle?.state, { timeout: 15000 })
     .toBe("Fighting");
-  await click(page, "heavy");
+  await click(page, "quick");
   await page.waitForTimeout(250);
   await shot(page, "rig-revised-heavy");
 });
@@ -852,7 +845,7 @@ test("camp supports both stances, forward/back walks, running and a grounded jum
     ).toBeLessThan(0.02);
   }
   await shot(page, "rear-hand-combat-idle");
-  await click(page, "heavy");
+  await click(page, "quick");
   await page.waitForTimeout(300);
   await shot(page, "rear-hand-heavy");
 });
@@ -867,6 +860,9 @@ test("every HP change follows a real swept blade/body contact in both directions
   await expect
     .poll(async () => (await snapshot(page)).battle?.player.action)
     .toBeNull();
+  await expect
+    .poll(async () => (await snapshot(page)).battle!.player.attackCooldown)
+    .toBe(0);
   await page.keyboard.press("k");
   const samples = await page.evaluate(
     () =>
@@ -942,9 +938,14 @@ test("arena hold buttons, passive stamina, jump and boundaries remain responsive
     .toBe(0);
   await page.keyboard.down("a");
   await page.keyboard.down("Shift");
-  await page.waitForTimeout(1800);
-  expect((await snapshot(page)).battle!.player.x).toBe(90);
-  expect(Math.abs((await snapshot(page)).battle!.player.vx)).toBeLessThan(0.01);
+  await expect
+    .poll(async () => (await snapshot(page)).battle!.player.x, {
+      timeout: 8000,
+    })
+    .toBe(90);
+  await expect
+    .poll(async () => Math.abs((await snapshot(page)).battle!.player.vx))
+    .toBeLessThan(0.01);
   await page.keyboard.up("a");
   await page.keyboard.up("Shift");
   await page.evaluate(() => window.dispatchEvent(new Event("blur")));
@@ -1183,8 +1184,6 @@ test("stamina rises throughout an attack and hop with no defense or recovery con
   expect(buttons.defend).toBeUndefined();
   expect(buttons.recover).toBeUndefined();
   await page.keyboard.press("l");
-  await page.keyboard.press("f");
-  await page.keyboard.press("3");
   await page.keyboard.press("4");
   expect((await snapshot(page)).battle!.player.action).toBeNull();
   expect((await snapshot(page)).battle!.player.guard).toBe(false);
@@ -1213,4 +1212,188 @@ test("stamina rises throughout an attack and hop with no defense or recovery con
   expect(poses.at(-1)!.stamina).toBeGreaterThan(poses[0].stamina + 3);
   for (let i = 1; i < poses.length; i++)
     expect(poses[i].stamina).toBeGreaterThanOrEqual(poses[i - 1].stamina);
+});
+
+test("mouse buttons select exact front/rear hands, empty fists work, and heavy attacks stay disabled", async ({
+  page,
+}) => {
+  await launch(page);
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  const field = async (button: "left" | "right") => {
+    const b = await page.locator("canvas").boundingBox();
+    await page.mouse.click(b!.x + b!.width * 0.5, b!.y + b!.height * 0.56, {
+      button,
+    });
+  };
+  expect((await snapshot(page)).buttons.heavy).toBeUndefined();
+  await field("left");
+  await expect
+    .poll(async () => (await snapshot(page)).battle!.player.action?.hand)
+    .toBe("front");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].animation)
+    .toBe("punch");
+  const front = await snapshot(page);
+  expect(front.geometry![0].hands!.front).toBeTruthy();
+  expect(front.geometry![0].blades!.front).toBeUndefined();
+  await expect
+    .poll(async () => {
+      const p = (await snapshot(page)).battle!.player;
+      return !p.action && p.attackCooldown === 0;
+    })
+    .toBe(true);
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await field("right");
+  await expect
+    .poll(async () => (await snapshot(page)).battle!.player.action?.hand)
+    .toBe("rear");
+  const suppressed = await page.evaluate(() => {
+    const canvas = document.querySelector("canvas")!;
+    const e = new MouseEvent("contextmenu", { cancelable: true });
+    canvas.dispatchEvent(e);
+    return e.defaultPrevented;
+  });
+  expect(suppressed).toBe(true);
+  await shot(page, "mouse-rear-hand-light-attack");
+  await page.keyboard.press("Escape");
+  await scene(page, "MainMenuScene");
+  expect(
+    await page.evaluate(() => {
+      const e = new MouseEvent("contextmenu", { cancelable: true });
+      document.querySelector("canvas")!.dispatchEvent(e);
+      return e.defaultPrevented;
+    }),
+  ).toBe(false);
+});
+
+test("front kick makes physical contact and forces a backwards stagger", async ({
+  page,
+}) => {
+  await launch(page);
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  let seen: ContactEvent | undefined;
+  const observation = page.evaluate(
+    () =>
+      new Promise<NonNullable<Snapshot["battle"]>[]>((resolve) => {
+        const samples: NonNullable<Snapshot["battle"]>[] = [],
+          end = performance.now() + 10000;
+        const sample = () => {
+          const s = (
+            window as unknown as { __arena: { snapshot: () => Snapshot } }
+          ).__arena.snapshot();
+          if (s.battle) samples.push(s.battle);
+          if (performance.now() < end && s.scene === "ArenaScene")
+            requestAnimationFrame(sample);
+          else resolve(samples);
+        };
+        requestAnimationFrame(sample);
+      }),
+  );
+  for (let i = 0; i < 75 && !seen; i++) {
+    const s = await snapshot(page);
+    if (s.scene !== "ArenaScene") break;
+    seen = s.battle!.contacts.find(
+      (e) => e.attackerId === "wanderer" && e.kind === "kick",
+    );
+    if (!seen) {
+      await steer(page, s);
+      await page.keyboard.press("f");
+      await page.waitForTimeout(100);
+    }
+  }
+  await page.keyboard.up("a");
+  await page.keyboard.up("d");
+  expect(seen).toBeTruthy();
+  const poses = await observation,
+    staggered = poses.filter((s) => s.enemy.reaction?.kind === "stagger");
+  expect(staggered.length).toBeGreaterThan(2);
+  expect(staggered.some((s) => s.enemy.stun > 0)).toBe(true);
+  expect(
+    Math.max(...staggered.map((s) => s.enemy.x)) -
+      Math.min(...staggered.map((s) => s.enemy.x)),
+  ).toBeGreaterThan(100);
+  expect(contact(seen!.blade, seen!.body)).not.toBeNull();
+  await shot(page, "after-front-kick-stagger");
+});
+
+test("backpack lists all unequipped categories, excludes worn items and restores removed gear", async ({
+  page,
+}) => {
+  await launch(page);
+  const p = (await snapshot(page)).player;
+  p.inventory.push("rust", "plate", "viking");
+  await page.evaluate(
+    (p) =>
+      localStorage.setItem(
+        "arena-of-ash.v2",
+        JSON.stringify({ version: 2, player: p }),
+      ),
+    p,
+  );
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  await click(page, "character");
+  let s = await snapshot(page);
+  for (const id of ["rust", "plate", "viking"])
+    expect(s.buttons[`equip-${id}`]).toBeTruthy();
+  for (const id of ["wood", "net", "flask"])
+    expect(s.buttons[`equip-${id}`]).toBeUndefined();
+  await click(page, "equip-viking");
+  expect((await snapshot(page)).buttons["equip-viking"]).toBeUndefined();
+  await click(page, "unequip-helmet");
+  expect((await snapshot(page)).buttons["equip-viking"]).toBeTruthy();
+  await click(page, "slot-leftHand");
+  s = await snapshot(page);
+  for (const id of ["rust", "plate", "viking"])
+    expect(s.buttons[`equip-${id}`]).toBeTruthy();
+  await shot(page, "backpack-all-unequipped-items");
+});
+
+test("a bare front fist deals contact damage while the rear weapon stays idle", async ({
+  page,
+}) => {
+  await launch(page);
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  let hit: ContactEvent | undefined;
+  for (let i = 0; i < 90 && !hit; i++) {
+    const s = await snapshot(page);
+    if (s.scene !== "ArenaScene") break;
+    hit = s.battle!.contacts.find((e) => e.attackerId === "wanderer");
+    if (hit) break;
+    const { player, enemy } = s.battle!,
+      gap = Math.abs(enemy.x - player.x),
+      toward = enemy.x > player.x ? 1 : -1;
+    for (const [key, dir] of [
+      ["a", -1],
+      ["d", 1],
+    ] as const) {
+      if (gap > 95 && dir === toward) await page.keyboard.down(key);
+      else await page.keyboard.up(key);
+    }
+    if (
+      gap < 120 &&
+      !player.action &&
+      player.stun === 0 &&
+      player.attackCooldown === 0
+    ) {
+      const box = await page.locator("canvas").boundingBox();
+      await page.mouse.click(
+        box!.x + box!.width * 0.5,
+        box!.y + box!.height * 0.56,
+        { button: "left" },
+      );
+    }
+    await page.waitForTimeout(100);
+  }
+  await page.keyboard.up("a");
+  await page.keyboard.up("d");
+  expect(hit).toBeTruthy();
+  expect(hit!.hand).toBe("front");
+  expect(hit!.kind).toBe("punch");
+  expect(hit!.damage).toBe(hit!.blocked ? 7 : 13);
+  expect(contact(hit!.blade, hit!.body)).not.toBeNull();
+  await shot(page, "front-fist-physical-contact");
 });

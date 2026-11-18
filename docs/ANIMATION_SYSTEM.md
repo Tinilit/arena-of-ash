@@ -32,9 +32,9 @@ In camp: **A/D** walk backward/forward, **Shift+A/D** run, **Space** jumps, **R*
 
 ## Arena composition
 
-`ArenaMotion` samples the movement cycle at a speed proportional to actual horizontal velocity, so planted travel still matches actor movement. Locomotion supplies the legs/root and free arm; quick/heavy actions supply the torso, head and weapon hand. An attack never replaces a running or airborne lower-body pose. Jump height comes from `RealtimeBattle` gravity; the rig releases foot support and folds its legs without adding the camp jump's vertical root track a second time. Landing uses a short knee compression. Facing follows the opponent outside an action and remains locked during a swing.
+`ArenaMotion` samples the movement cycle at a speed proportional to actual horizontal velocity, so planted travel still matches actor movement. Locomotion supplies the legs/root and free arm; light weapon/punch actions supply the torso, head and selected hand. An attack never replaces a running or airborne lower-body pose. Jump height comes from `RealtimeBattle` gravity; the rig releases foot support and folds its legs without adding the camp jump's vertical root track a second time. Landing uses a short knee compression. Facing follows the opponent outside an action and remains locked during a swing.
 
-Arena attack durations remain 650/1100 ms. Contact windows are 30–70% / 46–80%; their duration alignment is tested against both sword and spear libraries. Anticipation/recovery contacts and orientation flips are never swept into active damage. Physical contact flashes the defender and places damage text at the contact point. No critical/accuracy roll substitutes for collision.
+Light attacks last 1000 ms with 45–67% contact and 280 ms cooldown. Heavy actions remain dormant. Kicks last 1050 ms with 36–56% boot contact, dorsiflexed foot and planted support leg. Anticipation/recovery contacts and orientation flips are never swept into active damage. Physical contact flashes the defender and places damage text at the contact point. No critical/accuracy roll substitutes for collision.
 
 Death/victory playback is primed from the last displayed composite pose before switching back to the rig animator. A running or airborne actor therefore does not snap to an old idle before falling.
 
@@ -50,4 +50,6 @@ Arena directional hops use explicit anticipation/air/landing phases, with folded
 
 ## Throw preview and anatomical equipment
 
-Both equipment motion libraries include the shared one-shot throw clip and a single release marker. The current preview temporarily substitutes a harmless training prop and opens the palm after release; the real weapon returns during recovery. See [throw motion, guides and future projectile hook](THROW_ANIMATION.md). Equipment positions are described in [equipment](EQUIPMENT.md). Right/rear remains primary when present; left/front fallback uses its own library and real hand transform rather than copying the rear shoulder pose.
+Both equipment motion libraries include the shared one-shot throw clip and a single release marker. The current preview temporarily substitutes a harmless training prop and opens the palm after release; the real weapon returns during recovery. See [throw motion, guides and future projectile hook](THROW_ANIMATION.md). Equipment positions are described in [equipment](EQUIPMENT.md). Each front/rear input selects its own library and real hand transform; an empty selected hand punches. Both equipment libraries share a rear-only throw.
+
+Pain is a short interrupted-action overlay. Kick stagger uses an 800 ms backwards step cycle at 200 units/second, with phase driven by actual push displacement and planted support. See [melee composition](MELEE_COMBAT.md).

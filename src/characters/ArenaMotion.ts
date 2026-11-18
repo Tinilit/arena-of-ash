@@ -1,11 +1,18 @@
 import { Animator, type Pose } from "./animation";
 import { equipmentMotion } from "./equipmentMotion";
 import { movementSpeeds } from "./locomotion";
-import { primaryWeapon, primaryHand } from "../domain/progression";
+import {
+  primaryWeapon,
+  primaryHand,
+  weaponForHand,
+} from "../domain/progression";
+import type { Hand } from "../domain/model";
 import type { ArenaFighter } from "../combat/realtime";
 import { hopPose } from "./hopPose";
-
-/** Turn a carried spear below the face before lifting its hand into guard. */
+const smooth = (value: number) => {
+  const t = Math.max(0, Math.min(1, value));
+  return t * t * (3 - 2 * t);
+};
 function raisedWeapon(
   from: Pose,
   target: Pose,
@@ -13,62 +20,76 @@ function raisedWeapon(
   prefix: string,
 ): Pose {
   if ((from.weaponGrip ?? Math.PI / 2) <= Math.PI / 2 + 0.1) return target;
-  const smooth = (n: number) => {
-    const t = Math.max(0, Math.min(1, n));
-    return t * t * (3 - 2 * t);
-  };
-  const hand = smooth((age / 170 - 0.6) / 0.4),
-    grip = smooth(age / 170 / 0.6);
   const pose: Pose = {
     ...target,
-    weaponGrip: from.weaponGrip! + (Math.PI / 2 - from.weaponGrip!) * grip,
+    weaponGrip:
+      from.weaponGrip! + (Math.PI / 2 - from.weaponGrip!) * smooth(age / 102),
   };
   for (const key of [`${prefix}HandX`, `${prefix}HandY`, `${prefix}Wrist`])
-    pose[key] = from[key]! + (target[key]! - from[key]!) * hand;
+    pose[key] =
+      from[key]! + (target[key]! - from[key]!) * smooth((age - 102) / 68);
   return pose;
 }
-
-/** Locomotion owns legs/root/free arm; an action owns torso/weapon arm. */
+/** Each attack owns only its selected hand; contact reads that same hand's rig. */
 export class ArenaMotion {
   private movement: Animator;
-  private action: Animator;
+  private actions: Record<Hand, Animator>;
+  private pain: Animator;
   private movementName = "";
   private swing = -1;
-  private carryStart?: Pose;
+  private reaction = -1;
+  private carryStart: Pose = {};
+  private displayed: Pose = {};
+  private primary: Hand;
   private guardStart?: Pose;
   private guardAge = 0;
-  private prefix: string;
   name = "idleCombat";
   constructor(model: ArenaFighter["model"]) {
-    const hand = primaryHand(model);
-    this.prefix = hand === "rear" ? "far" : "near";
-    const lib = equipmentMotion(primaryWeapon(model), hand);
-    this.movement = new Animator(lib);
-    this.action = new Animator(lib);
+    this.primary = primaryHand(model);
+    this.movement = new Animator(
+      equipmentMotion(primaryWeapon(model), this.primary),
+    );
+    this.actions = {
+      rear: new Animator(equipmentMotion(weaponForHand(model, "rear"), "rear")),
+      front: new Animator(
+        equipmentMotion(weaponForHand(model, "front"), "front"),
+      ),
+    };
+    this.pain = new Animator(
+      equipmentMotion(primaryWeapon(model), this.primary),
+    );
   }
   update(delta: number, f: ArenaFighter): Pose {
     const running = Math.abs(f.vx) > 115,
       backwards = f.vx * f.facing < 0;
     const name =
-      f.hop || Math.abs(f.vx) < 0.01
+      Math.abs(f.vx) < 0.01 || f.hop
         ? f.relaxed
           ? "idleRelaxed"
           : "idleCombat"
-        : running
-          ? backwards
-            ? "runBackward"
-            : "run"
-          : backwards
-            ? "walkBackward"
-            : "walkForward";
+        : f.reaction?.kind === "stagger"
+          ? "staggerStep"
+          : running
+            ? backwards
+              ? "runBackward"
+              : "run"
+            : backwards
+              ? "walkBackward"
+              : "walkForward";
     if (name !== this.movementName) {
       this.movementName = name;
       this.movement.play(name);
     }
-    const referenceSpeed = movementSpeeds[name as keyof typeof movementSpeeds];
-    const base = this.movement.update(
-      referenceSpeed ? delta * Math.abs(f.vx / referenceSpeed) : delta,
-    );
+    const speed =
+      name === "staggerStep"
+        ? -200
+        : movementSpeeds[name as keyof typeof movementSpeeds];
+    const rate = speed ? Math.abs(f.vx / speed) : 1;
+    const base = this.movement.update(delta * rate);
+    base.farWeaponGrip =
+      this.primary === "rear" ? base.weaponGrip : (3 * Math.PI) / 4;
+    base.nearWeaponGrip =
+      this.primary === "front" ? base.weaponGrip : (3 * Math.PI) / 4;
     this.name = name;
     if (f.hop) {
       Object.assign(base, hopPose(base, f.hop));
@@ -88,56 +109,103 @@ export class ArenaMotion {
     } else if (f.landed < 180)
       base.rootY = (base.rootY ?? 0) + 7 * Math.sin((Math.PI * f.landed) / 180);
     if (f.action) {
-      const starting = this.swing !== f.action.id;
+      const action = f.action,
+        hand = action.hand,
+        prefix = hand === "rear" ? "far" : "near";
+      const armed = Boolean(weaponForHand(f.model, hand));
+      const clip = action.name === "quick" && !armed ? "punch" : action.name;
+      const starting = this.swing !== action.id;
       if (starting) {
-        this.carryStart = { ...base };
-        this.action.play(f.action.name, undefined, undefined, base);
-        this.swing = f.action.id;
+        this.carryStart = {
+          ...base,
+          ...this.displayed,
+          weaponGrip:
+            this.displayed[`${prefix}WeaponGrip`] ??
+            base[`${prefix}WeaponGrip`],
+        };
+        this.actions[hand].play(clip, undefined, undefined, this.carryStart);
+        this.swing = action.id;
       }
-      const overlay = raisedWeapon(
-        this.carryStart!,
-        this.action.update(starting ? 0 : delta),
-        f.action.elapsed,
-        this.prefix,
+      const sample = this.actions[hand].update(
+        starting ? action.elapsed : delta,
       );
-      this.guardStart = undefined;
-      for (const [key, value] of Object.entries(overlay))
+      const overlay =
+        armed && action.name === "quick"
+          ? raisedWeapon(this.carryStart, sample, action.elapsed, prefix)
+          : sample;
+      for (const [key, value] of Object.entries(overlay)) {
         if (
-          key.startsWith(`${this.prefix}Hand`) ||
-          key === `${this.prefix}Wrist` ||
-          key === "weaponGrip" ||
+          key.startsWith(`${prefix}Hand`) ||
+          key === `${prefix}Wrist` ||
+          key === `${prefix}Fist` ||
           key === "torso" ||
           key === "head"
         )
           base[key] = value;
-      this.name = f.action.name;
-    } else if (f.guard) {
+        if (
+          action.name === "kick" &&
+          ["nearFootX", "nearFootY", "nearFootRoll", "rootY", "plant"].includes(
+            key,
+          )
+        )
+          base[key] = value;
+      }
+      if (action.name !== "kick")
+        base[`${prefix}WeaponGrip`] = overlay.weaponGrip ?? Math.PI / 2;
+      this.name = clip;
+    } else if (f.reaction) {
+      const r = f.reaction;
+      if (r.kind === "hit") {
+        const starting = this.reaction !== r.id;
+        if (starting) {
+          this.pain.play("pain", undefined, undefined, this.displayed);
+          this.reaction = r.id;
+        }
+        const p = this.pain.update(starting ? r.elapsed : delta);
+        for (const key of ["torso", "head", "rootY"]) base[key] = p[key];
+        this.name = "hit";
+      } else {
+        const weight =
+          smooth(r.elapsed / 70) * smooth((r.duration - r.elapsed) / 160);
+        base.torso = -0.17 * weight;
+        base.head = -0.09 * weight;
+        base.rootY = (base.rootY ?? 0) + 6 * weight;
+        base.nearHandX = 14 + 8 * weight;
+        base.nearHandY = 69 - 10 * weight;
+        this.name = "stagger";
+      }
+    }
+    if (f.guard && !f.action && !f.reaction) {
+      const prefix = this.primary === "rear" ? "far" : "near";
       if (!this.guardStart) {
-        this.guardStart = { ...base };
+        this.guardStart = {
+          ...this.displayed,
+          ...base,
+          weaponGrip: base[`${prefix}WeaponGrip`],
+        };
         this.guardAge = 0;
       }
       this.guardAge += delta;
-      Object.assign(
-        base,
-        raisedWeapon(
-          this.guardStart,
-          {
-            ...base,
-            [`${this.prefix}HandX`]: 64,
-            [`${this.prefix}HandY`]: 30,
-            [`${this.prefix}Wrist`]: 0.45,
-            weaponGrip: Math.PI / 2,
-            torso: 0.025,
-          },
-          this.guardAge,
-          this.prefix,
-        ),
+      const pose = raisedWeapon(
+        this.guardStart,
+        {
+          ...base,
+          [`${prefix}HandX`]: 64,
+          [`${prefix}HandY`]: 30,
+          [`${prefix}Wrist`]: 0.45,
+          weaponGrip: Math.PI / 2,
+        },
+        this.guardAge,
+        prefix,
       );
+      for (const key of [`${prefix}HandX`, `${prefix}HandY`, `${prefix}Wrist`])
+        base[key] = pose[key];
+      base[`${prefix}WeaponGrip`] = pose.weaponGrip;
       this.name = "defend";
-    } else if (this.swing !== -1) {
-      this.swing = -1;
-    }
-    if (!f.guard) this.guardStart = undefined;
+    } else this.guardStart = undefined;
+    base.weaponGrip =
+      base[`${this.primary === "rear" ? "far" : "near"}WeaponGrip`];
+    this.displayed = { ...base };
     return base;
   }
 }

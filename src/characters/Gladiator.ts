@@ -1,7 +1,11 @@
 import Phaser from "phaser";
 import { item } from "../data/catalog";
-import { primaryWeapon, primaryHand } from "../domain/progression";
-import type { Player } from "../domain/model";
+import {
+  primaryWeapon,
+  primaryHand,
+  weaponForHand,
+} from "../domain/progression";
+import type { Player, Hand } from "../domain/model";
 import { LimbArt } from "../rendering/limbArt";
 import { drawPart, drawGear } from "../rendering/characterVisuals";
 import { equipmentMotion } from "./equipmentMotion";
@@ -26,14 +30,18 @@ export class Gladiator {
   private limbs: Record<string, LimbArt> = {};
   private skirt!: Phaser.GameObjects.Container;
   private weapons: Phaser.GameObjects.Container[] = [];
-  private bladeProfile: ReturnType<typeof weaponHitbox>;
+  private bladeProfiles: Partial<
+    Record<Hand, ReturnType<typeof weaponHitbox>>
+  > = {};
+  private handWeapons: Partial<Record<Hand, Phaser.GameObjects.Container>> = {};
+  private palms: Record<string, Phaser.GameObjects.Container> = {};
+  private relaxedPalms: Record<string, Phaser.GameObjects.Container> = {};
   private displayedAnimation?: string;
   private displayedPose: Pose = {};
   private offhand?: Phaser.GameObjects.Container;
   private beltItems: Phaser.GameObjects.Container[] = [];
   private throwProp!: Phaser.GameObjects.Graphics;
   private openPalm!: Phaser.GameObjects.Container;
-  private closedPalm!: Phaser.GameObjects.GameObject;
   constructor(
     private scene: Phaser.Scene,
     private originX: number,
@@ -44,11 +52,6 @@ export class Gladiator {
     options: RigOptions = {},
   ) {
     const weapon = primaryWeapon(model);
-    this.bladeProfile = weaponHitbox(
-      weapon?.image && !scene.textures.exists(itemTextureKey(weapon.id))
-        ? { ...weapon, image: undefined, hitbox: undefined }
-        : weapon,
-    );
     this.primaryHand = options.weaponHand ?? primaryHand(model);
     this.animator = new Animator(equipmentMotion(weapon, this.primaryHand));
     this.animator.setIdle(
@@ -124,13 +127,7 @@ export class Gladiator {
     farArm.add(farSkin);
     this.limbs.farArm = farSkin;
     const farElbow = joint("farElbow", farArm, 0, skeleton.upperArm);
-    const farHand = joint(
-      "farHand",
-      farElbow,
-      0,
-      skeleton.forearm,
-      this.primaryHand === "rear" ? "hand" : "relaxedHand",
-    );
+    const farHand = joint("farHand", farElbow, 0, skeleton.forearm, "hand");
     const nearArm = joint(
       "nearArm",
       backTorso,
@@ -141,20 +138,36 @@ export class Gladiator {
     nearArm.add(nearSkin);
     this.limbs.nearArm = nearSkin;
     const nearElbow = joint("nearElbow", nearArm, 0, skeleton.upperArm);
-    const nearHand = joint(
-      "nearHand",
-      nearElbow,
-      0,
-      skeleton.forearm,
-      this.primaryHand === "front" || model.equipment.leftHand
-        ? "hand"
-        : "relaxedHand",
-    );
+    const nearHand = joint("nearHand", nearElbow, 0, skeleton.forearm, "hand");
     this.handMounts = { rear: farHand, front: nearHand };
-    const primary = this.handMounts[this.primaryHand];
-    this.closedPalm = primary.list[0];
+    for (const hand of ["rear", "front"] as const) {
+      const mount = this.handMounts[hand];
+      this.palms[hand] = mount.list[0] as Phaser.GameObjects.Container;
+      this.relaxedPalms[hand] = drawPart(scene, "relaxedHand", skin);
+      mount.add(this.relaxedPalms[hand]);
+      const definition = weaponForHand(model, hand);
+      if (definition) {
+        const mounted = drawGear(scene, definition);
+        this.handWeapons[hand] = mounted;
+        mount.addAt(mounted, 0);
+        this.bladeProfiles[hand] = weaponHitbox(
+          definition.image &&
+            !scene.textures.exists(itemTextureKey(definition.id))
+            ? { ...definition, image: undefined, hitbox: undefined }
+            : definition,
+        );
+      }
+    }
+    this.weapons = [
+      this.handWeapons[this.primaryHand],
+      this.handWeapons[this.primaryHand === "rear" ? "front" : "rear"],
+    ].filter((w): w is Phaser.GameObjects.Container => Boolean(w));
+    this.offhand =
+      model.equipment.rightHand && model.equipment.leftHand
+        ? this.handWeapons.front
+        : undefined;
     this.openPalm = drawPart(scene, "relaxedHand", skin);
-    primary.add(this.openPalm);
+    farHand.add(this.openPalm);
     this.openPalm.setVisible(false);
     this.throwProp = scene.add
       .graphics()
@@ -162,15 +175,8 @@ export class Gladiator {
       .fillCircle(0, -5, 8)
       .lineStyle(2, 0x41332c)
       .strokeCircle(0, -5, 8);
-    primary.addAt(this.throwProp, 0);
+    farHand.addAt(this.throwProp, 0);
     this.throwProp.setVisible(false);
-    if (model.equipment.rightHand && model.equipment.leftHand) {
-      const definition = item(model.equipment.leftHand);
-      if (definition) {
-        this.offhand = drawGear(scene, definition);
-        this.handMounts.front.addAt(this.offhand, 0);
-      }
-    }
     for (const [i, position] of (["belt1", "belt2"] as const).entries()) {
       const definition = item(model.equipment[position] ?? "");
       if (definition) {
@@ -185,11 +191,6 @@ export class Gladiator {
       }
     }
 
-    if (weapon) {
-      const mounted = drawGear(scene, weapon).setRotation(Math.PI / 2);
-      this.handMounts[this.primaryHand].addAt(mounted, 0);
-      this.weapons.push(mounted);
-    }
     scene.events.once("shutdown", () => this.animator.stop());
     this.update(0);
   }
@@ -200,21 +201,37 @@ export class Gladiator {
     this.displayedPose = { ...p };
     this.displayedAnimation = animation;
     const solved = groundedPose(p);
-    this.weapons.forEach((weapon) =>
-      weapon.setRotation(p.weaponGrip ?? Math.PI / 2),
-    );
-
     const throwing = (p.throwPreview ?? 0) > 0.01,
       released = (p.throwReleased ?? 0) > 0.5;
-    this.weapons.forEach((weapon) => weapon.setVisible(!throwing));
+    for (const hand of ["rear", "front"] as const) {
+      const prefix = hand === "rear" ? "far" : "near",
+        weapon = this.handWeapons[hand];
+      weapon?.setRotation(
+        p[`${prefix}WeaponGrip`] ??
+          (hand === this.primaryHand
+            ? (p.weaponGrip ?? Math.PI / 2)
+            : (3 * Math.PI) / 4),
+      );
+      weapon?.setVisible(!(hand === "rear" && throwing));
+      const closed =
+        Boolean(weapon) ||
+        (p[`${prefix}Fist`] ?? 0) > 0.5 ||
+        (hand === "rear" && throwing && !released);
+      this.palms[hand].setVisible(
+        closed && !(hand === "rear" && throwing && released),
+      );
+      this.relaxedPalms[hand].setVisible(
+        !closed && !(hand === "rear" && throwing),
+      );
+    }
     this.throwProp.setVisible(throwing && !released);
     this.openPalm.setVisible(throwing && released);
-    (this.closedPalm as Phaser.GameObjects.Container).setVisible(
-      !(throwing && released),
-    );
-    if (this.offhand) {
-      this.offhand.setRotation((3 * Math.PI) / 4);
-    }
+    const headParent =
+      (p.throwHeadFront ?? 0) > 0.5
+        ? this.joints.frontTorso
+        : this.joints.torso;
+    if (this.joints.head.parentContainer !== headParent)
+      headParent.add(this.joints.head);
     this.joints.torso.rotation = solved.torso;
     this.joints.backTorso.rotation = solved.torso;
     this.joints.frontTorso.rotation = solved.torso;
@@ -256,12 +273,13 @@ export class Gladiator {
       origin: { x: this.originX, y: this.originY },
       body: {
         layers: this.joints.pelvis.list.map((part) => part.name),
-        arms: [
-          ...this.joints.backTorso.list,
-          ...this.joints.frontTorso.list,
-        ].map((part) => part.name),
+        arms: [...this.joints.backTorso.list, ...this.joints.frontTorso.list]
+          .filter((part) => part.name.endsWith("Arm"))
+          .map((part) => part.name),
         backArms: this.joints.backTorso.list.map((part) => part.name),
-        frontArms: this.joints.frontTorso.list.map((part) => part.name),
+        frontArms: this.joints.frontTorso.list
+          .filter((part) => part.name.endsWith("Arm"))
+          .map((part) => part.name),
         waist: frame("pelvis"),
         torso: frame("torso"),
       },
@@ -287,6 +305,8 @@ export class Gladiator {
         active: (this.displayedPose.throwPreview ?? 0) > 0.01,
         released: (this.displayedPose.throwReleased ?? 0) > 0.5,
         propVisible: this.throwProp.visible,
+        hand: "rear",
+        headFront: this.joints.head.parentContainer === this.joints.frontTorso,
       },
       scale: Math.abs(this.root.scaleY),
       near: {
@@ -349,20 +369,34 @@ export class Gladiator {
         capsule(point(`${side}Foot`, -9, 9), point(`${side}Foot`, 22, 9), 5),
       );
     }
-    const profile = this.bladeProfile,
-      weapon = this.weapons[0];
-    let blade: Capsule | null = null;
-    if (profile && weapon) {
-      const matrix = weapon.getWorldTransformMatrix();
-      const radius = Math.min(
-        profile.radius,
-        (profile.endY - profile.startY) / 2,
-      );
-      const p = matrix.transformPoint(0, profile.startY + radius);
-      const q = matrix.transformPoint(0, profile.endY - radius);
-      blade = capsule({ x: p.x, y: p.y }, { x: q.x, y: q.y }, radius);
+    const blades: Partial<Record<Hand, Capsule>> = {};
+    for (const hand of ["rear", "front"] as const) {
+      const profile = this.bladeProfiles[hand],
+        weapon = this.handWeapons[hand];
+      if (profile && weapon && weapon.visible) {
+        const matrix = weapon.getWorldTransformMatrix(),
+          radius = Math.min(
+            profile.radius,
+            (profile.endY - profile.startY) / 2,
+          );
+        const a = matrix.transformPoint(0, profile.startY + radius),
+          b = matrix.transformPoint(0, profile.endY - radius);
+        blades[hand] = capsule({ x: a.x, y: a.y }, { x: b.x, y: b.y }, radius);
+      }
     }
-    return { blade, body };
+    return {
+      blade: blades[this.primaryHand] ?? null,
+      blades,
+      body,
+      hands: {
+        front: capsule(point("nearHand", 0, 4), point("nearHand", 0, 10), 8),
+        rear: capsule(point("farHand", 0, 4), point("farHand", 0, 10), 8),
+      },
+      feet: {
+        front: capsule(point("nearFoot", -9, 9), point("nearFoot", 22, 9), 5),
+        rear: capsule(point("farFoot", -9, 9), point("farFoot", 22, 9), 5),
+      },
+    };
   }
   moveBy(worldX: number) {
     this.originX += worldX;

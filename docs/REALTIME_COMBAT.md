@@ -1,6 +1,6 @@
 # Real-time arena combat
 
-Arena combat supports walking forward/back, running, jumping, quick/heavy attacks and relaxed/combat stance. Actions and locomotion run together. The old turn-based Battle/AI and precomputed hit rolls have been removed.
+Arena combat supports walking forward/back, running, jumping, independent light hand attacks and a front kick and relaxed/combat stance. Actions and locomotion run together. The old turn-based Battle/AI and precomputed hit rolls have been removed.
 
 ## Simulation and contact
 
@@ -14,7 +14,7 @@ Arena combat supports walking forward/back, running, jumping, quick/heavy attack
 
 Head/torso/limb capsules approximate their drawn silhouettes. They are geometric collision shapes, not per-pixel alpha masks or rigid-body ragdolls. Equipped armor reduces damage through its stats. Shields remain absent from the shipped catalog. Weapon-on-weapon parrying is not implemented.
 
-Quick/heavy are active during 30–70% / 46–80% of their 650/1100 ms animations. Idle weapons, anticipation and recovery never deal damage. The sweep starts fresh when a contact window opens or either fighter flips facing, preventing phantom hits along an inactive/teleported path. Motion sampling uses endpoint travel and the smaller capsule radius; a coarse swept bounds test only rejects clearly separated pairs. It never directly awards damage.
+Light attacks are active during 45–67% of a 1000 ms action, followed by 280 ms cooldown. The front kick is active during 36–56% of 1050 ms with a 350 ms cooldown. Heavy attacks are disabled. Idle weapons, anticipation and recovery never deal damage. The sweep starts fresh when a contact window opens or either fighter flips facing, preventing phantom hits along an inactive/teleported path. Motion sampling uses endpoint travel and the smaller capsule radius; a coarse swept bounds test only rejects clearly separated pairs. It never directly awards damage.
 
 The resolver records the blade and body shape at the actual swept contact sample. Browser tests validate that they intersect and every HP decrement equals new contact events. No random hit/critical roll is used. A miss spends attack stamina. A confirmed contact damages even a target with high agility; agility instead changes movement speed. Both lethal contacts in the same step produce a draw; further combat is frozen and rewards are granted once.
 
@@ -26,7 +26,7 @@ Fighters face the opponent when free and lock facing through an action or direct
 
 ## Controls and lifecycle
 
-A/D or Left/Right move, Shift runs, Space jumps, A/D+Space hops backward/forward relative to facing, J/1 quick-attacks, K/2 heavy-attacks, and R toggles stance. Escape abandons the fight without a reward. Mouse/touch: hold arrow/Run buttons, tap Jump/attacks. Holding a direction while tapping Jump performs the matching hop; its caption shows the stamina cost. Multiple pointers support movement plus actions. Jump/action buttons reflect affordability and action state. Movement, input and combat stop on outcome; a short death/victory presentation precedes ResultScene.
+A/D or Left/Right move, Shift runs, Space jumps, A/D+Space hops backward/forward relative to facing, LMB/J/1 uses the front hand, RMB/K/2 uses the rear hand, F/3 kicks, and R toggles stance. Escape abandons the fight without a reward. Mouse/touch: hold arrow/Run buttons, tap Jump/attacks. Holding a direction while tapping Jump performs the matching hop; its caption shows the stamina cost. Multiple pointers support movement plus actions. Jump/action buttons reflect affordability and action state. Movement, input and combat stop on outcome; a short death/victory presentation precedes ResultScene.
 
 Losing focus pauses simulation, clears queued/held input and discards backlog. Shutdown removes focus, keyboard and pointer listeners. Restarting the scene creates fresh HP/stamina/action/contact state. Read-only development snapshots include fighter motion, composed rigs, collision geometry and recent contacts; production exposes no diagnostic API. `?hitboxes=1` draws shapes only in development.
 
@@ -48,4 +48,6 @@ References consulted: [Godot CharacterBody2D platformer example](https://docs.go
 
 Every fighting step restores 14 stamina/second to both fighters, including during attack anticipation/contact/recovery, normal jumps and all hop phases. Running still costs 10/second, so net stamina rises by 4/second while running. Upfront attack/jump/hop costs are unchanged, and the result is clamped to the maximum. Pause and outcomes stop simulation/regen. Defense and Recover buttons and L/3/F/4 bindings are removed. The AI waits for passive recovery when it cannot afford an attack; it does not request the old recovery action. Existing guard/recover clips and pure engine support remain dormant for player controls.
 
-The right hand attacks when equipped; an empty right hand falls back to the left. The same selected weapon supplies animation, stats and the damaging capsule. A second equipped weapon is carried and adds no automatic extra hits or stats. Belt attachments have no usable action, damage or stat effect yet. See [equipment](EQUIPMENT.md).
+Each input explicitly selects the front/left or rear/right hand. An empty selected hand punches. The same selected weapon supplies animation, stats and the damaging capsule. The selected hand alone contributes the weapon bonus/contact; other equipped weapons never add an automatic second hit. Belt attachments have no usable action, damage or stat effect yet. See [equipment](EQUIPMENT.md).
+
+See [independent hand collision, pain/stun and kicking](MELEE_COMBAT.md) for action interrupts, recovery locks and the displacement-driven backwards stagger.

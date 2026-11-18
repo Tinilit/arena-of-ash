@@ -58,7 +58,7 @@ describe("equipment catalog", () => {
     equipmentMotion(item("spear"));
     equipmentMotion(item("war-spear"));
     expect(JSON.stringify(groundedMotion)).toBe(before);
-    expect(equipmentMotion(item("wood"), "front").quick).toBe(
+    expect(equipmentMotion(item("wood"), "front").quick).not.toBe(
       groundedMotion.ash.quick,
     );
     expect(equipmentMotion(item("wood")).quick).not.toBe(
@@ -138,7 +138,7 @@ for (const id of ["spear", "war-spear"])
           const q = add(s.farArm.hand, rotate({ x: 0, y: length }, angle));
           return rotate({ x: q.x - head.x, y: q.y - head.y }, -headR);
         };
-        if ((p.throwPreview ?? 0) > 0.01) continue;
+        if ((p.throwPreview ?? 0) > 0.01 || name === "punch") continue;
         expect(
           crossesFace(
             local(id === "war-spear" ? -150 : -132),

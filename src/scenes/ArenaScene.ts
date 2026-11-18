@@ -11,7 +11,6 @@ import {
 import { ArenaAI } from "../combat/ArenaAI";
 import { hopDefinitions, hopKind } from "../combat/hops";
 import type { CombatGeometry } from "../combat/geometry";
-import { actions } from "../combat/engine";
 import { seeded } from "../utils/random";
 import { opponent, stats, reward } from "../domain/progression";
 import { label, ProgressBar, colors } from "../ui/widgets";
@@ -90,18 +89,15 @@ export class ArenaScene extends BaseScene {
     label(this, 855, 130, "SP", 14);
     this.status = label(this, 640, 92, en.fight, 23, "#e8bd72").setOrigin(0.5);
     label(this, 640, 166, en.arenaHint, 14).setOrigin(0.5);
-    (["quick", "heavy"] as const).forEach((a, i) =>
-      this.button(
-        a,
-        475 + i * 330,
-        611,
-        300,
-        `${i + 1}  ${en[a]}  ${actions[a].cost}`,
-        () => {
-          this.queued.attack = a;
-        },
-      ),
-    );
+    this.button("front-attack", 330, 611, 280, "LMB / J  Front hand", () => {
+      this.queued = { ...this.queued, attack: "quick", hand: "front" };
+    });
+    this.button("quick", 640, 611, 280, "RMB / K  Rear hand", () => {
+      this.queued = { ...this.queued, attack: "quick", hand: "rear" };
+    });
+    this.button("kick", 950, 611, 280, "F  Front kick  18", () => {
+      this.queued.attack = "kick";
+    });
     for (const [id, text, x] of [
       ["left", "←", 408],
       ["right", "→", 524],
@@ -164,13 +160,31 @@ export class ArenaScene extends BaseScene {
       const key = event.key.toLowerCase();
       if (key === "j" || key === "1") {
         this.queued.attack = "quick";
+        this.queued.hand = "front";
       }
       if (key === "k" || key === "2") {
-        this.queued.attack = "heavy";
+        this.queued.attack = "quick";
+        this.queued.hand = "rear";
       }
+      if (key === "f" || key === "3") this.queued.attack = "kick";
       if (key === " ") this.queueJump();
       if (key === "r") this.queued.toggleStance = true;
     });
+    const useHand = (pointer: Phaser.Input.Pointer) => {
+      if (this.ending || this.paused) return;
+      const point = pointer.positionToCamera(
+        this.cameras.main,
+      ) as Phaser.Math.Vector2;
+      if (point.y < 180 || point.y > 570 || point.x < 0 || point.x > 1280)
+        return;
+      if (pointer.button === 0 || pointer.button === 2) {
+        this.queued.attack = "quick";
+        this.queued.hand = pointer.button === 0 ? "front" : "rear";
+      }
+    };
+    const contextMenu = (event: Event) => event.preventDefault();
+    this.game.canvas.addEventListener("contextmenu", contextMenu);
+    this.input.on("pointerdown", useHand);
     const pause = () => {
       this.paused = true;
       this.clearInput();
@@ -183,6 +197,8 @@ export class ArenaScene extends BaseScene {
     this.game.events.on(Phaser.Core.Events.BLUR, pause);
     this.game.events.on(Phaser.Core.Events.FOCUS, resume);
     this.events.once("shutdown", () => {
+      this.input.off("pointerdown", useHand);
+      this.game.canvas.removeEventListener("contextmenu", contextMenu);
       this.input.off("pointerup", releasePointer);
       this.input.off("gameout", releaseAllPointers);
       this.game.events.off(Phaser.Core.Events.BLUR, pause);
@@ -250,8 +266,15 @@ export class ArenaScene extends BaseScene {
       this.bars[i * 2].update(f.hp, s.hp);
       this.bars[i * 2 + 1].update(Math.floor(f.stamina), s.stamina);
     });
-    for (const a of ["quick", "heavy"] as const)
-      this.buttons[a].setEnabled(this.battle.canAttack(this.battle.player, a));
+    this.buttons.quick.setEnabled(
+      this.battle.canAttack(this.battle.player, "quick"),
+    );
+    this.buttons["front-attack"].setEnabled(
+      this.battle.canAttack(this.battle.player, "quick"),
+    );
+    this.buttons.kick.setEnabled(
+      this.battle.canAttack(this.battle.player, "kick"),
+    );
     const player = this.battle.player,
       direction = this.direction();
     if (direction) {
@@ -268,6 +291,8 @@ export class ArenaScene extends BaseScene {
         .setEnabled(
           !this.ending &&
             !player.hop &&
+            !player.reaction &&
+            player.stun === 0 &&
             player.y === 0 &&
             player.vy === 0 &&
             player.stamina >= arenaRules.jumpCost,

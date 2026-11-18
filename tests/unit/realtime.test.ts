@@ -34,7 +34,7 @@ const geometry = (bladeX = 0, bodyX = 0): CombatGeometry => ({
 const make = () => new RealtimeBattle(createPlayer(), opponent(createPlayer()));
 const begin = (b: RealtimeBattle, heavy = false) =>
   b.advance(0, [{ attack: heavy ? "heavy" : "quick" }, {}]);
-const active = (b: RealtimeBattle) => b.advance(330, [{}, {}]);
+const active = (b: RealtimeBattle) => b.advance(550, [{}, {}]);
 describe("moving capsule contact", () => {
   it("measures crossing, parallel and point segments", () => {
     expect(
@@ -99,7 +99,7 @@ describe("real-time arena rules", () => {
     expect(b.resolve([geometry(), geometry()])).toEqual([]);
     begin(b);
     expect(b.resolve([geometry(), geometry()])).toEqual([]);
-    b.advance(600, [{}, {}]);
+    b.advance(800, [{}, {}]);
     expect(b.resolve([geometry(), geometry()])).toEqual([]);
     expect(b.enemy.hp).toBe(80);
   });
@@ -143,7 +143,8 @@ describe("real-time arena rules", () => {
     expect(b.enemy.hp).toBe(66);
     for (let i = 0; i < 20; i++)
       expect(b.resolve([geometry(), geometry()])).toEqual([]);
-    b.advance(400, [{}, {}]);
+    b.advance(450, [{}, {}]);
+    b.advance(280, [{}, {}]);
     begin(b);
     active(b);
     expect(b.resolve([geometry(), geometry()])).toHaveLength(1);
@@ -162,11 +163,11 @@ describe("real-time arena rules", () => {
     const b = make();
     begin(b);
     b.enemy.stamina = 60;
-    b.advance(330, [{}, { guard: true }]);
+    b.advance(550, [{}, { guard: true }]);
     const [event] = b.resolve([geometry(), geometry()]);
     expect(event.blocked).toBe(true);
     expect(event.damage).toBe(7);
-    expect(b.enemy.stamina).toBeCloseTo(61.98);
+    expect(b.enemy.stamina).toBeCloseTo(63.3);
   });
   it("resolves simultaneous lethal contacts as a draw, then ignores further hits", () => {
     const b = make();
@@ -237,7 +238,7 @@ describe("real-time arena rules", () => {
     b.enemy.x = 100;
     b.advance(100, [{}, {}]);
     expect(b.player.facing).toBe(1);
-    b.advance(600, [{}, {}]);
+    b.advance(1000, [{}, {}]);
     expect(b.player.facing).toBe(-1);
   });
   it("finishes recovery once, caps regeneration and leaves persistent models unchanged", () => {
@@ -297,7 +298,7 @@ describe("real-time arena rules", () => {
       ai = new ArenaAI(() => 0.8);
     expect(ai.update(600, b.enemy, b.player).move).toBe(-1);
     b.enemy.x = b.player.x + 120;
-    expect(ai.update(600, b.enemy, b.player).attack).toBe("heavy");
+    expect(ai.update(600, b.enemy, b.player).attack).toBe("quick");
     b.enemy.stamina = 5;
     expect(ai.update(600, b.enemy, b.player).recover).toBeUndefined();
     expect(ai.update(600, b.enemy, b.player).attack).toBeUndefined();

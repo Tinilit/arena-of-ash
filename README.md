@@ -34,9 +34,9 @@ On the managed cloud machine, system Chromium is detected automatically. Activat
 
 ## Play
 
-Start from camp, enter the arena, buy equipment and allocate level-up points in Character. Arena combat runs in real time. **A/D** or **Left/Right** move, **Shift** runs, **Space** jumps, **A/D+Space** performs a backward/forward hop relative to facing in the arena, **J/1** performs a quick attack, **K/2** performs a heavy attack. Stamina regenerates continuously, including during attacks and hops. **R** changes relaxed/combat stance. Move, run and jump during an attack. **Escape** returns to camp without a reward for an unresolved fight.
+Start from camp, enter the arena, buy equipment and allocate level-up points in Character. Arena combat runs in real time. **A/D** or **Left/Right** move, **Shift** runs, **Space** jumps, **A/D+Space** performs a backward/forward hop relative to facing in the arena, **LMB/J/1** uses the front hand and **RMB/K/2** uses the rear hand. Weapons make light attacks; empty hands punch. **F/3** performs a front kick with contact-based pushback. Heavy attacks are disabled. Stamina regenerates continuously, including during attacks and hops. **R** changes relaxed/combat stance. Move, run and jump during an attack. **Escape** returns to camp without a reward for an unresolved fight.
 
-Mouse/touch users can hold the arrow/Run buttons, tap Jump or an attack. The free front arm stays behind the torso; the right/rear hand holds the primary weapon by default, with a left/front fallback when the right hand is empty. Camp retains its movement demonstration buttons and keyboard controls; **T** previews throwing. Character also has a **Throw preview** button.
+Mouse/touch users can hold the arrow/Run buttons, tap Jump or an attack. The free front arm stays behind the torso; each mouse button uses its own hand, including a bare fist when empty. Camp retains its movement demonstration buttons and keyboard controls; **T** previews throwing. Character also has a **Throw preview** button.
 
 Damage requires the active blade to contact a moving body part. A swing that misses costs stamina but no HP. Each swing can hit once; idle weapons, sword grips and spear shafts do not deal damage. Body and blade collision shapes follow the actual articulated rig, including jumps and mirrored facing. See [real-time combat](docs/REALTIME_COMBAT.md).
 
@@ -44,7 +44,7 @@ Victory earns 50 gold and 40 XP; defeat earns 10 of each. Every level grants two
 
 ## Equipment
 
-The default catalog has **11 items** across weapon, helmet, chest and utility categories. Shields are temporarily removed while the character rig is refined. Character has explicit Helmet, Body, Right hand, Left hand and two Belt mounts. Select a slot, then equip a compatible owned item; × removes it. A second hand weapon is carried, and the belt net/flask are visible but inactive. Shop and filtered inventory have page controls. Ashwood War Spear is on shop page 1 and Viking Warhelm is on page 2:
+The default catalog has **11 items** across weapon, helmet, chest and utility categories. Shields are temporarily removed while the character rig is refined. Character has explicit Helmet, Body, Right hand, Left hand and two Belt mounts. Select a slot, then equip an unequipped item; × returns worn gear to the backpack. Each hand can attack independently. The belt net/flask are visible but inactive. Shop and the backpack have page controls; the backpack shows all unequipped categories together. Ashwood War Spear is on shop page 1 and Viking Warhelm is on page 2:
 
 - **Ashwood War Spear** — 115 gold, +10 attack; wooden haft, leaf head and thrust animations.
 - **Viking Warhelm** — 60 gold, +3 armor; horned fantasy helmet.
@@ -62,3 +62,5 @@ See [architecture](docs/ARCHITECTURE.md), [animation](docs/ANIMATION_SYSTEM.md),
 [GitHub Pages deployment](docs/DEPLOYMENT.md) publishes validated pushes to `main` using `/arena-of-ash/` as the base path. The public site and local development server keep separate browser saves.
 
 Character rig refinements cover shoulder placement, both legs beneath the skirt, the free front arm behind the torso and the armed rear arm in front, continuous elbow/knee silhouettes, calf-covering greaves, connected leather boots and smoother keyframe motion. See [rig refinement and references](docs/RIG_REFINEMENT.md).
+
+Light hits interrupt actions with a short pain reaction/stun. A front kick drives a several-step backwards balance recovery. Each hand, fist and boot uses its actual rendered contact shape; the other hand cannot award a hit. See [melee controls and rules](docs/MELEE_COMBAT.md).

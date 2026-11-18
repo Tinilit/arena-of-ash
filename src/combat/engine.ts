@@ -1,8 +1,9 @@
-import type { Player } from "../domain/model";
+import type { Player, Hand } from "../domain/model";
 import { stats } from "../domain/progression";
 
 export const actions = {
   quick: { cost: 12, multiplier: 1 },
+  kick: { cost: 18, multiplier: 0.65 },
   heavy: { cost: 25, multiplier: 1.6 },
   defend: { cost: 0, multiplier: 0 },
   recover: { cost: 0, multiplier: 0 },
@@ -26,11 +27,12 @@ export function damage(
   multiplier: number,
   critical: boolean,
   guard: boolean,
+  hand?: Hand,
 ) {
   const raw = Math.max(
     1,
     Math.round(
-      stats(a).attack * multiplier -
+      stats(a, hand).attack * multiplier -
         d.attributes.defense * 0.35 -
         stats(d).armor,
     ),

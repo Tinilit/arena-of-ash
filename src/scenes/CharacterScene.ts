@@ -28,9 +28,8 @@ export class CharacterScene extends BaseScene {
     this.prepare(en.characterTitle);
     const p = this.services.player,
       slot = data.slot ?? "rightHand";
-    const inventory = p.inventory.filter(
-      (id) => item(id)?.slot === slotCategory[slot],
-    );
+    const worn = new Set(Object.values(p.equipment));
+    const inventory = p.inventory.filter((id) => !worn.has(id));
     const pages = Math.max(1, Math.ceil(inventory.length / 8));
     const page = Math.max(0, Math.min(data.page ?? 0, pages - 1));
     const restart = (next: { page?: number; slot?: EquipmentSlot } = {}) =>
@@ -69,7 +68,7 @@ export class CharacterScene extends BaseScene {
         y,
         170,
         "",
-        () => restart({ slot: position, page: 0 }),
+        () => restart({ slot: position }),
         100,
       );
       if (position === slot) card.setAlpha(1);
@@ -112,11 +111,25 @@ export class CharacterScene extends BaseScene {
         );
       } else label(this, x, y + 3, en.empty, 17, "#9d947e").setOrigin(0.5);
     });
-    label(this, 855, 177, en.equipmentSlots[slot].toUpperCase(), 21);
+    label(this, 855, 177, "BACKPACK · UNEQUIPPED", 21);
+    label(this, 855, 199, `Target: ${en.equipmentSlots[slot]}`, 14, "#b9aa8d");
     inventory.slice(page * 8, (page + 1) * 8).forEach((id, i) => {
       const def = item(id)!,
-        y = 218 + i * 35,
-        worn = p.equipment[slot] === id;
+        y = 233 + i * 34;
+      const target =
+        def.slot === slotCategory[slot]
+          ? slot
+          : def.slot === "helmet"
+            ? "helmet"
+            : def.slot === "chest"
+              ? "body"
+              : def.slot === "utility"
+                ? !p.equipment.belt1
+                  ? "belt1"
+                  : "belt2"
+                : !p.equipment.rightHand
+                  ? "rightHand"
+                  : "leftHand";
       const name = label(this, 855, y, def.name, 16);
       if (name.width > 225) name.setFontSize((16 * 225) / name.width);
       this.button(
@@ -124,18 +137,18 @@ export class CharacterScene extends BaseScene {
         1168,
         y,
         87,
-        worn ? "✓" : en.equip,
+        en.equip,
         () => {
-          if (equip(p, id, slot)) {
+          if (equip(p, id, target)) {
             this.services.save();
-            restart();
+            restart({ slot: target });
           }
         },
         29,
-      ).setEnabled(!worn && canEquip(p, id, slot));
+      ).setEnabled(canEquip(p, id, target));
     });
     if (!inventory.length)
-      label(this, 855, 230, "No compatible items owned", 17, "#b9aa8d");
+      label(this, 855, 230, "All owned items are equipped", 17, "#b9aa8d");
     this.button(
       "inventory-prev",
       893,
@@ -197,6 +210,9 @@ export class CharacterScene extends BaseScene {
   }
   override snapshot() {
     return {
+      backpack: this.services.player.inventory.filter(
+        (id) => !Object.values(this.services.player.equipment).includes(id),
+      ),
       ...super.snapshot(),
       rigs: this.rig ? [this.rig.jointSnapshot()] : [],
     };

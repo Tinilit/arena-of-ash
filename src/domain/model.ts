@@ -25,6 +25,11 @@ export const slotCategory: Record<EquipmentSlot, Slot> = {
   belt1: "utility",
   belt2: "utility",
 };
+export type Hand = "front" | "rear";
+export const handSlots: Record<Hand, EquipmentSlot> = {
+  front: "leftHand",
+  rear: "rightHand",
+};
 export type WeaponType = "sword" | "spear";
 export interface WeaponHitbox {
   startY: number;

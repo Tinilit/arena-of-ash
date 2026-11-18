@@ -1,15 +1,17 @@
 import { item, enemies, rewards } from "../data/catalog";
 import {
   slotCategory,
+  handSlots,
+  type Hand,
   type Player,
   type EquipmentSlot,
   type Attribute,
 } from "./model";
-export function stats(p: Player) {
+export function stats(p: Player, hand?: Hand) {
   const armor = [p.equipment.helmet, p.equipment.body].map((id) =>
     item(id ?? ""),
   );
-  const weapon = primaryWeapon(p);
+  const weapon = hand ? weaponForHand(p, hand) : primaryWeapon(p);
   const gear = [weapon, ...armor];
   return {
     hp: 60 + p.attributes.vitality * 4,
@@ -91,4 +93,8 @@ export function primaryWeapon(p: Player) {
 }
 export function primaryHand(p: Player): "rear" | "front" {
   return p.equipment.rightHand || !p.equipment.leftHand ? "rear" : "front";
+}
+
+export function weaponForHand(p: Player, hand: Hand) {
+  return item(p.equipment[handSlots[hand]] ?? "");
 }

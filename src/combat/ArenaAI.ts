@@ -21,15 +21,28 @@ export class ArenaAI {
       run: gap > 340,
       guard: this.guardFor > 0,
     };
-    if (self.action || this.thinking > 0) return input;
+    if (
+      self.action ||
+      self.stun > 0 ||
+      self.reaction ||
+      self.attackCooldown > 0 ||
+      this.thinking > 0
+    )
+      return input;
     this.thinking = 250 + this.rng() * 350;
     if (self.stamina >= 12 && gap <= reach + 20) {
       const roll = this.rng();
       if (target.action && roll < 0.16) {
         this.guardFor = 650;
         input.guard = true;
-      } else
-        input.attack = roll > 0.65 && self.stamina >= 25 ? "heavy" : "quick";
+      } else {
+        input.attack = "quick";
+        input.hand = self.model.equipment.rightHand
+          ? "rear"
+          : self.model.equipment.leftHand
+            ? "front"
+            : "rear";
+      }
       if (target.action && this.jumpCooldown <= 0 && this.rng() < 0.18) {
         input.jump = true;
         this.jumpCooldown = 2200;
