@@ -46,13 +46,25 @@ export class CharacterScene extends BaseScene {
     );
     this.button(
       "preview-throw",
-      220,
+      145,
       515,
-      280,
-      en.throwPreview,
+      140,
+      en.throwUnder,
       () => {
-        if (this.rig.animator.name === "throw") return;
+        if (this.rig.animator.name.startsWith("throw")) return;
         this.rig.play("throw");
+      },
+      36,
+    );
+    this.button(
+      "preview-overhand",
+      295,
+      515,
+      140,
+      en.throwOver,
+      () => {
+        if (this.rig.animator.name.startsWith("throw")) return;
+        this.rig.play("throwOverhand");
       },
       36,
     );

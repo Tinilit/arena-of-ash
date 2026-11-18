@@ -34,9 +34,9 @@ On the managed cloud machine, system Chromium is detected automatically. Activat
 
 ## Play
 
-Start from camp, enter the arena, buy equipment and manage your loadout in Character. Arena combat runs in real time. **A/D** or **Left/Right** move, **Shift** runs, **Space** jumps, **A/D+Space** performs a backward/forward hop relative to facing in the arena, **LMB/J/1** uses the front hand and **RMB/K/2** uses the rear hand. Weapons make light attacks; empty hands punch. **F/3** performs a front kick on the ground or in a jump/hop with contact-based pushback and a 20% knockdown chance. Heavy attacks are disabled. There are no attributes, character levels or energy costs. **R** changes relaxed/combat stance. Move, run and jump during an attack. **Escape** returns to camp without a reward for an unresolved fight.
+Start from camp, enter the arena, buy equipment and manage your loadout in Character. Arena combat runs in real time. **A/D** or **Left/Right** move, **Shift** runs, **Space** jumps, **A/D+Space** performs a backward/forward hop relative to facing in the arena, **LMB/J/1** uses the front hand and **RMB/K/2** uses the rear hand. Weapons make light attacks; empty hands punch. Each hand has its own animation and cooldown, so both can strike together or at different times. **F/3** shoves with a front kick on the ground or in a jump/hop, dealing no HP damage and keeping a 20% knockdown chance. Heavy attacks are disabled. There are no attributes, character levels or energy costs. **R** changes relaxed/combat stance. Move, run and jump during an attack. **Escape** returns to camp without a reward for an unresolved fight.
 
-Mouse/touch users can hold the arrow/Run buttons, tap Jump or an attack. The free front arm stays behind the torso; each mouse button uses its own hand, including a bare fist when empty. Camp retains its movement demonstration buttons and keyboard controls; **T** previews throwing. Character also has a **Throw preview** button.
+Mouse/touch users can hold the arrow/Run buttons, tap Jump or an attack. The free front arm stays behind the torso; each mouse button uses its own hand, including a bare fist when empty. Camp retains its movement demonstration buttons and keyboard controls; **T** previews underarm throwing and **Y** previews overarm throwing. Character also has **Underarm** and **Overarm** preview buttons.
 
 Damage requires the active blade to contact a moving body part. A swing that misses deals no damage. Each swing can hit once; idle weapons, sword grips and spear shafts do not deal damage. Body and blade collision shapes follow the actual articulated rig, including jumps and mirrored facing. See [real-time combat](docs/REALTIME_COMBAT.md).
 
@@ -55,7 +55,7 @@ Item definitions live in [`public/content/items.json`](public/content/items.json
 
 ## Scope and documentation
 
-Six scenes, three opponents, equipment-based bonuses, persistent saves and a modular articulated rig. The veteran opponent repeats. Fight health resets each battle; unfinished fights are not saved. Artwork remains procedural, balance is basic, and there is no audio or backend. Storage failure permits session-only play with a warning. The Phaser bundle produces a size warning.
+Six scenes, three enemy ranks, equipment-based bonuses, persistent saves and a modular articulated rig. Victories unlock stronger random enemy loadouts; some enemies wield two weapons. Fight health resets each battle; unfinished fights are not saved. Artwork remains procedural, balance is basic, and there is no audio or backend. Storage failure permits session-only play with a warning. The Phaser bundle produces a size warning.
 
 See [architecture](docs/ARCHITECTURE.md), [animation](docs/ANIMATION_SYSTEM.md), [anatomy and references](docs/ANTHROPOMETRY.md), [art contract](docs/ART_PIPELINE.md), [game design](docs/GAME_DESIGN.md), [roadmap](docs/ROADMAP.md), and [verification](docs/VERIFICATION.md).
 

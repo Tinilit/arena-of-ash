@@ -50,7 +50,7 @@ export class ArenaScene extends BaseScene {
         : crypto.getRandomValues(new Uint32Array(1))[0];
     this.battle = new RealtimeBattle(
       this.services.player,
-      opponent(this.services.player),
+      opponent(this.services.player, seeded(seed ^ 0x92)),
       seeded(seed ^ 0x4b1d),
     );
     this.ai = new ArenaAI(seeded(seed));
@@ -87,10 +87,10 @@ export class ArenaScene extends BaseScene {
     this.status = label(this, 640, 92, en.fight, 23, "#e8bd72").setOrigin(0.5);
     label(this, 640, 166, en.arenaHint, 14).setOrigin(0.5);
     this.button("front-attack", 330, 611, 280, "LMB / J  Front hand", () => {
-      this.queued = { ...this.queued, attack: "quick", hand: "front" };
+      this.queueHand("front");
     });
     this.button("quick", 640, 611, 280, "RMB / K  Rear hand", () => {
-      this.queued = { ...this.queued, attack: "quick", hand: "rear" };
+      this.queueHand("rear");
     });
     this.button("kick", 950, 611, 280, "F  Front kick", () => {
       this.queued.attack = "kick";
@@ -171,12 +171,10 @@ export class ArenaScene extends BaseScene {
             ? " "
             : event.key.toLowerCase();
       if (key === "j" || key === "1") {
-        this.queued.attack = "quick";
-        this.queued.hand = "front";
+        this.queueHand("front");
       }
       if (key === "k" || key === "2") {
-        this.queued.attack = "quick";
-        this.queued.hand = "rear";
+        this.queueHand("rear");
       }
       if (key === "f" || key === "3") this.queued.attack = "kick";
       if (key === " ") this.queueJump();
@@ -190,8 +188,7 @@ export class ArenaScene extends BaseScene {
       if (point.y < 180 || point.y > 570 || point.x < 0 || point.x > 1280)
         return;
       if (pointer.button === 0 || pointer.button === 2) {
-        this.queued.attack = "quick";
-        this.queued.hand = pointer.button === 0 ? "front" : "rear";
+        this.queueHand(pointer.button === 0 ? "front" : "rear");
       }
     };
     const contextMenu = (event: Event) => event.preventDefault();
@@ -224,6 +221,9 @@ export class ArenaScene extends BaseScene {
       this.debug = this.add.graphics().setDepth(100);
     this.pose(0);
     this.refresh();
+  }
+  private queueHand(hand: "front" | "rear") {
+    this.queued.attacks = [...new Set([...(this.queued.attacks ?? []), hand])];
   }
   private clearInput() {
     this.queued = {};
@@ -278,10 +278,10 @@ export class ArenaScene extends BaseScene {
       this.bars[i].update(f.hp, s.hp);
     });
     this.buttons.quick.setEnabled(
-      this.battle.canAttack(this.battle.player, "quick"),
+      this.battle.canAttack(this.battle.player, "quick", "rear"),
     );
     this.buttons["front-attack"].setEnabled(
-      this.battle.canAttack(this.battle.player, "quick"),
+      this.battle.canAttack(this.battle.player, "quick", "front"),
     );
     this.buttons.kick.setEnabled(
       this.battle.canAttack(this.battle.player, "kick"),
@@ -318,7 +318,11 @@ export class ArenaScene extends BaseScene {
       this,
       event.point.x,
       event.point.y,
-      `${event.blocked ? en.blocked + " " : ""}−${event.damage}`,
+      event.kind === "kick"
+        ? event.knockdown
+          ? "Knockdown"
+          : "Off balance"
+        : `${event.blocked ? en.blocked + " " : ""}−${event.damage}`,
       26,
       event.blocked ? "#9bc6d1" : "#f4e2bc",
     ).setOrigin(0.5);

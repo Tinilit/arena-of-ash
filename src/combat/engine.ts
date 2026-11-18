@@ -3,7 +3,7 @@ import { stats } from "../domain/progression";
 
 export const actions = {
   quick: { multiplier: 1 },
-  kick: { multiplier: 0.65 },
+  kick: { multiplier: 0 },
   heavy: { multiplier: 1.6 },
   defend: { multiplier: 0 },
   recover: { multiplier: 0 },

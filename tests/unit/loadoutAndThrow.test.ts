@@ -152,3 +152,41 @@ it("starts a second throw with a held prop and no stale release state", () => {
   a.update(throwTiming.duration);
   expect(releases).toBe(2);
 });
+
+it("retains the underarm throw and adds a distinct high-release volleyball-style throw", async () => {
+  const { overhandThrowTiming } =
+    await import("../../src/characters/throwMotion");
+  for (const hand of ["front", "rear"] as const) {
+    const lib = equipmentMotion(item("war-spear"), hand),
+      a = new Animator(lib);
+    let releases = 0,
+      cocked = false,
+      high = false;
+    expect(lib.throw).not.toBe(lib.throwOverhand);
+    a.play("throwOverhand", () => releases++);
+    let last = groundedPose(a.update(0));
+    for (let t = 8; t <= overhandThrowTiming.duration; t += 8) {
+      const p = a.update(8),
+        s = groundedPose(p),
+        arm = s.farArm;
+      expect(arm.clamped).toBe(false);
+      expect(Math.abs(arm.angle - last.farArm.angle)).toBeLessThan(0.18);
+      expect(
+        Math.hypot(
+          arm.hand.x - last.farArm.hand.x,
+          arm.hand.y - last.farArm.hand.y,
+        ),
+      ).toBeLessThan(9);
+      if (p.farHandX! < 0 && p.farHandY! < -45 && Math.abs(arm.bend) > 1.2)
+        cocked = true;
+      if (p.throwReleased === 1 && p.farHandY! < -70) {
+        high = true;
+        expect(Math.abs(arm.bend)).toBeLessThan(0.3);
+      }
+      last = s;
+    }
+    a.update(100);
+    expect(releases).toBe(1);
+    expect(cocked && high).toBe(true);
+  }
+});

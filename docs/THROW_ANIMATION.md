@@ -20,3 +20,9 @@ This is an authored two-dimensional projection. It does not attempt to reproduce
 Verification samples both hand libraries for reachable fixed-length limbs, joint limits, floor support and one release/completion. Browser checks inspect actual prop/weapon visibility, open/released states, return to relaxed idle and unchanged saved inventory/progression.
 
 The same rear-hand clip is included in both equipment libraries. The head stays behind the rear arm throughout the clip without moving either shoulder. The front weapon remains attached to its own hand. See [melee rules and rear-hand layering](MELEE_COMBAT.md).
+
+## Overarm serve variant
+
+The original `throw` clip remains the underarm throw (T). `throwOverhand` is a separate 1850 ms clip (Y), with one release at 60%. Both are available on Character equipment previews and camp buttons. The overarm motion loads the body, raises the elbow, cocks the forearm beside/behind the head, extends toward a high release, then decelerates forward/down. The elbow is flexed near a right angle in the cocked pose and approaches extension at release. Head depth is unchanged: the throwing arm stays in front for the entire clip.
+
+Additional guide consulted: [SpikeSight volleyball serve analysis](https://github.com/aleung910/spike-sight/blob/main/README.md), including its stance → trophy pose → acceleration → contact → follow-through sequence and measurements of elbow flexion and extension. This is a secondary coaching/analysis project, not a clinical standard; the game's 2D targets and timing are authored. [Volleyball serve motion analysis](https://github.com/jiaxuan1006/Motion-Analysis-System-for-Volleyball-Serve-using-Computer-Vision-Techniques) also tracks shoulder/elbow/wrist phases. No code, API integration or external dependencies from those projects are incorporated.

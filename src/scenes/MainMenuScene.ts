@@ -5,7 +5,7 @@ import { Gladiator } from "../characters/Gladiator";
 import Phaser from "phaser";
 import { item } from "../data/catalog";
 import { CampMovement } from "../characters/CampMovement";
-import { opponent } from "../domain/progression";
+import { opponentName } from "../domain/progression";
 export class MainMenuScene extends BaseScene {
   private rig!: Gladiator;
   private movement!: CampMovement;
@@ -52,12 +52,16 @@ export class MainMenuScene extends BaseScene {
       jump: "SPACE",
       stance: "R",
       throw: "T",
+      throwOverhand: "Y",
     }) as Record<string, Phaser.Input.Keyboard.Key> | undefined;
     this.keys?.jump.on("down", () => {
       if (!this.modalOpen) this.movement.jump();
     });
     this.keys?.throw.on("down", () => {
       if (!this.modalOpen) this.movement.throw();
+    });
+    this.keys?.throwOverhand.on("down", () => {
+      if (!this.modalOpen) this.movement.throw("overhand");
     });
     this.keys?.stance.on("down", () => {
       if (!this.modalOpen) this.movement.toggle();
@@ -79,16 +83,25 @@ export class MainMenuScene extends BaseScene {
       ["move-run", en.run, () => this.movement.demonstrate("run")],
       ["move-jump", en.jump, () => this.movement.jump()],
       ["move-stance", en.stance, () => this.movement.toggle()],
-      ["move-throw", en.throwAction, () => this.movement.throw()],
+      ["move-throw", en.throwUnder, () => this.movement.throw()],
+      ["move-overhand", en.throwOver, () => this.movement.throw("overhand")],
     ] as const;
     controls.forEach(([id, text, run], i) =>
-      this.button(id, 720 + i * 96, 649, 86, text, run, 36),
+      this.button(
+        id,
+        i < 5 ? 666 + i * 86 : 1110 + (i - 5) * 100,
+        649,
+        i < 5 ? 82 : 96,
+        text,
+        run,
+        36,
+      ),
     );
     label(
       this,
       640,
       694,
-      `${en.next}: ${opponent(this.services.player).name}`,
+      `${en.next}: ${opponentName(this.services.player.progress)} · Victories: ${this.services.player.progress}`,
       21,
     ).setOrigin(0.5);
   }

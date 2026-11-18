@@ -6,7 +6,7 @@ export const en = {
     "A/D: move • Shift: run • Space: jump • A/D+Space: hop • LMB/J: front hand • RMB/K: rear hand • F: kick • R: stance • Esc: camp",
   backHop: "Backhop",
   forwardHop: "Hop",
-  movementHint: "A/D: walk • Shift: run • Space: jump • R: stance • T: throw",
+  movementHint: "A/D: walk • Shift: run • Space: jump • R: stance • T/Y: under/over throw",
   walkBack: "Back",
   walk: "Walk",
   run: "Run",
@@ -59,6 +59,8 @@ export const en = {
   loadoutHint:
     "Choose a hand or belt slot • Equipped items stay on the slot cards",
   throwPreview: "Throw preview",
+  throwUnder: "Underarm",
+  throwOver: "Overarm",
   throwAction: "Throw",
   unequip: "Remove",
   slots: {

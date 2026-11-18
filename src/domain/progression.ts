@@ -1,4 +1,4 @@
-import { item, enemies, rewards } from "../data/catalog";
+import { item, rewards } from "../data/catalog";
 import {
   slotCategory,
   handSlots,
@@ -44,18 +44,10 @@ export function reward(p: Player, battleId: string, win: boolean) {
   const r = win ? rewards.victory : rewards.defeat;
   p.rewarded.push(battleId);
   p.gold += r.gold;
-  if (win) p.progress = Math.min(enemies.length - 1, p.progress + 1);
+  if (win) p.progress++;
   return { ...r };
 }
-export function opponent(p: Player): Player {
-  const e = enemies[Math.min(p.progress, enemies.length - 1)];
-  return {
-    ...structuredClone(p),
-    id: "enemy",
-    name: e.name,
-    equipment: { ...e.equipment },
-  };
-}
+export { opponent, opponentName, opponentTier } from "./opponents";
 
 export function unequip(p: Player, slot: EquipmentSlot) {
   if (!p.equipment[slot]) return false;

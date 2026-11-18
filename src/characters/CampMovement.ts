@@ -26,12 +26,12 @@ export class CampMovement {
     this.stance = this.stance === "relaxed" ? "combat" : "relaxed";
     this.rig.setStance(this.stance);
   }
-  throw() {
+  throw(kind: "underhand" | "overhand" = "underhand") {
     if (this.jumping) return;
     this.jumping = true;
-    this.action = "throw";
+    this.action = kind === "overhand" ? "throwOverhand" : "throw";
     this.demo = undefined;
-    this.rig.play("throw", undefined, () => {
+    this.rig.play(this.action, undefined, () => {
       this.jumping = false;
       this.action = "";
     });

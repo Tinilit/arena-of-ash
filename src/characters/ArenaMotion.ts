@@ -7,7 +7,7 @@ import {
   weaponForHand,
 } from "../domain/progression";
 import type { Hand } from "../domain/model";
-import type { ArenaFighter } from "../combat/realtime";
+import { activeActions, type ArenaFighter } from "../combat/realtime";
 import { knockdownPose } from "./knockdownMotion";
 import { groundedPose } from "./kinematics";
 import { hopPose } from "./hopPose";
@@ -38,11 +38,12 @@ export class ArenaMotion {
   private actions: Record<Hand, Animator>;
   private pain: Animator;
   private movementName = "";
-  private swing = -1;
+  private swings: Record<Hand, number> = { front: -1, rear: -1 };
+  private returning: Partial<Record<Hand, { from: Pose; age: number }>> = {};
   private falling = false;
   private fallStart: Pose = {};
   private reaction = -1;
-  private carryStart: Pose = {};
+  private carryStarts: Record<Hand, Pose> = { front: {}, rear: {} };
   private displayed: Pose = {};
   private primary: Hand;
   private guardStart?: Pose;
@@ -134,38 +135,67 @@ export class ArenaMotion {
       this.name = "jump";
     } else if (f.landed < 180)
       base.rootY = (base.rootY ?? 0) + 7 * Math.sin((Math.PI * f.landed) / 180);
-    if (f.action) {
-      const action = f.action,
-        hand = action.hand,
+    const active = activeActions(f);
+    for (const hand of ["front", "rear"] as const) {
+      if (active.some((a) => a.hand === hand)) {
+        delete this.returning[hand];
+        continue;
+      }
+      if (this.swings[hand] !== -1) {
+        this.returning[hand] = { from: this.displayed, age: 0 };
+        this.swings[hand] = -1;
+      }
+      const back = this.returning[hand];
+      if (!back) continue;
+      back.age += delta;
+      const prefix = hand === "front" ? "near" : "far",
+        t = smooth(back.age / 140);
+      for (const suffix of ["HandX", "HandY", "Wrist", "WeaponGrip"]) {
+        const key = prefix + suffix;
+        base[key] =
+          (back.from[key] ?? base[key] ?? 0) * (1 - t) + (base[key] ?? 0) * t;
+      }
+      if (t === 1) delete this.returning[hand];
+    }
+    const torsoBase = base.torso ?? 0,
+      headBase = base.head ?? 0;
+    let torsoSum = 0,
+      headSum = 0,
+      totalWeight = 0;
+    for (const action of active) {
+      const hand = action.hand,
         prefix = hand === "rear" ? "far" : "near";
       const armed = Boolean(weaponForHand(f.model, hand));
       const clip = action.name === "quick" && !armed ? "punch" : action.name;
-      const starting = this.swing !== action.id;
+      const starting = this.swings[hand] !== action.id;
       if (starting) {
-        this.carryStart = {
+        this.carryStarts[hand] = {
           ...base,
           ...this.displayed,
           weaponGrip:
             this.displayed[`${prefix}WeaponGrip`] ??
             base[`${prefix}WeaponGrip`],
         };
-        this.actions[hand].play(clip, undefined, undefined, this.carryStart);
-        this.swing = action.id;
+        this.actions[hand].play(
+          clip,
+          undefined,
+          undefined,
+          this.carryStarts[hand],
+        );
+        this.swings[hand] = action.id;
       }
       const sample = this.actions[hand].update(
         starting ? action.elapsed : delta,
       );
       const overlay =
         armed && action.name === "quick"
-          ? raisedWeapon(this.carryStart, sample, action.elapsed, prefix)
+          ? raisedWeapon(this.carryStarts[hand], sample, action.elapsed, prefix)
           : sample;
       for (const [key, value] of Object.entries(overlay)) {
         if (
           key.startsWith(`${prefix}Hand`) ||
           key === `${prefix}Wrist` ||
-          key === `${prefix}Fist` ||
-          key === "torso" ||
-          key === "head"
+          key === `${prefix}Fist`
         )
           base[key] = value;
         if (
@@ -189,7 +219,17 @@ export class ArenaMotion {
         base.nearFootAngle = leg.foot;
         base.nearFootRoll = 0;
       }
-      this.name = clip;
+      const weight =
+        smooth(action.elapsed / 100) *
+        smooth((action.duration - action.elapsed) / 140);
+      torsoSum += ((overlay.torso ?? torsoBase) - torsoBase) * weight;
+      headSum += ((overlay.head ?? headBase) - headBase) * weight;
+      totalWeight += weight;
+      this.name = active.length > 1 ? "dualAttack" : clip;
+    }
+    if (active.length) {
+      base.torso = torsoBase + torsoSum / Math.max(1, totalWeight);
+      base.head = headBase + headSum / Math.max(1, totalWeight);
     } else if (f.reaction) {
       const r = f.reaction;
       if (r.kind === "hit") {

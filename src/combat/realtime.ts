@@ -1,6 +1,5 @@
 import type { Player, Hand } from "../domain/model";
 import { primaryHand, weaponForHand } from "../domain/progression";
-import { stats } from "../domain/progression";
 import { actions, damage, fighter, type Fighter } from "./engine";
 import { hopDefinitions, hopKind, type Hop } from "./hops";
 import {
@@ -48,6 +47,7 @@ export interface ArenaInput {
   hop?: -1 | 1;
   attack?: Attack;
   hand?: Hand;
+  attacks?: Hand[];
   guard?: boolean;
   recover?: boolean;
   toggleStance?: boolean;
@@ -66,7 +66,12 @@ export interface ArenaFighter extends Fighter {
   vx: number;
   vy: number;
   facing: 1 | -1;
+  /** Aggregate view for presentation; hand eligibility uses its own track. */
   action: Swing | null;
+  bodyAction: Swing | null;
+  handActions: Record<Hand, Swing | null>;
+  handCooldowns: Record<Hand, number>;
+  bodyCooldown: number;
   relaxed: boolean;
   landed: number;
   hop: Hop | null;
@@ -104,17 +109,45 @@ function actor(model: Player, x: number, facing: 1 | -1): ArenaFighter {
     vx: 0,
     vy: 0,
     facing,
-    action: null,
+    bodyAction: null,
+    handActions: { front: null, rear: null },
+    handCooldowns: { front: 0, rear: 0 },
+    bodyCooldown: 0,
+    get action() {
+      return this.bodyAction ?? this.handActions.rear ?? this.handActions.front;
+    },
+    set action(value: Swing | null) {
+      this.bodyAction = null;
+      this.handActions.front = this.handActions.rear = null;
+      if (value?.name === "quick" || value?.name === "heavy")
+        this.handActions[value.hand] = value;
+      else this.bodyAction = value;
+    },
     relaxed: false,
     landed: 1000,
     hop: null,
     hopCooldown: 0,
-    attackCooldown: 0,
+    get attackCooldown() {
+      return Math.max(
+        this.bodyCooldown,
+        this.handCooldowns.front,
+        this.handCooldowns.rear,
+      );
+    },
+    set attackCooldown(value: number) {
+      this.bodyCooldown = value;
+      this.handCooldowns.front = this.handCooldowns.rear = value;
+    },
     stun: 0,
     pushVx: 0,
     reaction: null,
     knockdown: null,
   };
+}
+export function activeActions(f: ArenaFighter): Swing[] {
+  return [f.bodyAction, f.handActions.front, f.handActions.rear].filter(
+    (a): a is Swing => a !== null,
+  );
 }
 export class RealtimeBattle {
   state: ArenaState = "Fighting";
@@ -123,7 +156,7 @@ export class RealtimeBattle {
   private sequence = 0;
   private previous?: [CombatGeometry, CombatGeometry];
   private previousFacing: number[] = [];
-  private previousActive: number[] = [];
+  private previousActive: Set<number>[] = [];
   constructor(
     player: Player,
     enemy: Player,
@@ -137,15 +170,22 @@ export class RealtimeBattle {
   get enemy() {
     return this.fighters[1];
   }
-  canAttack(f: ArenaFighter, name: ArenaAction) {
+  canAttack(
+    f: ArenaFighter,
+    name: ArenaAction,
+    hand: Hand = primaryHand(f.model),
+  ) {
     return (
       this.state === "Fighting" &&
       f.hp > 0 &&
       name !== "heavy" &&
       !f.knockdown &&
       f.stun === 0 &&
-      f.attackCooldown === 0 &&
-      !f.action &&
+      !f.bodyAction &&
+      f.bodyCooldown === 0 &&
+      (name === "quick"
+        ? !f.handActions[hand] && f.handCooldowns[hand] === 0
+        : !f.handActions.front && !f.handActions.rear) &&
       f.reaction?.kind !== "stagger"
     );
   }
@@ -171,7 +211,9 @@ export class RealtimeBattle {
     this.fighters.forEach((f, i) => {
       f.landed += delta;
       f.stun = Math.max(0, f.stun - delta);
-      f.attackCooldown = Math.max(0, f.attackCooldown - delta);
+      f.bodyCooldown = Math.max(0, f.bodyCooldown - delta);
+      for (const hand of ["front", "rear"] as const)
+        f.handCooldowns[hand] = Math.max(0, f.handCooldowns[hand] - delta);
       if (f.reaction) {
         f.reaction.elapsed += delta;
         if (f.reaction.elapsed >= f.reaction.duration) f.reaction = null;
@@ -193,11 +235,20 @@ export class RealtimeBattle {
           f.hopCooldown = definition.cooldown;
         }
       }
-      if (f.action) {
-        f.action.elapsed += delta;
-        if (f.action.elapsed >= f.action.duration) {
-          f.attackCooldown = f.action.name === "kick" ? 350 : 280;
-          f.action = null;
+      for (const hand of ["front", "rear"] as const) {
+        const swing = f.handActions[hand];
+        if (!swing) continue;
+        swing.elapsed += delta;
+        if (swing.elapsed >= swing.duration) {
+          f.handCooldowns[hand] = 280;
+          f.handActions[hand] = null;
+        }
+      }
+      if (f.bodyAction) {
+        f.bodyAction.elapsed += delta;
+        if (f.bodyAction.elapsed >= f.bodyAction.duration) {
+          f.bodyCooldown = f.bodyAction.name === "kick" ? 350 : 280;
+          f.bodyAction = null;
         }
       }
       if (f.knockdown) {
@@ -226,9 +277,29 @@ export class RealtimeBattle {
       if (c.toggleStance) f.relaxed = !f.relaxed;
       if (!f.action && !f.hop && !f.reaction && !f.knockdown)
         f.facing = this.fighters[1 - i].x >= f.x ? 1 : -1;
-      const request = c.attack ?? (c.recover ? "recover" : undefined);
+      const hands = new Set(c.attacks ?? []);
+      if (c.attack === "quick") hands.add(c.hand ?? primaryHand(f.model));
+      for (const hand of hands) {
+        if (!this.canAttack(f, "quick", hand)) continue;
+        f.handActions[hand] = {
+          id: ++this.sequence,
+          name: "quick",
+          hand,
+          elapsed: 0,
+          duration: attackTimings.quick.duration,
+          hit: false,
+        };
+        f.relaxed = false;
+        f.reaction = null;
+      }
+      const request =
+        c.attack && c.attack !== "quick"
+          ? c.attack
+          : c.recover
+            ? "recover"
+            : undefined;
       if (request && this.canAttack(f, request)) {
-        f.action = {
+        f.bodyAction = {
           id: ++this.sequence,
           name: request,
           elapsed: 0,
@@ -329,77 +400,72 @@ export class RealtimeBattle {
     if (this.state !== "Fighting") return [];
     const events: ContactEvent[] = [];
     this.fighters.forEach((f, i) => {
-      const swing = f.action;
-      if (!swing || swing.name === "recover" || swing.hit) return;
-      const weapon = weaponForHand(f.model, swing.hand);
-      const shape = (g: CombatGeometry) =>
-        swing.name === "kick"
-          ? g.feet?.front
-          : weapon
-            ? g.blades
-              ? g.blades[swing.hand]
-              : g.blade
-            : g.hands?.[swing.hand];
-      const strike = shape(geometry[i]);
-      if (!strike) return;
-      const timing = attackTimings[swing.name],
-        phase = swing.elapsed / swing.duration;
-      if (phase < timing.from || phase > timing.to) return;
-      const other = 1 - i;
-      // A facing flip is a discrete orientation change, not a blade sweep.
-      const previous =
-        this.previous &&
-        this.previousActive[i] === swing.id &&
-        this.previousFacing[i] === f.facing &&
-        this.previousFacing[other] === this.fighters[other].facing
-          ? this.previous
-          : geometry;
-      const blade = strike,
-        oldBlade = shape(previous[i]) ?? blade;
-      let collision: ReturnType<typeof sweptContact> = null;
-      for (let index = 0; index < geometry[other].body.length; index++) {
-        const part = geometry[other].body[index];
-        collision = sweptContact(
-          oldBlade,
-          blade,
-          previous[other].body[index] ?? part,
-          part,
-        );
-        if (collision) break;
-      }
-      if (collision) {
-        swing.hit = true;
-        const defender = this.fighters[other];
-        events.push({
-          id: swing.id,
-          attackerId: f.model.id,
-          defenderId: defender.model.id,
-          kind: swing.name === "kick" ? "kick" : weapon ? "weapon" : "punch",
-          hand: swing.hand,
-          damage:
-            swing.name === "kick"
-              ? Math.max(
-                  1,
-                  Math.round(
-                    (12 - stats(defender.model).armor * 0.5) *
-                      (defender.guard ? 0.5 : 1),
+      for (const swing of activeActions(f)) {
+        if (!swing || swing.name === "recover" || swing.hit) continue;
+        const weapon = weaponForHand(f.model, swing.hand);
+        const shape = (g: CombatGeometry) =>
+          swing.name === "kick"
+            ? g.feet?.front
+            : weapon
+              ? g.blades
+                ? g.blades[swing.hand]
+                : g.blade
+              : g.hands?.[swing.hand];
+        const strike = shape(geometry[i]);
+        if (!strike) continue;
+        const timing = attackTimings[swing.name],
+          phase = swing.elapsed / swing.duration;
+        if (phase < timing.from || phase > timing.to) continue;
+        const other = 1 - i;
+        // A facing flip is a discrete orientation change, not a blade sweep.
+        const previous =
+          this.previous &&
+          this.previousActive[i]?.has(swing.id) &&
+          this.previousFacing[i] === f.facing &&
+          this.previousFacing[other] === this.fighters[other].facing
+            ? this.previous
+            : geometry;
+        const blade = strike,
+          oldBlade = shape(previous[i]) ?? blade;
+        let collision: ReturnType<typeof sweptContact> = null;
+        for (let index = 0; index < geometry[other].body.length; index++) {
+          const part = geometry[other].body[index];
+          collision = sweptContact(
+            oldBlade,
+            blade,
+            previous[other].body[index] ?? part,
+            part,
+          );
+          if (collision) break;
+        }
+        if (collision) {
+          swing.hit = true;
+          const defender = this.fighters[other];
+          events.push({
+            id: swing.id,
+            attackerId: f.model.id,
+            defenderId: defender.model.id,
+            kind: swing.name === "kick" ? "kick" : weapon ? "weapon" : "punch",
+            hand: swing.hand,
+            damage:
+              swing.name === "kick"
+                ? 0
+                : damage(
+                    f.model,
+                    defender.model,
+                    actions[swing.name].multiplier,
+                    false,
+                    defender.guard,
+                    swing.hand,
                   ),
-                )
-              : damage(
-                  f.model,
-                  defender.model,
-                  actions[swing.name].multiplier,
-                  false,
-                  defender.guard,
-                  swing.hand,
-                ),
-          blocked: defender.guard,
-          knockdown:
-            swing.name === "kick" &&
-            !defender.knockdown &&
-            this.random() < knockdownTiming.chance,
-          ...collision,
-        });
+            blocked: defender.guard,
+            knockdown:
+              swing.name === "kick" &&
+              !defender.knockdown &&
+              this.random() < knockdownTiming.chance,
+            ...collision,
+          });
+        }
       }
     });
     // Resolve trades from the same physical instant before deciding the outcome.
@@ -434,20 +500,30 @@ export class RealtimeBattle {
       defender.hop = null;
       defender.guard = false;
       defender.relaxed = false;
-      defender.attackCooldown = Math.max(defender.attackCooldown, 180);
+      defender.bodyCooldown = Math.max(defender.bodyCooldown, 180);
+      for (const hand of ["front", "rear"] as const)
+        defender.handCooldowns[hand] = Math.max(
+          defender.handCooldowns[hand],
+          180,
+        );
       this.contacts.push(e);
     }
     if (this.contacts.length > 32)
       this.contacts.splice(0, this.contacts.length - 32);
     this.previous = geometry;
     this.previousFacing = this.fighters.map((f) => f.facing);
-    this.previousActive = this.fighters.map((f) => {
-      const a = f.action;
-      if (!a || a.name === "recover") return -1;
-      const t = a.elapsed / a.duration,
-        timing = attackTimings[a.name];
-      return t >= timing.from && t <= timing.to ? a.id : -1;
-    });
+    this.previousActive = this.fighters.map(
+      (f) =>
+        new Set(
+          activeActions(f)
+            .filter((a) => {
+              const t = a.elapsed / a.duration,
+                timing = attackTimings[a.name];
+              return a.name !== "recover" && t >= timing.from && t <= timing.to;
+            })
+            .map((a) => a.id),
+        ),
+    );
     if (this.player.hp === 0 && this.enemy.hp === 0) this.state = "Draw";
     else if (this.enemy.hp === 0) this.state = "Victory";
     else if (this.player.hp === 0) this.state = "Defeat";

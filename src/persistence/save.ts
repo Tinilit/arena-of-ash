@@ -21,7 +21,6 @@ export function deserialize(raw: string | null): Player {
       typeof p.name !== "string" ||
       !p.name ||
       !["gold", "progress"].every((k) => integer(p[k as keyof Player])) ||
-      p.progress > 2 ||
       !Array.isArray(p.inventory) ||
       new Set(p.inventory).size !== p.inventory.length ||
       !p.inventory.every((id) => typeof id === "string" && item(id)) ||

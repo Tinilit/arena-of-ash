@@ -245,18 +245,18 @@ it("planted stumble feet follow actual knockback travel between backward steps",
   expect(checked).toBeGreaterThan(5);
 });
 
-it("a guarded front kick reduces damage but still forces balance recovery", () => {
+it("a guarded front kick causes no damage and still forces balance recovery", () => {
   const b = make();
   b.advance(0, [{ attack: "kick" }, {}]);
   b.advance(420, [{}, { guard: true }]);
   const [hit] = b.resolve([geometry(0, 0), geometry(0, 0)]);
   expect(hit.blocked).toBe(true);
-  expect(hit.damage).toBe(6);
+  expect(hit.damage).toBe(0);
   expect(b.enemy.reaction?.kind).toBe("stagger");
   expect(b.enemy.pushVx).toBe(500);
 });
 
-it("a flying kick extends only the striking leg, keeps the other tucked and damages only on boot contact", async () => {
+it("a flying kick extends only the striking leg and shoves without damage on boot contact", async () => {
   const { groundedPose } = await import("../../src/characters/kinematics");
   const b = make(),
     motion = new ArenaMotion(b.player.model);
@@ -279,7 +279,8 @@ it("a flying kick extends only the striking leg, keeps the other tucked and dama
   expect(b.resolve([miss, target])).toEqual([]);
   const [hit] = b.resolve([geometry(0, 100), target]);
   expect(hit.kind).toBe("kick");
-  expect(b.enemy.hp).toBe(88);
+  expect(b.enemy.hp).toBe(100);
+  expect(hit.damage).toBe(0);
   expect(b.resolve([geometry(0, 100), target])).toEqual([]);
   for (let i = 0; i < 120; i++) b.advance(arenaRules.step, [{}, {}]);
   expect(b.player.y).toBe(0);

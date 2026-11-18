@@ -10,11 +10,11 @@ Arena combat supports walking forward/back, running, jumping, independent light 
 2. Advance action/cooldown/reaction and knockdown ages, horizontal position, ballistic jump height and body separation for both fighters.
 3. Compose locomotion and upper-body action poses, apply them to the real Gladiator rig, then read its world matrices.
 4. Build a capsule for the visible blade/leaf head and articulated body capsules for head, torso, pelvis, arms, hands, thighs, shins and feet.
-5. Sweep both moving shapes through the same interval. Apply contact damage once per swing, then resolve victory/defeat/draw.
+5. Sweep both moving shapes through the same interval. Apply contact damage once per selected hand swing, then resolve victory/defeat/draw.
 
 Head/torso/limb capsules approximate their drawn silhouettes. They are geometric collision shapes, not per-pixel alpha masks or rigid-body ragdolls. Equipped armor reduces damage through its stats. Shields remain absent from the shipped catalog. Weapon-on-weapon parrying is not implemented.
 
-Light attacks are active during 45–67% of a 1000 ms action, followed by 280 ms cooldown. The front kick is active during 36–56% of 1050 ms with a 350 ms cooldown. Heavy attacks are disabled. Idle weapons, anticipation and recovery never deal damage. The sweep starts fresh when a contact window opens or either fighter flips facing, preventing phantom hits along an inactive/teleported path. Motion sampling uses endpoint travel and the smaller capsule radius; a coarse swept bounds test only rejects clearly separated pairs. It never directly awards damage.
+Light attacks are active during 45–67% of a 1000 ms action, followed by 280 ms cooldown. Each hand can start and recover independently; both may contact in the same step. The front kick deals zero HP damage and is active during 36–56% of 1050 ms with a 350 ms cooldown. Heavy attacks are disabled. Idle weapons, anticipation and recovery never deal damage. The sweep starts fresh when a contact window opens or either fighter flips facing, preventing phantom hits along an inactive/teleported path. Motion sampling uses endpoint travel and the smaller capsule radius; a coarse swept bounds test only rejects clearly separated pairs. It never directly awards damage.
 
 The resolver records the blade and body shape at the actual swept contact sample. Browser tests validate that they intersect and every HP decrement equals new contact events. No random hit/critical roll is used. A miss deals no damage. A confirmed contact always damages; fixed movement speeds do not depend on character attributes. Both lethal contacts in the same step produce a draw; further combat is frozen and rewards are granted once.
 
@@ -57,3 +57,9 @@ See [independent hand collision, pain/stun and kicking](MELEE_COMBAT.md) for act
 After confirmed boot/body contact, a separate injected random stream gives a 20% chance of knockdown. The threshold is strictly below 0.2. Misses and repeated contact frames do not roll. A 550 ms fall waits for actual ground contact if needed, then a 1000 ms grounded hold precedes an 1800 ms get-up. Movement, actions, guard, stance changes and jumping are locked throughout. Further contacts still deal damage without resetting the transfer. Floor support includes head, torso, skirt, palms, knees and boots; the rendered rig also keeps rotated helmets above the floor and bodies inside arena edges. See [floor transfer animation](KNOCKDOWN_ANIMATION.md).
 
 Combat key commands use physical `KeyboardEvent.code`, with a symbol fallback for older/synthetic events. F works on the Ukrainian layout even when `event.key` is Cyrillic а. Ctrl/Alt/Meta shortcuts, repeats and paused input do not queue attacks.
+
+## Concurrent hands and random opponents
+
+`handActions` and `handCooldowns` are keyed by front/rear; `bodyAction` and `bodyCooldown` handle kicks/recovery. `action` and `attackCooldown` are aggregate presentation views, never the eligibility lock for a hand. Input queues retain both hand requests from the same rendered frame. Contact sweep histories track each swing ID separately, and all hits are collected before shared pain/stun clears both hands. No idle or inactive hand inherits the other hand's hit window.
+
+Enemy loadouts use a separate seeded stream from AI and kick knockdown. Wins are uncapped; three equipment tiers improve main/offhand weapon pools and helmet/body armor. AI considers each equipped hand's reach and cooldown, allowing overlapping attacks. Belts remain inactive, shields absent and bots do not request kicks or directional hops. See [enemy generation](OPPONENTS.md).

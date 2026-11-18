@@ -1028,7 +1028,12 @@ test("relaxed stance is upright with almost straight legs and an actually lowere
   page,
 }) => {
   await launch(page);
-  await page.waitForTimeout(350);
+  await expect
+    .poll(async () => {
+      const r = (await snapshot(page)).rigs![0];
+      return Math.abs(r.body.torso.right.y - r.body.torso.origin.y);
+    })
+    .toBeLessThan(0.001);
   const check = (r: Rig) => {
     expect(Math.abs(r.body.torso.right.y - r.body.torso.origin.y)).toBeLessThan(
       0.001,
@@ -1055,7 +1060,12 @@ test("relaxed stance is upright with almost straight legs and an actually lowere
   await click(page, "battle");
   await scene(page, "ArenaScene");
   await page.keyboard.press("r");
-  await page.waitForTimeout(350);
+  await expect
+    .poll(async () => {
+      const r = (await snapshot(page)).rigs![0];
+      return Math.abs(r.body.torso.right.y - r.body.torso.origin.y);
+    })
+    .toBeLessThan(0.001);
   const s = await snapshot(page);
   expect(s.battle!.player.relaxed).toBe(true);
   check(s.rigs![0]);
@@ -1570,6 +1580,8 @@ test("F during a jump performs a physical flying kick and lands normally", async
     }
   }
   expect(hit).toBeTruthy();
+  expect(hit!.damage).toBe(0);
+  expect(airHit!.battle!.enemy.hp).toBe(100);
   expect(airHit!.battle!.player.y).toBeLessThan(0);
   expect(airHit!.battle!.player.action?.name).toBe("kick");
   expect(airHit!.rigs![0].animation).toBe("kick");
@@ -1582,4 +1594,175 @@ test("F during a jump performs a physical flying kick and lands normally", async
   expect((await snapshot(page)).battle!.player.y).toBe(0);
   expect((await snapshot(page)).battle!.player.vy).toBe(0);
   await page.clock.resume();
+});
+
+test("both throw styles remain selectable and the overarm serve releases high in front of the head layer", async ({
+  page,
+}) => {
+  await launch(page);
+  const before = (await snapshot(page)).player;
+  await page.keyboard.press("y");
+  const poses = await page.evaluate(
+    () =>
+      new Promise<Rig[]>((resolve) => {
+        const poses: Rig[] = [],
+          end = performance.now() + 2050;
+        const step = () => {
+          const s = (
+            window as unknown as { __arena: { snapshot: () => Snapshot } }
+          ).__arena.snapshot();
+          poses.push(s.rigs![0]);
+          if (performance.now() < end) requestAnimationFrame(step);
+          else resolve(poses);
+        };
+        requestAnimationFrame(step);
+      }),
+  );
+  expect(
+    poses.some(
+      (r) =>
+        r.animation === "throwOverhand" &&
+        r.far.hand.y < r.far.shoulder.y - 65 * r.scale,
+    ),
+  ).toBe(true);
+  for (const r of poses.filter((r) => r.throwing.active)) {
+    expect(r.throwing.headFront).toBe(false);
+    anatomy(r, false);
+  }
+  expect((await snapshot(page)).player).toEqual(before);
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].animation)
+    .toBe("idleRelaxed");
+  await page.keyboard.press("t");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].animation)
+    .toBe("throw");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].animation)
+    .toBe("idleRelaxed");
+  await click(page, "character");
+  expect((await snapshot(page)).buttons["preview-throw"]).toBeTruthy();
+  expect((await snapshot(page)).buttons["preview-overhand"]).toBeTruthy();
+  await click(page, "preview-overhand");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].animation)
+    .toBe("throwOverhand");
+  await shot(page, "overarm-throw-preview");
+});
+
+test("hand inputs keep separate animation clocks when staggered", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await launch(page);
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  await page.keyboard.press("k");
+  await page.clock.runFor(200);
+  await page.keyboard.press("j");
+  await page.clock.runFor(50);
+  const s = await snapshot(page),
+    a = s.battle!.player.handActions;
+  expect(a.front).toBeTruthy();
+  expect(a.rear).toBeTruthy();
+  expect(a.rear!.elapsed - a.front!.elapsed).toBeGreaterThan(150);
+  expect(s.rigs![0].animation).toBe("dualAttack");
+  anatomy(s.rigs![0]);
+  await page.clock.resume();
+});
+
+test("simultaneous hand inputs produce two independent physical weapon hits", async ({
+  page,
+}) => {
+  const p = createPlayer();
+  p.inventory.push("rust", "plate", "cap");
+  p.equipment = {
+    ...p.equipment,
+    leftHand: "rust",
+    body: "plate",
+    helmet: "cap",
+  };
+  await page.addInitScript(
+    (p) =>
+      localStorage.setItem(
+        "arena-of-ash.v3",
+        JSON.stringify({ version: 3, player: p }),
+      ),
+    p,
+  );
+  await launch(page);
+  await click(page, "battle");
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 100));
+  await page.keyboard.down("d");
+  for (let i = 0; i < 70; i++) {
+    const b = (await snapshot(page)).battle!;
+    if (b.enemy.x - b.player.x < 190) break;
+    await page.clock.runFor(25);
+  }
+  await page.keyboard.up("d");
+  const canvas = await page.locator("canvas").boundingBox();
+  await page.mouse.move(
+    canvas!.x + canvas!.width * 0.5,
+    canvas!.y + canvas!.height * 0.56,
+  );
+  await page.mouse.down({ button: "left" });
+  await page.mouse.down({ button: "right" });
+  await page.mouse.up({ button: "left" });
+  await page.mouse.up({ button: "right" });
+  await page.clock.runFor(50);
+  let s = await snapshot(page);
+  expect(s.battle!.player.handActions.front).toBeTruthy();
+  expect(s.battle!.player.handActions.rear).toBeTruthy();
+  const ids = [
+    s.battle!.player.handActions.front!.id,
+    s.battle!.player.handActions.rear!.id,
+  ];
+  await page.clock.runFor(600);
+  s = await snapshot(page);
+  const hits = s.battle!.contacts.filter(
+    (e) => e.attackerId === "wanderer" && ids.includes(e.id),
+  );
+  expect(hits).toHaveLength(2);
+  expect(new Set(hits.map((h) => h.hand)).size).toBe(2);
+  for (const hit of hits) {
+    expect(hit.kind).toBe("weapon");
+    expect(contact(hit.blade, hit.body)).not.toBeNull();
+  }
+  expect(s.battle!.enemy.hp).toBe(
+    100 - hits.reduce((sum, e) => sum + e.damage, 0),
+  );
+  await page.screenshot({
+    path: "test-results/screenshots/dual-weapon-contact.png",
+  });
+  await page.clock.resume();
+});
+
+test("victory progress beyond three persists and generates stronger equipped opponents", async ({
+  page,
+}) => {
+  await launch(page);
+  await click(page, "battle");
+  const first = (await snapshot(page)).battle!.enemy.model;
+  const p = (await snapshot(page)).player;
+  p.progress = 9;
+  await page.evaluate(
+    (p) =>
+      localStorage.setItem(
+        "arena-of-ash.v3",
+        JSON.stringify({ version: 3, player: p }),
+      ),
+    p,
+  );
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect((await snapshot(page)).player.progress).toBe(9);
+  await click(page, "battle");
+  const late = (await snapshot(page)).battle!.enemy.model;
+  expect(first.equipment.body).toBeUndefined();
+  expect(late.equipment.body).toBe("plate");
+  expect(late.equipment.helmet).toBe("viking");
+  expect(["iron", "war-spear"]).toContain(late.equipment.rightHand);
+  await shot(page, "veteran-random-loadout");
 });
