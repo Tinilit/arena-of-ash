@@ -11,7 +11,7 @@ const visuals: Record<Slot, readonly string[]> = {
   helmet: ["cap", "viking"],
   chest: ["leather", "plate"],
   shield: ["shield", "tower"],
-  utility: ["net", "flask"],
+  utility: ["throwing-knife", "throwing-axe", "healing-potion"],
 };
 // Starter and opponent loadouts need these IDs and slots to remain available.
 const required: Record<string, Slot> = {
@@ -21,8 +21,8 @@ const required: Record<string, Slot> = {
   leather: "chest",
   plate: "chest",
   cap: "helmet",
-  net: "utility",
-  flask: "utility",
+  "throwing-knife": "utility",
+  "throwing-axe": "utility",
 };
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -105,9 +105,17 @@ export function parseCatalog(
     const spearVisual = v.visual === "spear" || v.visual === "war-spear";
     if (slot === "weapon" && (v.weaponType === "spear") !== spearVisual)
       throw Error("Weapon animation must match its fallback visual");
+    if (
+      v.use !== undefined &&
+      (slot !== "utility" || !["throw", "drink"].includes(String(v.use)))
+    )
+      throw Error("Invalid item use");
+    if ((v.use === "drink") !== (v.heal !== undefined))
+      throw Error("Drinkable items must define healing");
     let hitbox: Item["hitbox"];
     if (v.hitbox !== undefined) {
-      if (slot !== "weapon") throw Error("Only weapons can define a hitbox");
+      if (slot !== "weapon" && v.use !== "throw")
+        throw Error("Only weapons and throwables can define a hitbox");
       const h = record(v.hitbox);
       hitbox = {
         startY: number(h.startY, -600, 600),
@@ -125,6 +133,8 @@ export function parseCatalog(
       attack: number(v.attack, 0, 10000, true),
       armor: number(v.armor, 0, 10000, true),
       visual: String(v.visual),
+      ...(v.use === undefined ? {} : { use: v.use as Item["use"] }),
+      ...(v.heal === undefined ? {} : { heal: number(v.heal, 1, 100, true) }),
       ...(v.weaponType === undefined
         ? {}
         : { weaponType: v.weaponType as Item["weaponType"] }),

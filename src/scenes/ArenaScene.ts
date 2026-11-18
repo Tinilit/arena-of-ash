@@ -12,7 +12,9 @@ import { ArenaAI } from "../combat/ArenaAI";
 import { hopKind } from "../combat/hops";
 import type { CombatGeometry } from "../combat/geometry";
 import { seeded } from "../utils/random";
-import { opponent, stats, reward } from "../domain/progression";
+import { opponent, stats, reward, consumeItem } from "../domain/progression";
+import { item } from "../data/catalog";
+import { drawGear } from "../rendering/characterVisuals";
 import { label, ProgressBar, colors } from "../ui/widgets";
 import { en } from "../ui/strings";
 
@@ -31,12 +33,22 @@ export class ArenaScene extends BaseScene {
   private accumulator = 0;
   private paused = false;
   private debug?: Phaser.GameObjects.Graphics;
+  private projectileViews = new Map<number, Phaser.GameObjects.Container>();
+  private projectileMask!: Phaser.Display.Masks.GeometryMask;
   private geometry?: [CombatGeometry, CombatGeometry];
   constructor() {
     super("ArenaScene");
   }
   create() {
     this.prepare(en.arena);
+    this.projectileViews.clear();
+    const maskSource = this.add
+      .graphics()
+      .fillStyle(0xffffff)
+      .fillRect(0, 180, 1280, 390)
+      .setVisible(false);
+    this.projectileMask = maskSource.createGeometryMask();
+    this.events.once("shutdown", () => this.projectileMask.destroy());
     this.battleId = crypto.randomUUID();
     this.ending = false;
     this.accumulator = 0;
@@ -136,6 +148,21 @@ export class ArenaScene extends BaseScene {
       },
       38,
     );
+    for (const [slot, key, x] of [
+      ["belt1", "Q", 1010],
+      ["belt2", "E", 1175],
+    ] as const)
+      this.button(
+        `use-${slot}`,
+        x,
+        667,
+        150,
+        `${key} Belt`,
+        () => {
+          this.queued.belt = slot;
+        },
+        38,
+      );
     if (this.input.manager.pointersTotal < 4)
       this.input.addPointer(4 - this.input.manager.pointersTotal);
     const releasePointer = (p: Phaser.Input.Pointer) =>
@@ -151,13 +178,13 @@ export class ArenaScene extends BaseScene {
         arrowRight: "RIGHT",
         run: "SHIFT",
         jump: "SPACE",
+        control: "CTRL",
       }) as typeof this.keys) ?? {};
     this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
       if (
         event.repeat ||
         this.ending ||
         this.paused ||
-        event.ctrlKey ||
         event.metaKey ||
         event.altKey
       )
@@ -170,6 +197,13 @@ export class ArenaScene extends BaseScene {
           : event.code === "Space"
             ? " "
             : event.key.toLowerCase();
+      if (event.ctrlKey) {
+        if (key === "j" || key === "1") this.queueHand("front", true);
+        if (key === "k" || key === "2") this.queueHand("rear", true);
+        return;
+      }
+      if (key === "q") this.queued.belt = "belt1";
+      if (key === "e") this.queued.belt = "belt2";
       if (key === "j" || key === "1") {
         this.queueHand("front");
       }
@@ -180,6 +214,7 @@ export class ArenaScene extends BaseScene {
       if (key === " ") this.queueJump();
       if (key === "r") this.queued.toggleStance = true;
     });
+    this.input.keyboard?.addCapture(["J", "K"]);
     const useHand = (pointer: Phaser.Input.Pointer) => {
       if (this.ending || this.paused) return;
       const point = pointer.positionToCamera(
@@ -188,7 +223,10 @@ export class ArenaScene extends BaseScene {
       if (point.y < 180 || point.y > 570 || point.x < 0 || point.x > 1280)
         return;
       if (pointer.button === 0 || pointer.button === 2) {
-        this.queueHand(pointer.button === 0 ? "front" : "rear");
+        this.queueHand(
+          pointer.button === 0 ? "front" : "rear",
+          Boolean((pointer.event as MouseEvent).ctrlKey),
+        );
       }
     };
     const contextMenu = (event: Event) => event.preventDefault();
@@ -213,6 +251,7 @@ export class ArenaScene extends BaseScene {
       this.game.events.off(Phaser.Core.Events.BLUR, pause);
       this.game.events.off(Phaser.Core.Events.FOCUS, resume);
       this.clearInput();
+      this.input.keyboard?.removeCapture(["J", "K"]);
       for (const key of Object.values(this.keys))
         this.input.keyboard?.removeKey(key, true);
       this.keys = {};
@@ -222,8 +261,9 @@ export class ArenaScene extends BaseScene {
     this.pose(0);
     this.refresh();
   }
-  private queueHand(hand: "front" | "rear") {
-    this.queued.attacks = [...new Set([...(this.queued.attacks ?? []), hand])];
+  private queueHand(hand: "front" | "rear", modified = false) {
+    const field = modified || this.down("control") ? "throws" : "attacks";
+    this.queued[field] = [...new Set([...(this.queued[field] ?? []), hand])];
   }
   private clearInput() {
     this.queued = {};
@@ -259,6 +299,7 @@ export class ArenaScene extends BaseScene {
   private pose(delta: number) {
     this.battle.fighters.forEach((f, i) => {
       const rig = this.rigs[i];
+      rig.syncArena(f);
       rig.setArenaTransform(
         f.x,
         arenaRules.floor + f.y,
@@ -278,14 +319,29 @@ export class ArenaScene extends BaseScene {
       this.bars[i].update(f.hp, s.hp);
     });
     this.buttons.quick.setEnabled(
-      this.battle.canAttack(this.battle.player, "quick", "rear"),
+      this.down("control")
+        ? this.battle.canThrow(this.battle.player, "rear")
+        : this.battle.canAttack(this.battle.player, "quick", "rear"),
     );
     this.buttons["front-attack"].setEnabled(
-      this.battle.canAttack(this.battle.player, "quick", "front"),
+      this.down("control")
+        ? this.battle.canThrow(this.battle.player, "front")
+        : this.battle.canAttack(this.battle.player, "quick", "front"),
     );
     this.buttons.kick.setEnabled(
       this.battle.canAttack(this.battle.player, "kick"),
     );
+    for (const [slot, key] of [
+      ["belt1", "Q"],
+      ["belt2", "E"],
+    ] as const) {
+      const definition = item(this.battle.player.model.equipment[slot] ?? "");
+      this.buttons[`use-${slot}`]
+        .setCaption(
+          `${key} ${definition?.use === "drink" ? "Potion" : definition ? definition.name.replace(/^Throwing /, "").slice(0, 10) : "Empty"}`,
+        )
+        .setEnabled(this.battle.canUseBelt(this.battle.player, slot));
+    }
     const player = this.battle.player,
       direction = this.direction();
     if (direction) {
@@ -308,6 +364,21 @@ export class ArenaScene extends BaseScene {
         );
     for (const name of ["left", "right", "run", "stance"])
       this.buttons[`arena-${name}`].setEnabled(!this.ending);
+  }
+  private renderProjectiles() {
+    for (const projectile of this.battle.projectiles) {
+      let view = this.projectileViews.get(projectile.id);
+      if (!view) {
+        const definition = item(projectile.itemId);
+        if (!definition) continue;
+        view = drawGear(this, definition).setMask(this.projectileMask);
+        this.projectileViews.set(projectile.id, view);
+      }
+      view
+        .setPosition(projectile.x, projectile.y)
+        .setRotation(projectile.angle)
+        .setVisible(projectile.state !== "expired");
+    }
   }
   private present(event: ContactEvent) {
     const defender = this.battle.fighters.findIndex(
@@ -385,12 +456,26 @@ export class ArenaScene extends BaseScene {
         this.ai.update(arenaRules.step, this.battle.enemy, this.battle.player),
       ]);
       this.pose(arenaRules.step);
+      const beforeRelease = this.battle.consumedItems.length;
       this.battle
         .resolve(this.geometry!)
         .forEach((event) => this.present(event));
+      if (this.battle.consumedItems.length !== beforeRelease) {
+        let consumed = false;
+        for (const consumedItem of this.battle.consumedItems.slice(
+          beforeRelease,
+        ))
+          if (consumedItem.ownerId === this.services.player.id)
+            consumed =
+              consumeItem(this.services.player, consumedItem.itemId) ||
+              consumed;
+        if (consumed) this.services.save();
+        this.pose(0);
+      }
       this.accumulator -= arenaRules.step;
       if (this.battle.state !== "Fighting") this.finish();
     }
+    this.renderProjectiles();
     this.refresh();
     if (this.debug && this.geometry) {
       this.debug.clear();
@@ -421,6 +506,7 @@ export class ArenaScene extends BaseScene {
         player: this.battle.player,
         enemy: this.battle.enemy,
         contacts: this.battle.contacts,
+        projectiles: this.battle.projectiles,
       }),
     };
   }

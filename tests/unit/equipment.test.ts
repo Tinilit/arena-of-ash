@@ -19,9 +19,9 @@ const funded = () => {
   return p;
 };
 describe("equipment catalog", () => {
-  it("keeps eleven definitions with shields paused and no paired weapon", () => {
-    expect(items).toHaveLength(11);
-    expect(new Set(items.map((i) => i.id)).size).toBe(11);
+  it("keeps twelve definitions with shields paused and no paired weapon", () => {
+    expect(items).toHaveLength(12);
+    expect(new Set(items.map((i) => i.id)).size).toBe(12);
     expect(item("glaives")).toBeUndefined();
     expect(items.some((it) => it.slot === "shield")).toBe(false);
   });
@@ -138,7 +138,12 @@ for (const id of ["spear", "war-spear"])
           const q = add(s.farArm.hand, rotate({ x: 0, y: length }, angle));
           return rotate({ x: q.x - head.x, y: q.y - head.y }, -headR);
         };
-        if ((p.throwPreview ?? 0) > 0.01 || name === "punch") continue;
+        if (
+          (p.throwPreview ?? 0) > 0.01 ||
+          (p.drinkPreview ?? 0) > 0.5 ||
+          name === "punch"
+        )
+          continue;
         expect(
           crossesFace(
             local(id === "war-spear" ? -150 : -132),

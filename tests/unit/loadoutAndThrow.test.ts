@@ -20,7 +20,7 @@ import {
 import { throwTiming } from "../../src/characters/throwMotion";
 
 describe("anatomical loadout", () => {
-  it("starts with two visible, inactive belt items and persists every position", () => {
+  it("starts with two visible belt throwables and persists every position", () => {
     const p = createPlayer();
     purchase(p, "rust");
     purchase(p, "leather");
@@ -30,8 +30,8 @@ describe("anatomical loadout", () => {
       rightHand: "wood",
       leftHand: "rust",
       body: "leather",
-      belt1: "net",
-      belt2: "flask",
+      belt1: "throwing-knife",
+      belt2: "throwing-axe",
     });
     expect(stats(p).attack).toBe(13);
     expect(stats(p).armor).toBe(2);
@@ -43,13 +43,13 @@ describe("anatomical loadout", () => {
     expect(p.equipment.rightHand).toBeUndefined();
     expect(primaryHand(p)).toBe("front");
     expect(primaryWeapon(p)?.id).toBe("wood");
-    equip(p, "net", "belt2");
+    equip(p, "throwing-knife", "belt2");
     expect(p.equipment.belt1).toBeUndefined();
     expect(
-      Object.values(p.equipment).filter((id) => id === "net"),
+      Object.values(p.equipment).filter((id) => id === "throwing-knife"),
     ).toHaveLength(1);
-    expect(p.inventory).toContain("flask");
-    expect(equip(p, "net", "helmet")).toBe(false);
+    expect(p.inventory).toContain("throwing-axe");
+    expect(equip(p, "throwing-knife", "helmet")).toBe(false);
     expect(equip(p, "wood", "belt1")).toBe(false);
     expect(unequip(p, "leftHand")).toBe(true);
     expect(primaryWeapon(p)).toBeUndefined();
@@ -134,8 +134,8 @@ it("preserves live bonuses on active armor/weapon and ignores carried gear", () 
   item("wood")!.armor = 2;
   item("leather")!.attack = 3;
   item("rust")!.attack = 999;
-  item("flask")!.attack = 999;
-  item("net")!.armor = 999;
+  item("throwing-axe")!.attack = 999;
+  item("throwing-knife")!.armor = 999;
   expect(stats(p).attack).toBe(16);
   expect(stats(p).armor).toBe(4);
 });

@@ -53,6 +53,7 @@ export class MainMenuScene extends BaseScene {
       stance: "R",
       throw: "T",
       throwOverhand: "Y",
+      drink: "P",
     }) as Record<string, Phaser.Input.Keyboard.Key> | undefined;
     this.keys?.jump.on("down", () => {
       if (!this.modalOpen) this.movement.jump();
@@ -63,6 +64,9 @@ export class MainMenuScene extends BaseScene {
     this.keys?.throwOverhand.on("down", () => {
       if (!this.modalOpen) this.movement.throw("overhand");
     });
+    this.keys?.drink.on("down", () => {
+      if (!this.modalOpen) this.movement.drink();
+    });
     this.keys?.stance.on("down", () => {
       if (!this.modalOpen) this.movement.toggle();
     });
@@ -71,6 +75,15 @@ export class MainMenuScene extends BaseScene {
         this.input.keyboard?.removeKey(key, true);
       this.keys = undefined;
     });
+    this.button(
+      "preview-drink",
+      1148,
+      588,
+      180,
+      "Drink potion",
+      () => this.movement.drink(),
+      30,
+    );
     label(this, 960, 588, this.services.player.name, 20).setOrigin(0.5);
     label(this, 960, 614, en.movementHint, 13).setOrigin(0.5);
     const controls = [

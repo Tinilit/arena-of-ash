@@ -10,6 +10,7 @@ import type { Hand } from "../domain/model";
 import { activeActions, type ArenaFighter } from "../combat/realtime";
 import { knockdownPose } from "./knockdownMotion";
 import { groundedPose } from "./kinematics";
+import { overhandThrowTiming } from "./throwMotion";
 import { hopPose } from "./hopPose";
 const smooth = (value: number) => {
   const t = Math.max(0, Math.min(1, value));
@@ -166,7 +167,16 @@ export class ArenaMotion {
       const hand = action.hand,
         prefix = hand === "rear" ? "far" : "near";
       const armed = Boolean(weaponForHand(f.model, hand));
-      const clip = action.name === "quick" && !armed ? "punch" : action.name;
+      const clip =
+        action.name === "throw"
+          ? "throwAction"
+          : action.name === "quick" && !armed
+            ? "punch"
+            : action.name;
+      const clockRate =
+        action.name === "throw"
+          ? overhandThrowTiming.duration / action.duration
+          : 1;
       const starting = this.swings[hand] !== action.id;
       if (starting) {
         this.carryStarts[hand] = {
@@ -185,7 +195,7 @@ export class ArenaMotion {
         this.swings[hand] = action.id;
       }
       const sample = this.actions[hand].update(
-        starting ? action.elapsed : delta,
+        (starting ? action.elapsed : delta) * clockRate,
       );
       const overlay =
         armed && action.name === "quick"
@@ -219,13 +229,24 @@ export class ArenaMotion {
         base.nearFootAngle = leg.foot;
         base.nearFootRoll = 0;
       }
+      if (action.name === "throw") {
+        base[`${prefix}Throw`] = 1;
+        base[`${prefix}Released`] = action.released ? 1 : 0;
+        this.name = "throwOverhand";
+      }
+      if (action.name === "drink") base.drinkPreview = overlay.drinkPreview;
       const weight =
         smooth(action.elapsed / 100) *
         smooth((action.duration - action.elapsed) / 140);
       torsoSum += ((overlay.torso ?? torsoBase) - torsoBase) * weight;
       headSum += ((overlay.head ?? headBase) - headBase) * weight;
       totalWeight += weight;
-      this.name = active.length > 1 ? "dualAttack" : clip;
+      this.name =
+        active.length > 1
+          ? "dualAttack"
+          : action.name === "throw"
+            ? "throwOverhand"
+            : clip;
     }
     if (active.length) {
       base.torso = torsoBase + torsoSum / Math.max(1, totalWeight);

@@ -30,7 +30,7 @@ export class ShopScene extends BaseScene {
         this,
         x + 85,
         y + 17,
-        `${en.slots[it.slot]} • ${it.attack ? `+${it.attack} ${en.damage}` : `+${it.armor} ${en.armor}`} • ${it.price} ◈`,
+        `${en.slots[it.slot]} • ${it.heal ? `+${it.heal} HP` : it.attack ? `+${it.attack} ${en.damage}` : `+${it.armor} ${en.armor}`} • ${it.price} ◈`,
         16,
         "#b9aa8d",
       );

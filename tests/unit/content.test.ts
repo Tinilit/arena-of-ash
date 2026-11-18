@@ -210,3 +210,54 @@ describe("runtime catalog fetching", () => {
     expect((await pending).source).toBe("bundled");
   });
 });
+
+it("supports runtime throwable profiles and healing values while rejecting invalid use contracts", () => {
+  const raw = candidate();
+  const knife = raw.items.find((i) => i.id === "throwing-knife")!;
+  const potion = raw.items.find((i) => i.id === "healing-potion")!;
+  const catalog = parseCatalog({
+    ...raw,
+    items: raw.items.map((i) =>
+      i.id === knife.id
+        ? { ...i, hitbox: { startY: -50, endY: -9, radius: 3 } }
+        : i.id === potion.id
+          ? { ...i, heal: 50 }
+          : i,
+    ),
+  });
+  expect(catalog.items.find((i) => i.id === knife.id)?.hitbox?.startY).toBe(
+    -50,
+  );
+  expect(catalog.items.find((i) => i.id === potion.id)?.heal).toBe(50);
+  for (const replacement of [
+    { ...potion, heal: 0 },
+    { ...potion, heal: 101 },
+    { ...potion, heal: undefined },
+    { ...knife, heal: 30 },
+    { ...knife, use: "heal" },
+    { ...raw.items[0], use: "throw" },
+  ]) {
+    expect(() =>
+      parseCatalog({
+        ...raw,
+        items: raw.items.map((i) =>
+          i.id === replacement.id ? replacement : i,
+        ),
+      }),
+    ).toThrow();
+  }
+});
+it("drops retired belt items without losing coins or other equipment", () => {
+  const p = createPlayer();
+  p.gold = 777;
+  p.inventory.push("net", "flask");
+  p.equipment.belt1 = "net";
+  p.equipment.belt2 = "flask";
+  const loaded = deserialize(serialize(p));
+  expect(loaded.gold).toBe(777);
+  expect(loaded.equipment.rightHand).toBe("wood");
+  expect(loaded.inventory).not.toContain("net");
+  expect(loaded.inventory).not.toContain("flask");
+  expect(loaded.equipment.belt1).toBeUndefined();
+  expect(loaded.equipment.belt2).toBeUndefined();
+});

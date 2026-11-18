@@ -57,19 +57,21 @@ The top level contains `version: 1`, a nonempty `revision` up to 64 characters, 
 | `visual`          | Procedural fallback from the slot's list below; required even with a custom image                                            |
 | `weaponType`      | Weapon animation: `sword` (default) or `spear`; spears must use a spear fallback                                             |
 | `description`     | Optional English text, 1–64 characters                                                                                       |
+| `use`             | Optional utility action: `throw` or `drink`                                                                                  |
+| `heal`            | Required for `drink`, integer 1–100 HP; invalid on other items                                                               |
 | `image`           | Optional image path, logical dimensions and normalized pivot coordinates                                                     |
 
-| Slot    | Valid procedural fallbacks                   |
-| ------- | -------------------------------------------- |
-| Weapon  | `wood`, `rust`, `iron`, `spear`, `war-spear` |
-| Helmet  | `cap`, `viking`                              |
-| Chest   | `leather`, `plate`                           |
-| Utility | `net`, `flask`                               |
-| Shield  | `shield`, `tower`                            |
+| Slot    | Valid procedural fallbacks                         |
+| ------- | -------------------------------------------------- |
+| Weapon  | `wood`, `rust`, `iron`, `spear`, `war-spear`       |
+| Helmet  | `cap`, `viking`                                    |
+| Chest   | `leather`, `plate`                                 |
+| Utility | `throwing-knife`, `throwing-axe`, `healing-potion` |
+| Shield  | `shield`, `tower`                                  |
 
 New sword or spear designs, helmets, chest pieces and utility attachments need no new game code. Shield drawings can be defined, but restoring an equippable shield position requires a game change. New slots, effects, weapon behaviors or animations require an engine change. A database can later serve the same JSON contract through an API; a browser cannot directly query a private database.
 
-Keep IDs `wood`, `rust`, `iron`, `leather`, `plate`, `cap`, `net` and `flask` in their existing slots because the starter and opponents reference them. Their names, prices, bonuses and images may change. No migration or refund handling is added for removed items; saves with unknown IDs retain the existing reset behavior.
+Keep IDs `wood`, `rust`, `iron`, `leather`, `plate`, `cap`, `throwing-knife` and `throwing-axe` in their existing slots because the starter and opponents reference them. Their names, prices, bonuses and images may change. Removed net/flask IDs are discarded from saves without resetting coins or other equipment. Other unknown IDs retain the existing reset behavior.
 
 ## Image alignment
 
@@ -97,11 +99,11 @@ No polling, filesystem watching, arbitrary script execution or mid-session catal
 
 Gameplay tests use a fixed catalog fixture so new live definitions, reordering or balance edits do not require changing gameplay assertions. Content validation reads the actual publication file and checks every referenced local image.
 
-The current default catalog has eleven items and intentionally omits shields. Shield fallback drawings are retained for a later explicit restoration, but there is no active shield equipment position; no opponent currently references a shield definition, so the old `shield` ID is no longer mandatory. The character UI exposes Helmet, Body, Right hand, Left hand and two Belt positions, filtering compatible catalog categories for each.
+The current default catalog has twelve items and intentionally omits shields. Shield fallback drawings are retained for a later explicit restoration, but there is no active shield equipment position; no opponent currently references a shield definition, so the old `shield` ID is no longer mandatory. The character UI exposes Helmet, Body, Right hand, Left hand and two Belt positions, filtering compatible catalog categories for each.
 
 ## Weapon contact shape
 
-Real-time combat uses a capsule along the weapon's local Y axis. Only a sword blade or spear leaf head deals damage; the grip/haft is excluded. Optional weapon-only metadata can author this independently of the image size, without rebuilding:
+Real-time combat uses a capsule along the weapon's local Y axis. Only a sword blade or spear leaf head deals damage; the grip/haft is excluded. Optional weapon or throwable metadata can author this independently of the image size, without rebuilding:
 
 ```json
 "hitbox": { "startY": -150, "endY": -113, "radius": 6 }
@@ -110,3 +112,5 @@ Real-time combat uses a capsule along the weapon's local Y axis. Only a sword bl
 Coordinates are logical pixels relative to the image grip before the rig's rotation, scale and facing. Negative Y points toward the blade tip. `startY` must be less than `endY`, both within -600…600; radius must be 0.5…40. These endpoints bound the whole capsule, including its round ends. Put the shape inside the visible damaging blade. There is one damaging capsule per weapon. Body collision remains rig-authored.
 
 If omitted, included drawings use their authored blade/head dimensions. Runtime images use a conservative estimated blade/head region; supply `hitbox` to align unusual artwork. If an image fails to decode, both the visual and collision profile use the procedural fallback, while live stats remain active. Existing session definitions stay stable until refresh. See [real-time combat](REALTIME_COMBAT.md).
+
+Utility records with `use: "throw"` launch from a belt with Q/E; `attack` supplies the throwable bonus. Optional `hitbox` also applies to throwables. `use: "drink"` requires a positive `heal` (1–100). The built-in potion uses `visual: "healing-potion"`, `heal: 35` and price 30. Carried utility stats do not stack into other actions. Both uses permanently consume ownership at release/sip; prices, healing and artwork can be edited in JSON.

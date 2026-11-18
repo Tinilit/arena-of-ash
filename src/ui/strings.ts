@@ -3,10 +3,11 @@ export const en = {
   draw: "DRAW",
   guarding: "3  Guarding • tap to release",
   arenaHint:
-    "A/D: move • Shift: run • Space: jump • A/D+Space: hop • LMB/J: front hand • RMB/K: rear hand • F: kick • R: stance • Esc: camp",
+    "A/D: move • Shift: run • Space: jump • A/D+Space: hop • LMB/J: front hand • RMB/K: rear hand • F: kick • Ctrl+attack: throw • Q/E: belt • R: stance • Esc: camp",
   backHop: "Backhop",
   forwardHop: "Hop",
-  movementHint: "A/D: walk • Shift: run • Space: jump • R: stance • T/Y: under/over throw",
+  movementHint:
+    "A/D: walk • Shift: run • Space: jump • R: stance • T/Y: under/over • P: drink",
   walkBack: "Back",
   walk: "Walk",
   run: "Run",

@@ -18,7 +18,7 @@ Authored impact markers still fire once when crossed, including skipped frames, 
 
 `equipmentMotion(weapon, hand = "rear")` composes the action and movement libraries. `rearHandMotion.ts` authors low sword cuts and spear thrusts from the rear shoulder while keeping the front hand relaxed. Damage, impact keys and action durations are unchanged. The original front-hand sword/spear actions remain selectable with `hand = "front"`, without exposing a style selector.
 
-`Gladiator.handMounts.rear/front` and `getHandMount(hand)` expose wrist containers for future shield or second-weapon attachments. Mirroring preserves these identities. Main gear is inserted below the closed palm; the free hand uses a compact curved-finger silhouette with a neutral wrist. An attachment alone does not author a shield-block or dual-wield action. Hand mounts also carry the second weapon; the belt mounts follow the pelvis.
+`Gladiator.handMounts.rear/front` and `getHandMount(hand)` expose wrist containers for shield or second-weapon attachments. Mirroring preserves these identities. Main gear is inserted below the closed palm; the free hand uses a compact curved-finger silhouette with a neutral wrist. An attachment alone does not author a shield-block or dual-wield action. Hand mounts also carry the second weapon; the belt mounts follow the pelvis.
 
 ## Locomotion and stances
 
@@ -50,6 +50,8 @@ Arena directional hops use explicit anticipation/air/landing phases, with folded
 
 ## Throw preview and anatomical equipment
 
-Both equipment motion libraries include separate underarm (T) and overarm (Y) clips, each with its own single release marker. The current preview temporarily substitutes a harmless training prop and opens the palm after release; the real weapon returns during recovery. See [throw motion, guides and future projectile hook](THROW_ANIMATION.md). Equipment positions are described in [equipment](EQUIPMENT.md). Each front/rear input selects its own library and real hand transform; an empty selected hand punches. Both equipment libraries share both rear-only throwing styles.
+Both equipment motion libraries include separate underarm (T) and overarm (Y) clips, each with its own single release marker. The current preview temporarily substitutes a harmless training prop and opens the palm after release; the real weapon returns during recovery. See [throw motion, guides and projectile release](THROW_ANIMATION.md). Equipment positions are described in [equipment](EQUIPMENT.md). Each front/rear input selects its own library and real hand transform; an empty selected hand punches. Both equipment libraries share both rear-only throwing styles.
 
 Pain is a short interrupted-action overlay. Kick stagger uses an 800 ms backwards step cycle at 200 units/second, with phase driven by actual push displacement and planted support. See [melee composition](MELEE_COMBAT.md).
+
+Arena `throwAction` mirrors the overarm clip for the selected hand and uses an actual held catalog prop rather than the preview ball. The `drink` clip raises/tilts an open vial at the mouth, then lowers it. Actual belt uses retain independent hand tracks; previews remain harmless. See [throwing and drinking](THROW_ANIMATION.md).

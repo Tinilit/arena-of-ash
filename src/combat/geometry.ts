@@ -1,4 +1,4 @@
-import type { Hand } from "../domain/model";
+import type { Hand, WeaponHitbox } from "../domain/model";
 export interface Point {
   x: number;
   y: number;
@@ -10,6 +10,10 @@ export interface Capsule {
 }
 export interface CombatGeometry {
   blade: Capsule | null;
+  grips?: Record<Hand, Point>;
+  launch?: Partial<
+    Record<Hand, { profile: WeaponHitbox; floorRadius: number }>
+  >;
   body: Capsule[];
   blades?: Partial<Record<Hand, Capsule>>;
   hands?: Record<Hand, Capsule>;

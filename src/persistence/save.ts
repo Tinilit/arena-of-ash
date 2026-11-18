@@ -14,6 +14,12 @@ export function deserialize(raw: string | null): Player {
     const data = JSON.parse(raw ?? "null");
     if (data?.version !== 3 && data?.version !== 2) throw Error();
     const p = data.player as Player;
+    if (Array.isArray(p?.inventory))
+      p.inventory = p.inventory.filter((id) => !["net", "flask"].includes(id));
+    if (p?.equipment && typeof p.equipment === "object")
+      for (const [slot, id] of Object.entries(p.equipment))
+        if (["net", "flask"].includes(id))
+          delete p.equipment[slot as EquipmentSlot];
     const integer = (n: unknown) => Number.isSafeInteger(n) && Number(n) >= 0;
     if (
       !p ||

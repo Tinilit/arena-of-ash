@@ -1,11 +1,16 @@
 import Phaser from "phaser";
+import type { ArenaFighter } from "../combat/realtime";
 import { item } from "../data/catalog";
 import {
   primaryWeapon,
   primaryHand,
   weaponForHand,
 } from "../domain/progression";
-import type { Player, Hand } from "../domain/model";
+import type { Player, Hand, Item } from "../domain/model";
+import {
+  projectileProfile,
+  projectileFloorRadius,
+} from "../combat/projectiles";
 import { LimbArt } from "../rendering/limbArt";
 import { drawPart, drawGear } from "../rendering/characterVisuals";
 import { equipmentMotion } from "./equipmentMotion";
@@ -41,6 +46,18 @@ export class Gladiator {
   private offhand?: Phaser.GameObjects.Container;
   private beltItems: Phaser.GameObjects.Container[] = [];
   private throwProp!: Phaser.GameObjects.Graphics;
+  private loadoutKey = "";
+  private actionProps: Partial<
+    Record<
+      Hand,
+      {
+        key: string;
+        art: Phaser.GameObjects.Container;
+        launch?: NonNullable<CombatGeometry["launch"]>[Hand];
+      }
+    >
+  > = {};
+  private potion!: Phaser.GameObjects.Container;
   private openPalm!: Phaser.GameObjects.Container;
   constructor(
     private scene: Phaser.Scene,
@@ -150,12 +167,7 @@ export class Gladiator {
         const mounted = drawGear(scene, definition);
         this.handWeapons[hand] = mounted;
         mount.addAt(mounted, 0);
-        this.bladeProfiles[hand] = weaponHitbox(
-          definition.image &&
-            !scene.textures.exists(itemTextureKey(definition.id))
-            ? { ...definition, image: undefined, hitbox: undefined }
-            : definition,
-        );
+        this.bladeProfiles[hand] = weaponHitbox(this.artDefinition(definition));
       }
     }
     this.weapons = [
@@ -177,6 +189,10 @@ export class Gladiator {
       .strokeCircle(0, -5, 8);
     farHand.addAt(this.throwProp, 0);
     this.throwProp.setVisible(false);
+    this.potion = drawGear(scene, "healing-potion");
+    this.potion.setRotation(0.4);
+    farHand.addAt(this.potion, 0);
+    this.potion.setVisible(false);
     for (const [i, position] of (["belt1", "belt2"] as const).entries()) {
       const definition = item(model.equipment[position] ?? "");
       if (definition) {
@@ -191,11 +207,104 @@ export class Gladiator {
       }
     }
 
+    this.loadoutKey = JSON.stringify(model.equipment);
     scene.events.once("shutdown", () => this.animator.stop());
     this.update(0);
   }
   update(delta: number) {
     this.applyPose(this.animator.update(delta));
+  }
+  private artDefinition(definition: Item): Item {
+    return definition.image &&
+      !this.scene.textures.exists(itemTextureKey(definition.id))
+      ? { ...definition, image: undefined, hitbox: undefined }
+      : definition;
+  }
+  syncArena(f: ArenaFighter) {
+    const key = JSON.stringify(f.model.equipment);
+    if (key !== this.loadoutKey) {
+      this.loadoutKey = key;
+      for (const hand of ["front", "rear"] as const) {
+        this.handWeapons[hand]?.destroy();
+        delete this.handWeapons[hand];
+        delete this.bladeProfiles[hand];
+        const definition = weaponForHand(f.model, hand);
+        if (definition) {
+          const art = drawGear(this.scene, definition);
+          this.handWeapons[hand] = art;
+          this.handMounts[hand].addAt(art, 0);
+          this.bladeProfiles[hand] = weaponHitbox(
+            this.artDefinition(definition),
+          );
+        }
+      }
+      this.weapons = [
+        this.handWeapons[this.primaryHand],
+        this.handWeapons[this.primaryHand === "rear" ? "front" : "rear"],
+      ].filter((v): v is Phaser.GameObjects.Container => Boolean(v));
+      this.offhand =
+        f.model.equipment.leftHand && f.model.equipment.rightHand
+          ? this.handWeapons.front
+          : undefined;
+      for (const art of this.beltItems) art.destroy();
+      this.beltItems = [];
+      for (const [i, slot] of (["belt1", "belt2"] as const).entries()) {
+        const definition = item(f.model.equipment[slot] ?? "");
+        if (!definition) continue;
+        const art = drawGear(this.scene, definition),
+          bounds = art.getBounds();
+        art
+          .setPosition(i === 0 ? -32 : 30, 2)
+          .setScale(Math.min(0.7, 30 / bounds.width, 40 / bounds.height))
+          .setName(slot);
+        this.joints.pelvis.addAt(
+          art,
+          this.joints.pelvis.getIndex(this.joints.frontTorso),
+        );
+        this.beltItems.push(art);
+      }
+    }
+    for (const hand of ["front", "rear"] as const) {
+      const action = f.handActions[hand],
+        definition =
+          action?.name === "throw" || action?.name === "drink"
+            ? item(action.itemId ?? "")
+            : undefined;
+      const key = definition ? `${action!.id}:${definition.id}` : "";
+      if (this.actionProps[hand]?.key !== key) {
+        this.actionProps[hand]?.art.destroy();
+        delete this.actionProps[hand];
+        if (definition) {
+          const art = drawGear(this.scene, definition);
+          this.handMounts[hand].addAt(art, 0);
+          const resolved = this.artDefinition(definition);
+          this.actionProps[hand] = {
+            key,
+            art,
+            ...(action?.name === "throw"
+              ? {
+                  launch: {
+                    profile: projectileProfile(resolved),
+                    floorRadius: projectileFloorRadius(resolved),
+                  },
+                }
+              : {}),
+          };
+        }
+      }
+      if (this.actionProps[hand])
+        this.actionProps[hand]!.art.setVisible(
+          action?.name === "drink" || !action?.released,
+        );
+    }
+    for (const art of this.beltItems)
+      art.setVisible(
+        !Object.values(f.handActions).some(
+          (a) =>
+            (a?.name === "throw" || a?.name === "drink") &&
+            a.sourceSlot === art.name,
+        ),
+      );
   }
   applyPose(p: Pose, animation?: string) {
     this.displayedPose = { ...p };
@@ -203,28 +312,62 @@ export class Gladiator {
     const solved = groundedPose(p);
     const throwing = (p.throwPreview ?? 0) > 0.01,
       released = (p.throwReleased ?? 0) > 0.5;
+    const drinking = (p.drinkPreview ?? 0) > 0.5;
     for (const hand of ["rear", "front"] as const) {
       const prefix = hand === "rear" ? "far" : "near",
         weapon = this.handWeapons[hand];
+      const runtimeThrow = (p[`${prefix}Throw`] ?? 0) > 0.5,
+        runtimeReleased = (p[`${prefix}Released`] ?? 0) > 0.5;
       weapon?.setRotation(
         p[`${prefix}WeaponGrip`] ??
           (hand === this.primaryHand
             ? (p.weaponGrip ?? Math.PI / 2)
             : (3 * Math.PI) / 4),
       );
-      weapon?.setVisible(!(hand === "rear" && throwing));
+      weapon?.setVisible(
+        !runtimeThrow && !(hand === "rear" && (throwing || drinking)),
+      );
+      const prop = this.actionProps[hand];
+      if (prop) {
+        const arm = hand === "rear" ? solved.farArm : solved.nearArm;
+        prop.art.setRotation(
+          hand === "rear" && drinking
+            ? 0.4
+            : 1.35 -
+                (solved.root.rotation +
+                  solved.torso +
+                  arm.angle +
+                  arm.bend +
+                  arm.wrist),
+        );
+        prop.art.setVisible(
+          (runtimeThrow && !runtimeReleased) || (hand === "rear" && drinking),
+        );
+      }
       const closed =
         Boolean(weapon) ||
         (p[`${prefix}Fist`] ?? 0) > 0.5 ||
-        (hand === "rear" && throwing && !released);
+        (hand === "rear" && throwing && !released) ||
+        (runtimeThrow && !runtimeReleased) ||
+        (hand === "rear" && drinking);
       this.palms[hand].setVisible(
-        closed && !(hand === "rear" && throwing && released),
+        closed &&
+          !(hand === "rear" && throwing && released) &&
+          !(runtimeThrow && runtimeReleased),
       );
       this.relaxedPalms[hand].setVisible(
-        !closed && !(hand === "rear" && throwing),
+        (!closed || (runtimeThrow && runtimeReleased)) &&
+          !(hand === "rear" && throwing),
       );
     }
     this.throwProp.setVisible(throwing && !released);
+    this.potion.setVisible(drinking && !this.actionProps.rear);
+    const frontThrow = (p.nearThrow ?? 0) > 0.5;
+    const nearParent = frontThrow
+      ? this.joints.frontTorso
+      : this.joints.backTorso;
+    if (this.joints.nearArm.parentContainer !== nearParent)
+      nearParent.addAt(this.joints.nearArm, 0);
     this.openPalm.setVisible(throwing && released);
     // The rear arm stays in front of the entire torso/head plane throughout
     // throwing. Keep depth fixed instead of hiding a moving hand with the head.
@@ -267,6 +410,10 @@ export class Gladiator {
     this.shadow.x = floorShadowX ?? this.root.x;
   }
   jointSnapshot() {
+    const vial =
+      (this.displayedPose.drinkPreview ?? 0) > 0.5
+        ? (this.actionProps.rear?.art ?? this.potion)
+        : this.potion;
     const point = (name: string, x = 0, y = 0) => {
       const p = this.joints[name]
         .getWorldTransformMatrix()
@@ -319,6 +466,17 @@ export class Gladiator {
         propVisible: this.throwProp.visible,
         hand: "rear",
         headFront: this.joints.head.parentContainer === this.joints.frontTorso,
+      },
+      drinking: (this.displayedPose.drinkPreview ?? 0) > 0.5,
+      drink: {
+        vialVisible: vial.visible,
+        mouth: point("head", 25, 4),
+        neck: {
+          ...vial.getWorldTransformMatrix().transformPoint(0, -22),
+        },
+        base: {
+          ...vial.getWorldTransformMatrix().transformPoint(0, 15),
+        },
       },
       scale: Math.abs(this.root.scaleY),
       near: {
@@ -398,6 +556,12 @@ export class Gladiator {
     }
     return {
       blade: blades[this.primaryHand] ?? null,
+      grips: { front: point("nearHand"), rear: point("farHand") },
+      launch: Object.fromEntries(
+        Object.entries(this.actionProps)
+          .filter(([, prop]) => prop.launch)
+          .map(([hand, prop]) => [hand, prop.launch]),
+      ),
       blades,
       body,
       hands: {

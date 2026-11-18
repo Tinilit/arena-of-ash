@@ -36,6 +36,16 @@ export class CampMovement {
       this.action = "";
     });
   }
+  drink() {
+    if (this.jumping) return;
+    this.jumping = true;
+    this.action = "drink";
+    this.demo = undefined;
+    this.rig.play("drink", undefined, () => {
+      this.jumping = false;
+      this.action = "";
+    });
+  }
   jump() {
     if (this.jumping) return;
     this.jumping = true;

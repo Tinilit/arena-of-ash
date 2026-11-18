@@ -7,8 +7,9 @@ export const extendedGearBounds: Record<
   "war-spear": [-19, -154, 38, 244],
   viking: [-60, -83, 120, 104],
   tower: [-42, -71, 84, 169],
-  net: [-16, -5, 32, 49],
-  flask: [-15, -5, 30, 44],
+  "throwing-knife": [-10, -57, 20, 78],
+  "throwing-axe": [-12, -65, 49, 91],
+  "healing-potion": [-12, -22, 24, 43],
 };
 export function extendedGear(scene: Phaser.Scene, id: string) {
   if (!extendedGearBounds[id]) return null;
@@ -23,30 +24,68 @@ export function extendedGear(scene: Phaser.Scene, id: string) {
     g.fillPoints(points, true);
     g.strokePoints(points, true);
   };
-  if (id === "net") {
-    g.fillStyle(0x5a4632);
-    g.fillRoundedRect(-12, 5, 24, 32, 8);
-    g.strokeRoundedRect(-12, 5, 24, 32, 8);
-    g.lineStyle(2, 0xc2a270);
-    for (let x = -12; x <= 10; x += 6) {
-      g.lineBetween(x, 7, Math.min(12, x + 16), 33);
-      g.lineBetween(x, 33, Math.min(12, x + 16), 7);
-    }
-    g.lineStyle(3, 0x795a35);
-    g.strokeEllipse(0, 6, 21, 10);
-    g.lineBetween(0, -4, 0, 7);
-  } else if (id === "flask") {
-    g.fillStyle(0xa76e46);
-    g.fillEllipse(0, 22, 25, 30);
-    g.strokeEllipse(0, 22, 25, 30);
-    g.fillRoundedRect(-6, 0, 12, 13, 3);
-    g.strokeRoundedRect(-6, 0, 12, 13, 3);
-    g.fillStyle(0xd3af74);
-    g.fillRect(-5, -3, 10, 6);
-    g.lineStyle(2, 0x594733);
-    g.lineBetween(-12, 15, 10, 31);
-    g.lineStyle(2, 0xe4bd88, 0.6);
-    g.strokeEllipse(3, 20, 13, 18);
+  if (id === "throwing-knife") {
+    polygon(
+      [
+        { x: 0, y: -55 },
+        { x: 7, y: -37 },
+        { x: 5, y: -10 },
+        { x: -5, y: -10 },
+        { x: -7, y: -37 },
+      ],
+      metal,
+    );
+    g.lineStyle(1, light);
+    g.lineBetween(0, -51, 0, -12);
+    g.fillStyle(0x50382b);
+    g.fillRoundedRect(-5, -8, 10, 24, 3);
+    g.strokeRoundedRect(-5, -8, 10, 24, 3);
+    g.fillStyle(trim);
+    g.fillRect(-9, -12, 18, 5);
+    g.fillCircle(0, 18, 5);
+  } else if (id === "throwing-axe") {
+    g.fillStyle(0x80563a);
+    g.fillRoundedRect(-4, -57, 8, 80, 3);
+    g.strokeRoundedRect(-4, -57, 8, 80, 3);
+    polygon(
+      [
+        { x: -7, y: -60 },
+        { x: 9, y: -60 },
+        { x: 29, y: -64 },
+        { x: 33, y: -42 },
+        { x: 28, y: -29 },
+        { x: 8, y: -34 },
+        { x: -7, y: -35 },
+      ],
+      metal,
+    );
+    polygon(
+      [
+        { x: 25, y: -63 },
+        { x: 32, y: -64 },
+        { x: 37, y: -43 },
+        { x: 29, y: -28 },
+        { x: 25, y: -31 },
+        { x: 30, y: -44 },
+      ],
+      light,
+    );
+    g.fillStyle(0x493426);
+    g.fillRoundedRect(-5, -6, 10, 27, 2);
+    g.lineStyle(1, 0xbb9a67);
+    for (let y = -3; y < 20; y += 5) g.lineBetween(-4, y, 4, y + 3);
+  } else if (id === "healing-potion") {
+    g.fillStyle(0x73999d, 0.85);
+    g.fillRoundedRect(-9, -10, 18, 25, 6);
+    g.strokeRoundedRect(-9, -10, 18, 25, 6);
+    g.fillStyle(0xa52e51);
+    g.fillRoundedRect(-6, -2, 12, 14, 4);
+    g.fillStyle(0xa1ced0);
+    g.fillRect(-5, -19, 10, 12);
+    g.fillStyle(0xc0e0d7);
+    g.fillRoundedRect(-6, -22, 12, 4, 1);
+    g.lineStyle(2, 0xe6ede0, 0.8);
+    g.lineBetween(-5, -6, -5, 6);
   } else if (id === "spear" || id === "war-spear") {
     const war = id === "war-spear",
       tip = war ? -150 : -132,

@@ -1,4 +1,15 @@
-import type { Player, Hand } from "../domain/model";
+import type { Player, Hand, EquipmentSlot } from "../domain/model";
+import { item } from "../data/catalog";
+import { handSlots } from "../domain/model";
+import { stats, consumeItem } from "../domain/progression";
+import {
+  advanceProjectile,
+  settleProjectile,
+  projectileProfile,
+  projectileFloorRadius,
+  projectileShape,
+  type Projectile,
+} from "./projectiles";
 import { primaryHand, weaponForHand } from "../domain/progression";
 import { actions, damage, fighter, type Fighter } from "./engine";
 import { hopDefinitions, hopKind, type Hop } from "./hops";
@@ -35,10 +46,12 @@ export const attackTimings = {
   quick: { duration: 1000, from: 0.45, to: 0.67 },
   kick: { duration: 1050, from: 0.36, to: 0.56 },
   heavy: { duration: 1100, from: 0.46, to: 0.8 },
+  throw: { duration: 850, from: 0.6, to: 0.6 },
+  drink: { duration: 2100, from: 0.55, to: 0.55 },
   recover: { duration: 750, from: 1, to: 1 },
 } as const;
-export type Attack = "quick" | "heavy" | "kick";
-export type ArenaAction = Attack | "recover";
+export type Attack = "quick" | "heavy" | "kick" | "throw";
+export type ArenaAction = Attack | "recover" | "drink";
 export type ArenaState = "Fighting" | "Victory" | "Defeat" | "Draw";
 export interface ArenaInput {
   move?: number;
@@ -48,6 +61,8 @@ export interface ArenaInput {
   attack?: Attack;
   hand?: Hand;
   attacks?: Hand[];
+  throws?: Hand[];
+  belt?: "belt1" | "belt2";
   guard?: boolean;
   recover?: boolean;
   toggleStance?: boolean;
@@ -59,6 +74,10 @@ export interface Swing {
   duration: number;
   hit: boolean;
   hand: Hand;
+  itemId?: string;
+  sourceSlot?: EquipmentSlot;
+  released?: boolean;
+  throwAttack?: number;
 }
 export interface ArenaFighter extends Fighter {
   x: number;
@@ -95,7 +114,7 @@ export interface ContactEvent {
   damage: number;
   blocked: boolean;
   knockdown: boolean;
-  kind: "weapon" | "punch" | "kick";
+  kind: "weapon" | "punch" | "kick" | "projectile";
   hand: Hand;
   point: Point;
   blade: Capsule;
@@ -119,7 +138,12 @@ function actor(model: Player, x: number, facing: 1 | -1): ArenaFighter {
     set action(value: Swing | null) {
       this.bodyAction = null;
       this.handActions.front = this.handActions.rear = null;
-      if (value?.name === "quick" || value?.name === "heavy")
+      if (
+        value?.name === "quick" ||
+        value?.name === "heavy" ||
+        value?.name === "throw" ||
+        value?.name === "drink"
+      )
         this.handActions[value.hand] = value;
       else this.bodyAction = value;
     },
@@ -153,6 +177,12 @@ export class RealtimeBattle {
   state: ArenaState = "Fighting";
   readonly fighters: [ArenaFighter, ArenaFighter];
   readonly contacts: ContactEvent[] = [];
+  readonly projectiles: Projectile[] = [];
+  readonly consumedItems: {
+    ownerId: string;
+    itemId: string;
+    actionId: number;
+  }[] = [];
   private sequence = 0;
   private previous?: [CombatGeometry, CombatGeometry];
   private previousFacing: number[] = [];
@@ -183,11 +213,82 @@ export class RealtimeBattle {
       f.stun === 0 &&
       !f.bodyAction &&
       f.bodyCooldown === 0 &&
-      (name === "quick"
+      (name === "quick" || name === "throw" || name === "drink"
         ? !f.handActions[hand] && f.handCooldowns[hand] === 0
         : !f.handActions.front && !f.handActions.rear) &&
       f.reaction?.kind !== "stagger"
     );
+  }
+  canThrow(f: ArenaFighter, hand: Hand, slot: EquipmentSlot = handSlots[hand]) {
+    const definition = item(f.model.equipment[slot] ?? "");
+    return (
+      this.canAttack(f, "throw", hand) &&
+      Boolean(
+        definition &&
+        (slot === handSlots[hand]
+          ? definition.slot === "weapon"
+          : (slot === "belt1" || slot === "belt2") &&
+            definition.use === "throw"),
+      ) &&
+      !activeActions(f).some((a) => a.sourceSlot === slot)
+    );
+  }
+  canUseBelt(f: ArenaFighter, slot: "belt1" | "belt2") {
+    const definition = item(f.model.equipment[slot] ?? "");
+    if (definition?.use === "throw") return this.canThrow(f, "rear", slot);
+    return (
+      definition?.use === "drink" &&
+      this.canAttack(f, "drink", "rear") &&
+      f.hp < stats(f.model).hp
+    );
+  }
+  private startBeltUse(f: ArenaFighter, slot: "belt1" | "belt2") {
+    if (!this.canUseBelt(f, slot)) return;
+    const definition = item(f.model.equipment[slot]!)!;
+    if (definition.use === "throw") return this.startThrow(f, "rear", slot);
+    f.handActions.rear = {
+      id: ++this.sequence,
+      name: "drink",
+      hand: "rear",
+      sourceSlot: slot,
+      itemId: definition.id,
+      elapsed: 0,
+      duration: attackTimings.drink.duration,
+      hit: false,
+      released: false,
+    };
+    f.relaxed = false;
+    f.reaction = null;
+  }
+  private consume(f: ArenaFighter, swing: Swing, itemId: string) {
+    consumeItem(f.model, itemId);
+    swing.released = true;
+    this.consumedItems.push({
+      ownerId: f.model.id,
+      itemId,
+      actionId: swing.id,
+    });
+  }
+  private startThrow(f: ArenaFighter, hand: Hand, slot: EquipmentSlot) {
+    if (!this.canThrow(f, hand, slot)) return;
+    const definition = item(f.model.equipment[slot]!)!;
+    f.handActions[hand] = {
+      id: ++this.sequence,
+      name: "throw",
+      hand,
+      sourceSlot: slot,
+      itemId: definition.id,
+      elapsed: 0,
+      duration: f.y < 0 || f.vy < 0 ? 650 : attackTimings.throw.duration,
+      hit: false,
+      released: false,
+      throwAttack:
+        stats(f.model, hand).attack -
+        (weaponForHand(f.model, hand)?.attack ?? 0) +
+        definition.attack,
+    };
+    f.relaxed = false;
+    f.reaction = null;
   }
   canHop(f: ArenaFighter, direction: -1 | 1) {
     return (
@@ -207,6 +308,9 @@ export class RealtimeBattle {
   advance(delta: number, input: [ArenaInput, ArenaInput]) {
     if (this.state !== "Fighting") return;
     const dt = delta / 1000;
+    this.projectiles.forEach((p) =>
+      advanceProjectile(p, delta, arenaRules.floor),
+    );
     const before = this.fighters.map((f) => f.x);
     this.fighters.forEach((f, i) => {
       f.landed += delta;
@@ -277,6 +381,12 @@ export class RealtimeBattle {
       if (c.toggleStance) f.relaxed = !f.relaxed;
       if (!f.action && !f.hop && !f.reaction && !f.knockdown)
         f.facing = this.fighters[1 - i].x >= f.x ? 1 : -1;
+      for (const hand of new Set([
+        ...(c.throws ?? []),
+        ...(c.attack === "throw" ? [c.hand ?? primaryHand(f.model)] : []),
+      ]))
+        this.startThrow(f, hand, handSlots[hand]);
+      if (c.belt) this.startBeltUse(f, c.belt);
       const hands = new Set(c.attacks ?? []);
       if (c.attack === "quick") hands.add(c.hand ?? primaryHand(f.model));
       for (const hand of hands) {
@@ -293,7 +403,7 @@ export class RealtimeBattle {
         f.reaction = null;
       }
       const request =
-        c.attack && c.attack !== "quick"
+        c.attack && c.attack !== "quick" && c.attack !== "throw"
           ? c.attack
           : c.recover
             ? "recover"
@@ -401,7 +511,77 @@ export class RealtimeBattle {
     const events: ContactEvent[] = [];
     this.fighters.forEach((f, i) => {
       for (const swing of activeActions(f)) {
-        if (!swing || swing.name === "recover" || swing.hit) continue;
+        if (swing.name === "drink") {
+          const definition = item(swing.itemId ?? "");
+          if (
+            !swing.released &&
+            swing.elapsed / swing.duration >= attackTimings.drink.from &&
+            definition?.heal &&
+            swing.sourceSlot &&
+            f.model.equipment[swing.sourceSlot] === definition.id
+          ) {
+            f.hp = Math.min(stats(f.model).hp, f.hp + definition.heal);
+            this.consume(f, swing, definition.id);
+          }
+          continue;
+        }
+        if (swing.name === "throw") {
+          if (
+            !swing.released &&
+            swing.elapsed / swing.duration >= attackTimings.throw.from
+          ) {
+            const definition = item(swing.itemId ?? ""),
+              slot = swing.sourceSlot;
+            const origin =
+              geometry[i].grips?.[swing.hand] ??
+              geometry[i].hands?.[swing.hand].a;
+            if (
+              definition &&
+              slot &&
+              origin &&
+              f.model.equipment[slot] === definition.id
+            ) {
+              this.consume(f, swing, definition.id);
+              const speed =
+                definition.weaponType === "spear"
+                  ? 800
+                  : definition.visual === "throwing-axe"
+                    ? 600
+                    : 700;
+              const vx = f.facing * speed + f.vx * 0.35,
+                vy = -120;
+              const angle = Math.atan2(vy, vx) + Math.PI / 2;
+              this.projectiles.push({
+                id: swing.id,
+                ownerId: f.model.id,
+                itemId: definition.id,
+                sourceSlot: slot,
+                hand: swing.hand,
+                ...origin,
+                vx,
+                vy,
+                angle,
+                spin:
+                  definition.weaponType === "spear"
+                    ? 0
+                    : f.facing *
+                      (definition.visual === "throwing-axe" ? 10 : 5),
+                previous: { ...origin, angle },
+                floorRadius:
+                  geometry[i].launch?.[swing.hand]?.floorRadius ??
+                  projectileFloorRadius(definition),
+                attack: swing.throwAttack ?? 12,
+                profile:
+                  geometry[i].launch?.[swing.hand]?.profile ??
+                  projectileProfile(definition),
+                age: 0,
+                state: "flying",
+              });
+            }
+          }
+          continue;
+        }
+        if (swing.name === "recover" || swing.hit) continue;
         const weapon = weaponForHand(f.model, swing.hand);
         const shape = (g: CombatGeometry) =>
           swing.name === "kick"
@@ -468,6 +648,46 @@ export class RealtimeBattle {
         }
       }
     });
+    for (const p of this.projectiles) {
+      if (p.state !== "flying") continue;
+      const target = this.fighters.findIndex((f) => f.model.id !== p.ownerId),
+        defender = this.fighters[target];
+      for (let part = 0; part < geometry[target].body.length; part++) {
+        const body = geometry[target].body[part];
+        const collision = sweptContact(
+          projectileShape(p, true),
+          projectileShape(p),
+          p.age > 0 && this.previousFacing[target] === defender.facing
+            ? (this.previous?.[target].body[part] ?? body)
+            : body,
+          body,
+        );
+        if (!collision) continue;
+        p.state = "spent";
+        p.vx *= 0.18;
+        p.vy = Math.max(60, p.vy);
+        p.spin *= 0.3;
+        events.push({
+          id: p.id,
+          attackerId: p.ownerId,
+          defenderId: defender.model.id,
+          hand: p.hand,
+          kind: "projectile",
+          damage: Math.max(
+            1,
+            Math.round(
+              Math.max(1, p.attack - stats(defender.model).armor) *
+                (defender.guard ? 0.5 : 1),
+            ),
+          ),
+          blocked: defender.guard,
+          knockdown: false,
+          ...collision,
+        });
+        break;
+      }
+    }
+    this.projectiles.forEach((p) => settleProjectile(p, arenaRules.floor));
     // Resolve trades from the same physical instant before deciding the outcome.
     for (const e of events) {
       const defender = this.fighters.find((f) => f.model.id === e.defenderId)!;

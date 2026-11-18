@@ -48,7 +48,7 @@ References consulted: [Godot CharacterBody2D platformer example](https://docs.go
 
 Every fighter has 100 health and base unarmed attack 12. Equipment supplies attack and armor bonuses. There are no attributes, levels, XP or energy/stamina resource. Attack, hop and jump eligibility depends on physical state, stun and cooldowns. Player Defense/Recover controls remain absent; the AI can guard without energy costs.
 
-Each input explicitly selects the front/left or rear/right hand. An empty selected hand punches. The same selected weapon supplies animation, stats and the damaging capsule. The selected hand alone contributes the weapon bonus/contact; other equipped weapons never add an automatic second hit. Belt attachments have no usable action, damage or stat effect yet. See [equipment](EQUIPMENT.md).
+Each input explicitly selects the front/left or rear/right hand. An empty selected hand punches. The same selected weapon supplies animation, stats and the damaging capsule. The selected hand alone contributes the weapon bonus/contact; other equipped weapons never add an automatic second hit. Belt throwables use their own attack bonus; Q/E starts the rear-hand belt action. Potions heal once at the sip, without a projectile. Carried belt items do not add passive melee bonuses. See [equipment](EQUIPMENT.md).
 
 See [independent hand collision, pain/stun and kicking](MELEE_COMBAT.md) for action interrupts, recovery locks and the displacement-driven backwards stagger.
 
@@ -56,10 +56,18 @@ See [independent hand collision, pain/stun and kicking](MELEE_COMBAT.md) for act
 
 After confirmed boot/body contact, a separate injected random stream gives a 20% chance of knockdown. The threshold is strictly below 0.2. Misses and repeated contact frames do not roll. A 550 ms fall waits for actual ground contact if needed, then a 1000 ms grounded hold precedes an 1800 ms get-up. Movement, actions, guard, stance changes and jumping are locked throughout. Further contacts still deal damage without resetting the transfer. Floor support includes head, torso, skirt, palms, knees and boots; the rendered rig also keeps rotated helmets above the floor and bodies inside arena edges. See [floor transfer animation](KNOCKDOWN_ANIMATION.md).
 
-Combat key commands use physical `KeyboardEvent.code`, with a symbol fallback for older/synthetic events. F works on the Ukrainian layout even when `event.key` is Cyrillic а. Ctrl/Alt/Meta shortcuts, repeats and paused input do not queue attacks.
+Combat key commands use physical `KeyboardEvent.code`, with a symbol fallback for older/synthetic events. F works on the Ukrainian layout even when `event.key` is Cyrillic а. Ctrl+hand attack throws that hand weapon. Other Ctrl shortcuts, Alt/Meta shortcuts, repeats and paused input do not queue actions.
 
 ## Concurrent hands and random opponents
 
 `handActions` and `handCooldowns` are keyed by front/rear; `bodyAction` and `bodyCooldown` handle kicks/recovery. `action` and `attackCooldown` are aggregate presentation views, never the eligibility lock for a hand. Input queues retain both hand requests from the same rendered frame. Contact sweep histories track each swing ID separately, and all hits are collected before shared pain/stun clears both hands. No idle or inactive hand inherits the other hand's hit window.
 
-Enemy loadouts use a separate seeded stream from AI and kick knockdown. Wins are uncapped; three equipment tiers improve main/offhand weapon pools and helmet/body armor. AI considers each equipped hand's reach and cooldown, allowing overlapping attacks. Belts remain inactive, shields absent and bots do not request kicks or directional hops. See [enemy generation](OPPONENTS.md).
+Enemy loadouts use a separate seeded stream from AI and kick knockdown. Wins are uncapped; three equipment tiers improve main/offhand weapon pools and helmet/body armor. AI considers each equipped hand's reach and cooldown, allowing overlapping attacks. Shields are absent and bots do not request belt actions, throws, kicks or directional hops. See [enemy generation](OPPONENTS.md).
+
+## Released items and healing
+
+Actual throws use the overarm clip retimed to 850 ms grounded or 650 ms when started airborne; release is at 60%. Spawn uses the rendered selected wrist, retaining the item’s catalog art and damaging profile. Knives/axes/swords rotate; spears follow velocity. Projectile gravity is 1000 units/s². Each step sweeps the previous/current blade capsule against the opponent’s previous/current body capsules. The owner is excluded; one contact marks the projectile spent and applies normal pain/stun. Landed objects cannot hit. These are capsule approximations, not per-pixel masks.
+
+`consumedItems` records each release/sip once. ArenaScene removes those player IDs from persistent equipment and ownership and saves immediately, before rewards or scene exit. The battle model is a separate copy with matching consumption. Nothing restores the lost item after victory, defeat, Escape or reload; the shop permits repurchase.
+
+Drinking occupies the rear-hand track for 2100 ms, consumes/heals at 55% and clamps HP to its maximum. A pre-sip interruption retains the potion. Full-health use is rejected. Actual belt use temporarily hides the corresponding waist attachment and rear weapon while showing the held catalog item; the weapon returns during recovery.

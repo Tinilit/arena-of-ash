@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import bundled from "../fixtures/catalog.json" with { type: "json" };
 import type { Player } from "../../src/domain/model";
 import { createPlayer } from "../../src/domain/model";
+import type { Projectile } from "../../src/combat/projectiles";
 import type {
   ArenaFighter,
   ArenaState,
@@ -28,6 +29,8 @@ interface RigFrame {
   down: Point;
 }
 interface Rig {
+  drinking: boolean;
+  drink: { vialVisible: boolean; mouth: Point; neck: Point; base: Point };
   physical: boolean;
   primaryHand: "rear" | "front";
   animation: string;
@@ -77,6 +80,7 @@ interface Snapshot {
     player: ArenaFighter;
     enemy: ArenaFighter;
     contacts: ContactEvent[];
+    projectiles: Projectile[];
   };
 }
 const errors = new WeakMap<Page, string[]>();
@@ -306,8 +310,9 @@ test("paginated purchases and inventory equip all remaining items and persist th
   expect((await snapshot(page)).buttons["buy-glaives"]).toBeUndefined();
   await shot(page, "new-equipment-shop");
   await click(page, "buy-viking");
-  expect((await snapshot(page)).player.gold).toBe(415);
-  expect((await snapshot(page)).player.inventory).toHaveLength(11);
+  await click(page, "buy-healing-potion");
+  expect((await snapshot(page)).player.gold).toBe(385);
+  expect((await snapshot(page)).player.inventory).toHaveLength(12);
   await click(page, "back");
   await click(page, "character");
   await click(page, "slot-body");
@@ -339,12 +344,12 @@ test("paginated purchases and inventory equip all remaining items and persist th
   expect(loaded.equipment).toEqual({
     rightHand: "war-spear",
     body: "plate",
-    belt1: "net",
-    belt2: "flask",
+    belt1: "throwing-knife",
+    belt2: "throwing-axe",
     helmet: "viking",
   });
-  expect(loaded.gold).toBe(415);
-  expect(loaded.inventory).toHaveLength(11);
+  expect(loaded.gold).toBe(385);
+  expect(loaded.inventory).toHaveLength(12);
 });
 test("arena movement, running, jumping and attacks share fixed-length joint transforms", async ({
   page,
@@ -492,7 +497,7 @@ test("external JSON adds image-backed equipment and changes live stats after ref
   expect((await snapshot(page)).content).toEqual({
     source: "live",
     revision: "runtime-test-1",
-    count: 12,
+    count: live.items.length,
     failedImages: 0,
   });
   await click(page, "shop");
@@ -917,21 +922,25 @@ test("every HP change follows a real swept blade/body contact in both directions
 test("arena hold buttons, jump and boundaries remain responsive without turns", async ({
   page,
 }) => {
+  await page.clock.install();
   await launch(page);
   await click(page, "battle");
   await scene(page, "ArenaScene");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
   const initial = (await snapshot(page)).battle!.player.x;
   const position = (await snapshot(page)).buttons["arena-left"];
   await page.mouse.move(position.x, position.y);
   await page.mouse.down();
-  await page.waitForTimeout(400);
+  await page.clock.runFor(400);
   await page.mouse.up();
+  await page.clock.runFor(50);
   const after = (await snapshot(page)).battle!.player.x;
   expect(after).toBeLessThan(initial - 20);
-  await page.waitForTimeout(180);
+  await page.clock.runFor(180);
   expect((await snapshot(page)).battle!.player.x).toBeCloseTo(after, 1);
   expect((await snapshot(page)).buttons.defend).toBeUndefined();
   expect((await snapshot(page)).buttons.recover).toBeUndefined();
+  await page.clock.resume();
   await click(page, "arena-jump");
   await expect
     .poll(async () => (await snapshot(page)).battle?.player.y)
@@ -1112,8 +1121,8 @@ test("anatomical slots move weapons between hands and persist two belt attachmen
     leftHand: "war-spear",
     helmet: "viking",
     body: "plate",
-    belt1: "net",
-    belt2: "flask",
+    belt1: "throwing-knife",
+    belt2: "throwing-axe",
   });
   expect(s.rigs![0].belt.map((v) => v.slot)).toEqual(["belt1", "belt2"]);
   expect(
@@ -1375,7 +1384,7 @@ test("backpack lists all unequipped categories, excludes worn items and restores
   let s = await snapshot(page);
   for (const id of ["rust", "plate", "viking"])
     expect(s.buttons[`equip-${id}`]).toBeTruthy();
-  for (const id of ["wood", "net", "flask"])
+  for (const id of ["wood", "throwing-knife", "throwing-axe"])
     expect(s.buttons[`equip-${id}`]).toBeUndefined();
   await click(page, "equip-viking");
   expect((await snapshot(page)).buttons["equip-viking"]).toBeUndefined();
@@ -1765,4 +1774,249 @@ test("victory progress beyond three persists and generates stronger equipped opp
   expect(late.equipment.helmet).toBe("viking");
   expect(["iron", "war-spear"]).toContain(late.equipment.rightHand);
   await shot(page, "veteran-random-loadout");
+});
+
+test("belt knife makes a physical projectile hit, is lost on reload, and can be bought again", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await launch(page);
+  await click(page, "battle");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  await page.keyboard.press("q");
+  await page.clock.runFor(350);
+  let s = await snapshot(page);
+  expect(s.battle!.player.handActions.rear?.name).toBe("throw");
+  expect(s.battle!.projectiles).toHaveLength(0);
+  expect(s.player.inventory).toContain("throwing-knife");
+  await page.clock.runFor(200);
+  s = await snapshot(page);
+  expect(s.battle!.projectiles).toHaveLength(1);
+  expect(s.battle!.projectiles[0].itemId).toBe("throwing-knife");
+  expect(s.player.inventory).not.toContain("throwing-knife");
+  expect(s.player.equipment.belt1).toBeUndefined();
+  expect(s.player.equipment.rightHand).toBe("wood");
+  for (
+    let i = 0;
+    i < 50 && !s.battle!.contacts.some((e) => e.kind === "projectile");
+    i++
+  ) {
+    await page.clock.runFor(25);
+    s = await snapshot(page);
+  }
+  const hits = s.battle!.contacts.filter((e) => e.kind === "projectile");
+  expect(hits).toHaveLength(1);
+  expect(contact(hits[0].blade, hits[0].body)).not.toBeNull();
+  expect(hits[0].damage).toBeGreaterThan(0);
+  await page.screenshot({
+    path: "test-results/screenshots/throwing-knife-contact.png",
+  });
+  await page.clock.resume();
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect((await snapshot(page)).player.inventory).not.toContain(
+    "throwing-knife",
+  );
+  await click(page, "shop");
+  await click(page, "shop-next");
+  expect((await snapshot(page)).buttons["buy-throwing-knife"]).toBeTruthy();
+  expect((await snapshot(page)).buttons["buy-throwing-axe"]).toBeTruthy();
+  expect((await snapshot(page)).buttons["buy-net"]).toBeUndefined();
+  expect((await snapshot(page)).buttons["buy-flask"]).toBeUndefined();
+  await click(page, "buy-throwing-knife");
+  expect((await snapshot(page)).player.inventory).toContain("throwing-knife");
+  expect((await snapshot(page)).player.gold).toBe(75);
+});
+
+test("belt axe uses an overarm airborne throw while the front hand attacks independently", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await launch(page);
+  await click(page, "battle");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  await page.keyboard.press("Space");
+  await page.clock.runFor(50);
+  await page.keyboard.press("e");
+  await page.clock.runFor(150);
+  await page.keyboard.press("j");
+  await page.clock.runFor(100);
+  let s = await snapshot(page);
+  expect(s.battle!.player.handActions.front?.name).toBe("quick");
+  expect(s.battle!.player.handActions.rear?.name).toBe("throw");
+  expect(s.rigs![0].far.hand.y).toBeLessThan(s.rigs![0].far.shoulder.y - 35);
+  expect(s.battle!.player.y).toBeLessThan(0);
+  await page.clock.runFor(170);
+  s = await snapshot(page);
+  expect(s.battle!.projectiles[0].itemId).toBe("throwing-axe");
+  expect(s.battle!.projectiles[0].spin).not.toBe(0);
+  expect(s.battle!.player.y).toBeLessThan(0);
+  expect(s.player.inventory).not.toContain("throwing-axe");
+  expect(s.player.equipment.rightHand).toBe("wood");
+  await page.screenshot({
+    path: "test-results/screenshots/airborne-throwing-axe.png",
+  });
+  await page.clock.resume();
+});
+
+test("Ctrl plus each mouse attack throws that hand's actual weapon and leaves bare hands", async ({
+  page,
+}) => {
+  const p = createPlayer();
+  p.inventory.push("rust", "war-spear");
+  p.equipment.leftHand = "rust";
+  p.equipment.rightHand = "war-spear";
+  await page.addInitScript((p) => {
+    if (!localStorage.getItem("arena-of-ash.v3"))
+      localStorage.setItem(
+        "arena-of-ash.v3",
+        JSON.stringify({ version: 3, player: p }),
+      );
+  }, p);
+  await page.clock.install();
+  await launch(page);
+  await click(page, "battle");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  await page.keyboard.down("Control");
+  await page.mouse.click(640, 400, { button: "left" });
+  await page.mouse.click(640, 400, { button: "right" });
+  await page.keyboard.up("Control");
+  await page.clock.runFor(350);
+  let s = await snapshot(page);
+  expect(s.battle!.player.handActions.front?.itemId).toBe("rust");
+  expect(s.battle!.player.handActions.rear?.itemId).toBe("war-spear");
+  expect(s.rigs![0].body.frontArms).toContain("nearArm");
+  expect(s.rigs![0].throwing.headFront).toBe(false);
+  for (const arm of [s.rigs![0].near, s.rigs![0].far])
+    expect(arm.hand.y).toBeLessThan(arm.shoulder.y - 40);
+  await page.clock.runFor(200);
+  s = await snapshot(page);
+  expect(s.battle!.projectiles).toHaveLength(2);
+  expect(s.player.equipment.leftHand).toBeUndefined();
+  expect(s.player.equipment.rightHand).toBeUndefined();
+  expect(s.player.inventory).not.toContain("rust");
+  expect(s.player.inventory).not.toContain("war-spear");
+  expect(s.rigs![0].weapons).toHaveLength(0);
+  await page.screenshot({
+    path: "test-results/screenshots/both-hand-weapons-thrown.png",
+  });
+  await page.clock.runFor(700);
+  await page.keyboard.press("j");
+  await page.keyboard.press("k");
+  await page.clock.runFor(50);
+  s = await snapshot(page);
+  expect(s.battle!.player.handActions.front?.name).toBe("quick");
+  expect(s.battle!.player.handActions.rear?.name).toBe("quick");
+  expect(s.geometry![0].blades?.front).toBeUndefined();
+  expect(s.geometry![0].blades?.rear).toBeUndefined();
+  expect(s.rigs![0].body.backArms).toContain("nearArm");
+  await page.clock.resume();
+});
+
+test("drinking brings an open vial to the mouth and returns to idle without consuming gear", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await launch(page);
+  const before = (await snapshot(page)).player;
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  await page.keyboard.press("p");
+  await page.clock.runFor(1200);
+  const s = await snapshot(page);
+  let r = s.rigs![0];
+  expect(r.drinking).toBe(true);
+  expect(r.drink.vialVisible).toBe(true);
+  expect(
+    Math.hypot(
+      r.drink.neck.x - r.drink.mouth.x,
+      r.drink.neck.y - r.drink.mouth.y,
+    ) / r.scale,
+  ).toBeLessThan(6);
+  expect(r.drink.base.x).toBeGreaterThan(r.drink.neck.x);
+  expect(r.weapons.every((w) => !w.visible)).toBe(true);
+  anatomy(r);
+  expect(s.player).toEqual(before);
+  await page.screenshot({
+    path: "test-results/screenshots/potion-drinking.png",
+  });
+  await page.clock.runFor(1300);
+  r = (await snapshot(page)).rigs![0];
+  expect(r.drinking).toBe(false);
+  expect(r.drink.vialVisible).toBe(false);
+  expect(r.animation).toBe("idleRelaxed");
+  expect(r.weapons[0].visible).toBe(true);
+  await page.clock.resume();
+  await click(page, "character");
+  await click(page, "preview-drink");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].animation)
+    .toBe("drink");
+});
+
+test("shop potion equips on the belt, heals at the animated sip and remains spent after reload", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await launch(page);
+  await click(page, "shop");
+  await click(page, "shop-next");
+  await click(page, "buy-healing-potion");
+  expect((await snapshot(page)).player.gold).toBe(70);
+  await shot(page, "throwables-potion-shop");
+  await click(page, "back");
+  await click(page, "character");
+  await click(page, "slot-belt1");
+  await click(page, "equip-healing-potion");
+  let s = await snapshot(page);
+  expect(s.player.equipment.belt1).toBe("healing-potion");
+  expect(s.buttons["equip-healing-potion"]).toBeUndefined();
+  await click(page, "back");
+  await click(page, "battle");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  await page.keyboard.press("q");
+  await page.clock.runFor(50);
+  expect((await snapshot(page)).battle!.player.action).toBeNull();
+  await page.keyboard.down("d");
+  for (let i = 0; i < 180; i++) {
+    s = await snapshot(page);
+    if (s.battle!.player.hp < 100) break;
+    await page.clock.runFor(25);
+  }
+  await page.keyboard.up("d");
+  const injured = (await snapshot(page)).battle!.player.hp;
+  expect(injured).toBeLessThan(100);
+  await page.keyboard.down("a");
+  await page.keyboard.down("Shift");
+  await page.clock.runFor(1100);
+  await page.keyboard.press("q");
+  await page.clock.runFor(1000);
+  s = await snapshot(page);
+  expect(s.battle!.player.handActions.rear?.name).toBe("drink");
+  expect(s.battle!.player.hp).toBe(injured);
+  expect(s.player.inventory).toContain("healing-potion");
+  await page.clock.runFor(250);
+  s = await snapshot(page);
+  expect(s.battle!.player.hp).toBe(Math.min(100, injured + 35));
+  expect(s.player.inventory).not.toContain("healing-potion");
+  expect(s.player.equipment.belt1).toBeUndefined();
+  const r = s.rigs![0];
+  expect(r.drink.vialVisible).toBe(true);
+  expect(
+    Math.hypot(
+      r.drink.neck.x - r.drink.mouth.x,
+      r.drink.neck.y - r.drink.mouth.y,
+    ) / r.scale,
+  ).toBeLessThan(6);
+  await page.screenshot({
+    path: "test-results/screenshots/potion-sip-heals.png",
+  });
+  await page.keyboard.up("a");
+  await page.keyboard.up("Shift");
+  await page.clock.resume();
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect((await snapshot(page)).player.inventory).not.toContain(
+    "healing-potion",
+  );
+  expect((await snapshot(page)).player.gold).toBe(70);
 });

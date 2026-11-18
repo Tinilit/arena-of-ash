@@ -47,11 +47,15 @@ export class CharacterScene extends BaseScene {
     this.button(
       "preview-throw",
       145,
-      515,
+      500,
       140,
       en.throwUnder,
       () => {
-        if (this.rig.animator.name.startsWith("throw")) return;
+        if (
+          this.rig.animator.name.startsWith("throw") ||
+          this.rig.animator.name === "drink"
+        )
+          return;
         this.rig.play("throw");
       },
       36,
@@ -59,14 +63,34 @@ export class CharacterScene extends BaseScene {
     this.button(
       "preview-overhand",
       295,
-      515,
+      500,
       140,
       en.throwOver,
       () => {
-        if (this.rig.animator.name.startsWith("throw")) return;
+        if (
+          this.rig.animator.name.startsWith("throw") ||
+          this.rig.animator.name === "drink"
+        )
+          return;
         this.rig.play("throwOverhand");
       },
       36,
+    );
+    this.button(
+      "preview-drink",
+      220,
+      535,
+      290,
+      "Drink potion",
+      () => {
+        if (
+          this.rig.animator.name.startsWith("throw") ||
+          this.rig.animator.name === "drink"
+        )
+          return;
+        this.rig.play("drink");
+      },
+      28,
     );
     equipmentSlots.forEach((position, i) => {
       const x = 525 + (i % 2) * 190,

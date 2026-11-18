@@ -46,6 +46,8 @@ export interface Item {
   description?: string;
   image?: ItemImage;
   hitbox?: WeaponHitbox;
+  use?: "throw" | "drink";
+  heal?: number;
 }
 export interface Player {
   id: string;
@@ -60,8 +62,12 @@ export const createPlayer = (): Player => ({
   id: "wanderer",
   name: "The Wanderer",
   gold: 100,
-  inventory: ["wood", "net", "flask"],
-  equipment: { rightHand: "wood", belt1: "net", belt2: "flask" },
+  inventory: ["wood", "throwing-knife", "throwing-axe"],
+  equipment: {
+    rightHand: "wood",
+    belt1: "throwing-knife",
+    belt2: "throwing-axe",
+  },
   progress: 0,
   rewarded: [],
 });

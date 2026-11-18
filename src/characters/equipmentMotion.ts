@@ -3,6 +3,7 @@ import type { Clip, Pose } from "./animation";
 import { rearHandMotion } from "./rearHandMotion";
 import { locomotionClips, type WeaponHand } from "./locomotion";
 import { groundedMotion } from "./groundedMotion";
+import { drinkClip } from "./drinkMotion";
 import { throwClip, overhandThrowClip } from "./throwMotion";
 import {
   punchClip,
@@ -174,6 +175,8 @@ export function equipmentMotion(
       ...locomotionClips(hand),
       throw: throwClip(),
       throwOverhand: overhandThrowClip(),
+      throwAction: overhandThrowClip(hand),
+      drink: drinkClip(),
       punch: punchClip(hand),
       kick: kickClip,
       pain: painClip,

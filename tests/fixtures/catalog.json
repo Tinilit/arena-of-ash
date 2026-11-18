@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "revision": "2026-11-18-loadout",
+  "revision": "2026-11-18-throwables-potion",
   "items": [
     {
       "id": "wood",
@@ -89,24 +89,38 @@
       "description": "Horned fantasy helm with a nasal guard."
     },
     {
-      "id": "net",
-      "name": "Folded Arena Net",
+      "id": "throwing-knife",
+      "name": "Throwing Knife",
       "slot": "utility",
-      "price": 20,
-      "attack": 0,
+      "price": 25,
+      "attack": 3,
       "armor": 0,
-      "visual": "net",
-      "description": "Carried on the belt. Not usable yet."
+      "visual": "throwing-knife",
+      "use": "throw",
+      "description": "Belt throwable. Q/E launches an overarm throw."
     },
     {
-      "id": "flask",
-      "name": "Clay Training Flask",
+      "id": "throwing-axe",
+      "name": "Throwing Axe",
       "slot": "utility",
-      "price": 15,
+      "price": 45,
+      "attack": 8,
+      "armor": 0,
+      "visual": "throwing-axe",
+      "use": "throw",
+      "description": "Heavy spinning belt throwable. Use Q/E."
+    },
+    {
+      "id": "healing-potion",
+      "name": "Healing Potion",
+      "slot": "utility",
+      "price": 30,
       "attack": 0,
       "armor": 0,
-      "visual": "flask",
-      "description": "Carried on the belt. Not usable yet."
+      "visual": "healing-potion",
+      "use": "drink",
+      "heal": 35,
+      "description": "Belt consumable. Q/E drinks and restores up to 35 HP."
     }
   ]
 }

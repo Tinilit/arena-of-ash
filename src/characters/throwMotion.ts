@@ -114,14 +114,14 @@ export function throwClip(): Clip {
 
 export const overhandThrowTiming = { duration: 1850, release: 0.6 } as const;
 /** Volleyball-style arm cock, upward extension, high release and follow-through. */
-export function overhandThrowClip(): Clip {
+export function overhandThrowClip(hand: "front" | "rear" = "rear"): Clip {
   const pose = (extra: Pose): Pose => ({
     ...combatRest,
     throwPreview: 1,
     throwReleased: 0,
     ...extra,
   });
-  return {
+  const clip: Clip = {
     duration: overhandThrowTiming.duration,
     blendIn: 140,
     discrete: ["throwPreview", "throwReleased"],
@@ -228,4 +228,14 @@ export function overhandThrowClip(): Clip {
       { time: 1, pose: pose({ throwPreview: 0 }) },
     ],
   };
+  if (hand === "front")
+    clip.frames = clip.frames.map((frame) => {
+      const p = { ...frame.pose };
+      for (const suffix of ["HandX", "HandY", "Wrist"]) {
+        p["near" + suffix] = frame.pose["far" + suffix];
+        p["far" + suffix] = frame.pose["near" + suffix];
+      }
+      return { ...frame, pose: p };
+    });
+  return clip;
 }

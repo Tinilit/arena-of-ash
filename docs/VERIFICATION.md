@@ -1,21 +1,23 @@
-# Concurrent hands, two throwing styles and enemy loadouts — 2026-11-18
+# Belt throwables, weapon throwing and healing potion — 2026-11-18
 
-Underarm throwing remains on T; Y adds an overarm volleyball-style serve, with a raised cocked elbow, high extension/release and follow-through. Both previews keep the throwing arm in front of the head, release once and preserve inventory. Each hand now owns its action, cooldown, animator and contact ID, supporting simultaneous and staggered attacks. Victory count drives random enemy weapon/armor pools, including occasional dual wielding. Kicks deal zero HP damage while retaining pushback, stun and 20% knockdown.
+Q/E uses a belt knife, axe or healing potion. Ctrl+the selected mouse/keyboard hand attack throws that hand weapon. Every real throw uses the overarm clip, including in the air; the hands remain independent. Release spawns the actual item at the rendered wrist. Swept blade/head/body contact is required for projectile damage, once. A released item is permanently consumed and saved immediately, including misses or abandoned battles; the shop permits repurchase.
+
+The shop sells a 30-gold healing potion for up to 35 HP. Its 2100 ms animation raises an open vial to the mouth, tilts for a sip and lowers it. Healing/consumption occurs once at 55%; interruption before the sip retains the potion. Full-health use is disabled. Camp P and Character's Drink potion button provide harmless previews. Net and water flask are removed.
 
 ## Validation
 
-| Check | Result |
-| --- | --- |
-| TypeScript / ESLint | Passed |
-| Unit tests | 191 across 14 files |
-| Browser scenarios | 35 |
-| Production build | `/arena-of-ash/` base path |
+| Check               | Result                                  |
+| ------------------- | --------------------------------------- |
+| TypeScript / ESLint | Passed                                  |
+| Unit tests          | 210 across 16 files                     |
+| Browser scenarios   | 40, including successful focused reruns |
+| Production build    | `/arena-of-ash/` base path              |
 
-Pure tests cover two simultaneous hits, independent wind-up/cooldown, unchanged first-arm animation when the second begins, four-hit trades, shared interruption, zero-damage kick reactions, separate throwing clips and high release, repeatable/random enemy equipment, unique ownership, gear floors, uncapped wins/save round trips and dual-hand AI. Existing floor-transfer, airborne kick, geometry, live catalog, display and anatomy tests remain.
+Pure tests cover selected-hand release, independent simultaneous throws, one-time consumption, pre-release interruption, airborne gravity/release, fast swept projectile/body contact, owner exclusion, harmless landed objects, rendered fallback profiles, potion healing/cap/interruption, repurchase/save round trips and runtime use/heal validation. Drink pose tests check fixed bones, reachable targets, smooth motion and the vial neck reaching within six logical pixels of the mouth. Existing zero-damage kicks, floor transfers, hand collision, enemy progression, live content, display and anatomy checks remain.
 
-Browser scenarios inspect both preview controls and keys, head depth on every throwing frame, independently staggered hand clocks, two rendered blade/body contacts from one pair of inputs, and high-tier generated equipment after reload. Existing victory verification uses owned armor for a controlled result through real contacts. Large-screen Canvas/WebGL, Retina, 4K and logical pointer tests remain.
+New browser scenarios exercise a real knife hit, airborne axe plus independent front-hand attack, Ctrl+both mouse buttons, empty hands after release, immediate persistent consumption after reload, replacement purchases, potion purchase/equip/drinking/healing and preview return to idle. Screenshots capture the shop, real contacts, airborne throw, two released weapons and the actual potion sip. The runtime catalog count assertion follows the fixture length; hold-input timing uses the controlled browser clock. A production WebGL smoke check also verifies the Pages path, inventory loss after airborne/hand throws, reload persistence and the absence of the development snapshot API. Existing victory/defeat and Canvas/WebGL, Retina, 4K and logical pointer scenarios remain.
 
-Pose reviews inspect both facing directions at preparation, trophy pose, high release and follow-through. These are authored 2D projections with fixed bone lengths, not rigid-body ragdolls or pixel-perfect collision masks. The common waist/shoulder frame is shared by both independent arm tracks. No projectile or belt action is added.
+Pose reviews inspect both facing directions. The common waist/shoulder frame is unchanged; an active front-hand throw temporarily uses the foreground plane, then returns behind the torso. These are authored 2D projections with capsule collision approximations, not rigid-body ragdolls or per-pixel masks. Projectiles settle visibly but cannot be picked up. One copy per catalog ID is owned at a time.
 
 ## Publication
 

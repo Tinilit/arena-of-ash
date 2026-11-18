@@ -25,6 +25,14 @@ export function purchase(p: Player, id: string) {
   p.inventory.push(id);
   return true;
 }
+/** A released throwable is lost even on a miss or an abandoned battle. */
+export function consumeItem(p: Player, id: string) {
+  if (!p.inventory.includes(id)) return false;
+  p.inventory = p.inventory.filter((owned) => owned !== id);
+  for (const slot of Object.keys(p.equipment) as EquipmentSlot[])
+    if (p.equipment[slot] === id) delete p.equipment[slot];
+  return true;
+}
 export function canEquip(p: Player, id: string, slot: EquipmentSlot) {
   const i = item(id);
   return Boolean(

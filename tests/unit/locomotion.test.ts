@@ -201,7 +201,12 @@ for (const hand of ["rear", "front"] as const)
               -(r + torso + (p.head ?? 0)),
             );
           };
-          if ((p.throwPreview ?? 0) > 0.01 || name === "punch") continue;
+          if (
+            (p.throwPreview ?? 0) > 0.01 ||
+            (hand === "rear" && (p.drinkPreview ?? 0) > 0.5) ||
+            name === "punch"
+          )
+            continue;
           expect(
             intersects(
               local(id === "wood" ? -95 : -150),
