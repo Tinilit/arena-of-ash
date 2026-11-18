@@ -46,7 +46,13 @@ interface Rig {
   weapons: (Point & { texture: string | null; visible: boolean })[];
   belt: (Point & { slot: string })[];
   offhand: Point | null;
-  throwing: { active: boolean; released: boolean; propVisible: boolean };
+  throwing: {
+    active: boolean;
+    released: boolean;
+    propVisible: boolean;
+    headFront: boolean;
+    hand: string;
+  };
   near: Limb;
   far: Limb;
 }
@@ -1160,8 +1166,29 @@ test("throw preview releases once, opens the palm and returns without consuming 
         r.throwing.active && r.throwing.released && !r.throwing.propVisible,
     ),
   ).toBe(true);
+  expect(
+    poses.some(
+      (r) =>
+        r.throwing.active &&
+        !r.throwing.released &&
+        r.far.hand.x < r.far.hip.x - 30 * r.scale,
+    ),
+  ).toBe(true);
+  expect(
+    poses.some(
+      (r) =>
+        r.throwing.released && r.far.hand.x > r.far.shoulder.x + 60 * r.scale,
+    ),
+  ).toBe(true);
+
   for (const r of poses.filter((r) => r.throwing.active)) {
     expect(r.weapons[0].visible).toBe(false);
+    expect(r.throwing.headFront).toBe(false);
+    expect(r.throwing.hand).toBe("rear");
+    expect(r.body.layers.indexOf("torso")).toBeLessThan(
+      r.body.layers.indexOf("frontTorso"),
+    );
+    expect(r.body.frontArms).toContain("farArm");
     anatomy(r, false);
   }
   await expect
@@ -1510,4 +1537,49 @@ test("a seeded kick knocks down on contact, holds one second and rises through a
   expect((await snapshot(page)).battle!.enemy.knockdown).toBeNull();
   await page.clock.resume();
   await shot(page, "after-heavy-get-up");
+});
+
+test("F during a jump performs a physical flying kick and lands normally", async ({
+  page,
+}) => {
+  await launch(page);
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 100));
+  await page.keyboard.down("d");
+  for (let i = 0; i < 70; i++) {
+    const b = (await snapshot(page)).battle!;
+    if (b.enemy.x - b.player.x < 190) break;
+    await page.clock.runFor(25);
+  }
+  await page.keyboard.up("d");
+  await page.keyboard.press("Space");
+  await page.clock.runFor(100);
+  await page.keyboard.press("f");
+  let hit: ContactEvent | undefined, airHit: Snapshot | undefined;
+  for (let i = 0; i < 40; i++) {
+    await page.clock.runFor(16);
+    const s = await snapshot(page);
+    hit = s.battle!.contacts.find(
+      (e) => e.kind === "kick" && e.attackerId === "wanderer",
+    );
+    if (hit) {
+      airHit = s;
+      break;
+    }
+  }
+  expect(hit).toBeTruthy();
+  expect(airHit!.battle!.player.y).toBeLessThan(0);
+  expect(airHit!.battle!.player.action?.name).toBe("kick");
+  expect(airHit!.rigs![0].animation).toBe("kick");
+  expect(contact(hit!.blade, hit!.body)).not.toBeNull();
+  anatomy(airHit!.rigs![0], false);
+  await page.screenshot({
+    path: "test-results/screenshots/flying-kick-contact.png",
+  });
+  await page.clock.runFor(1100);
+  expect((await snapshot(page)).battle!.player.y).toBe(0);
+  expect((await snapshot(page)).battle!.player.vy).toBe(0);
+  await page.clock.resume();
 });

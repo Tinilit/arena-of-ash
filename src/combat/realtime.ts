@@ -146,7 +146,6 @@ export class RealtimeBattle {
       f.stun === 0 &&
       f.attackCooldown === 0 &&
       !f.action &&
-      (name !== "kick" || (f.y === 0 && f.vy === 0 && !f.hop)) &&
       f.reaction?.kind !== "stagger"
     );
   }
@@ -265,11 +264,12 @@ export class RealtimeBattle {
         f.vy = -arenaRules.jumpSpeed;
       }
       const running = c.run;
+      const flyingKick = f.action?.name === "kick" && (f.y < 0 || f.vy < 0);
       const movement = Math.max(-1, Math.min(1, c.move ?? 0));
       f.vx =
         movement *
         (running ? arenaRules.run : arenaRules.walk) *
-        (f.guard ? 0.5 : f.action ? 0.7 : 1);
+        (f.guard ? 0.5 : f.action && !flyingKick ? 0.7 : 1);
       if (f.hop)
         f.vx =
           f.hop.phase === "air"
@@ -277,7 +277,7 @@ export class RealtimeBattle {
             : 0;
       if (
         f.knockdown ||
-        f.action?.name === "kick" ||
+        (f.action?.name === "kick" && f.y === 0 && f.vy === 0) ||
         f.stun > 0 ||
         f.reaction?.kind === "stagger"
       )

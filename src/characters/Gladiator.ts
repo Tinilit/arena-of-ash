@@ -226,12 +226,8 @@ export class Gladiator {
     }
     this.throwProp.setVisible(throwing && !released);
     this.openPalm.setVisible(throwing && released);
-    const headParent =
-      (p.throwHeadFront ?? 0) > 0.5
-        ? this.joints.frontTorso
-        : this.joints.torso;
-    if (this.joints.head.parentContainer !== headParent)
-      headParent.add(this.joints.head);
+    // The rear arm stays in front of the entire torso/head plane throughout
+    // throwing. Keep depth fixed instead of hiding a moving hand with the head.
     this.joints.torso.rotation = solved.torso;
     this.joints.backTorso.rotation = solved.torso;
     this.joints.frontTorso.rotation = solved.torso;

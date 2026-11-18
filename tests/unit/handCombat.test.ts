@@ -128,17 +128,31 @@ describe("pain and front kick", () => {
     expect(b.enemy.x).toBe(arenaRules.maxX);
     expect(b.player.x).toBeLessThanOrEqual(b.enemy.x - 64);
   });
-  it("keeps a kick grounded and rejects it during ordinary jumps or player hops", () => {
-    const b = make();
-    b.advance(8, [{ jump: true }, {}]);
-    expect(b.canAttack(b.player, "kick")).toBe(false);
-    const c = make();
-    c.advance(0, [{ hop: 1 }, {}]);
-    expect(c.canAttack(c.player, "kick")).toBe(false);
+  it("allows kicks during ordinary jumps and directional hops without resetting their launch", () => {
+    for (const start of [
+      { jump: true },
+      { hop: 1 as const },
+      { hop: -1 as const },
+    ]) {
+      const b = make();
+      b.advance(8, [start, {}]);
+      for (let i = 0; i < 12; i++) b.advance(arenaRules.step, [{}, {}]);
+      expect(b.canAttack(b.player, "kick")).toBe(true);
+      const vy = b.player.vy,
+        hop = b.player.hop;
+      b.advance(arenaRules.step, [{ attack: "kick", move: 1, run: true }, {}]);
+      expect(b.player.action?.name).toBe("kick");
+      expect(b.player.y).toBeLessThan(0);
+      expect(b.player.vy).toBeCloseTo(
+        vy + (arenaRules.gravity * arenaRules.step) / 1000,
+      );
+      expect(b.player.hop).toBe(hop);
+      expect(Math.abs(b.player.vx)).toBeGreaterThanOrEqual(arenaRules.run);
+    }
   });
 });
 
-it("rear overarm wind-up stays continuous above the shoulder without stretching bones", async () => {
+it("rear throw draws the hand behind the hip before a forward release without stretching bones", async () => {
   const { equipmentMotion } =
     await import("../../src/characters/equipmentMotion");
   const { Animator } = await import("../../src/characters/animation");
@@ -146,7 +160,8 @@ it("rear overarm wind-up stays continuous above the shoulder without stretching 
     await import("../../src/characters/kinematics");
   const a = new Animator(equipmentMotion(undefined, "front"));
   a.play("throw");
-  let coiled = false;
+  let drawnBack = false;
+  let delivered = false;
   for (let t = 0; t < 1700; t += 8) {
     const p = a.update(8),
       s = groundedPose(p),
@@ -170,13 +185,15 @@ it("rear overarm wind-up stays continuous above the shoulder without stretching 
     expect(
       Math.hypot(arm.hand.x - expected.x, arm.hand.y - expected.y),
     ).toBeLessThan(1e-6);
-    if (p.farHandX! < 20 && p.farHandY! < -60) {
-      coiled = true;
-      expect(p.throwHeadFront).toBe(1);
+    if (p.farHandX! < -30 && p.farHandY! > 55) {
+      drawnBack = true;
       expect(p.nearHandY).toBeCloseTo(69, 7);
     }
+    if (drawnBack && p.throwReleased === 1 && p.farHandX! > 65)
+      delivered = true;
   }
-  expect(coiled).toBe(true);
+  expect(drawnBack).toBe(true);
+  expect(delivered).toBe(true);
 });
 
 it("front kick extends a nearly straight leg, presents the sole and keeps the support foot planted", async () => {
@@ -237,4 +254,34 @@ it("a guarded front kick reduces damage but still forces balance recovery", () =
   expect(hit.damage).toBe(6);
   expect(b.enemy.reaction?.kind).toBe("stagger");
   expect(b.enemy.pushVx).toBe(500);
+});
+
+it("a flying kick extends only the striking leg, keeps the other tucked and damages only on boot contact", async () => {
+  const { groundedPose } = await import("../../src/characters/kinematics");
+  const b = make(),
+    motion = new ArenaMotion(b.player.model);
+  b.advance(arenaRules.step, [{ jump: true, attack: "kick" }, {}]);
+  motion.update(0, b.player);
+  for (let i = 0; i < 52; i++) {
+    b.advance(arenaRules.step, [{}, {}]);
+    motion.update(arenaRules.step, b.player);
+  }
+  const pose = motion.update(0, b.player),
+    rig = groundedPose(pose);
+  expect(b.player.y).toBeLessThan(-50);
+  expect(pose.plant).toBe(0);
+  expect(pose.rootY).toBe(0);
+  expect(rig.farLeg.bend).toBeCloseTo(0.75);
+  expect(rig.nearLeg.bend).toBeLessThan(0.4);
+  expect(rig.nearLeg.ankle.x - rig.nearLeg.hip.x).toBeGreaterThan(95);
+  const miss = geometry(100, 0),
+    target = geometry(0, 0);
+  expect(b.resolve([miss, target])).toEqual([]);
+  const [hit] = b.resolve([geometry(0, 100), target]);
+  expect(hit.kind).toBe("kick");
+  expect(b.enemy.hp).toBe(88);
+  expect(b.resolve([geometry(0, 100), target])).toEqual([]);
+  for (let i = 0; i < 120; i++) b.advance(arenaRules.step, [{}, {}]);
+  expect(b.player.y).toBe(0);
+  expect(b.player.vy).toBe(0);
 });

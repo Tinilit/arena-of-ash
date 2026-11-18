@@ -4,7 +4,7 @@ The Wanderer begins with 100 gold, a Wooden Sword, Training Net and Clay Flask. 
 
 Contact damage is max(1, round(12 + active gear attack − defender armor)), halved with rounding and a minimum of one while the AI guards. A kick deals max(1, round(12 − defender armor × 0.5)), also halved by guarding. There is no random accuracy or passive health regeneration.
 
-Light attacks last 1000 ms, active at 45–67%, followed by 280 ms cooldown. Heavy attacks are disabled. F/3 performs a grounded 1050 ms front kick, active at 36–56%, followed by 350 ms cooldown. Only actual selected blade, fist or boot contact damages an opponent, once per action. Anticipation, recovery and idle equipment do no damage. Sword grips and spear shafts are excluded from damaging geometry.
+Light attacks last 1000 ms, active at 45–67%, followed by 280 ms cooldown. Heavy attacks are disabled. F/3 performs a 1050 ms front kick on the ground or in a jump/hop, active at 36–56%, followed by 350 ms cooldown. Only actual selected blade, fist or boot contact damages an opponent, once per action. Anticipation, recovery and idle equipment do no damage. Sword grips and spear shafts are excluded from damaging geometry.
 
 A kick hit pushes back and has a 20% chance to knock the opponent down. Knockdown takes 550 ms (and waits for ground contact if airborne), followed by a full 1000 ms on the ground and an 1800 ms supported get-up. These states lock actions and movement without granting invulnerability. Further contacts damage but do not restart the floor transfer. A normal kick staggers for 850 ms.
 

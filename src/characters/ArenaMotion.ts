@@ -9,6 +9,7 @@ import {
 import type { Hand } from "../domain/model";
 import type { ArenaFighter } from "../combat/realtime";
 import { knockdownPose } from "./knockdownMotion";
+import { groundedPose } from "./kinematics";
 import { hopPose } from "./hopPose";
 const smooth = (value: number) => {
   const t = Math.max(0, Math.min(1, value));
@@ -177,6 +178,17 @@ export class ArenaMotion {
       }
       if (action.name !== "kick")
         base[`${prefix}WeaponGrip`] = overlay.weaponGrip ?? Math.PI / 2;
+      else if (f.y < 0 || f.vy < 0) {
+        // Aim the striking boot using the same target as a grounded kick, then
+        // release only that leg into FK. The other leg keeps its airborne tuck.
+        base.rootY = 0;
+        const leg = groundedPose({ ...base, plant: 1 }).nearLeg;
+        base.plant = 0;
+        base.nearThigh = leg.angle;
+        base.nearShin = leg.bend;
+        base.nearFootAngle = leg.foot;
+        base.nearFootRoll = 0;
+      }
       this.name = clip;
     } else if (f.reaction) {
       const r = f.reaction;
