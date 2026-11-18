@@ -6,7 +6,7 @@ interface Result {
   win: boolean;
   draw?: boolean;
   opponent: string;
-  payout: { gold: number; xp: number; levels: number } | null;
+  payout: { gold: number } | null;
 }
 export class ResultScene extends BaseScene {
   private rig!: Gladiator;
@@ -36,17 +36,9 @@ export class ResultScene extends BaseScene {
       this,
       425,
       395,
-      `+${data.payout?.gold ?? 0} ${en.gold}    +${data.payout?.xp ?? 0} ${en.xp}`,
+      `+${data.payout?.gold ?? 0} ${en.gold}`,
       26,
     ).setOrigin(0.5);
-    if (data.payout?.levels)
-      label(
-        this,
-        425,
-        446,
-        `${en.levelUp}: ${data.payout.levels} • +${data.payout.levels * 2} ${en.points}`,
-        20,
-      ).setOrigin(0.5);
     this.rig = new Gladiator(this, 965, 534, this.services.player);
     this.rig.play(data.win ? "victory" : "recover");
     this.back();

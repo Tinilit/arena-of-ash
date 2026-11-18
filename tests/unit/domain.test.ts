@@ -1,13 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createPlayer } from "../../src/domain/model";
-import {
-  stats,
-  purchase,
-  equip,
-  experience,
-  reward,
-  allocate,
-} from "../../src/domain/progression";
+import { stats, purchase, equip, reward } from "../../src/domain/progression";
 import { damage } from "../../src/combat/engine";
 import { serialize, deserialize, SaveStore } from "../../src/persistence/save";
 import { seeded } from "../../src/utils/random";
@@ -19,20 +12,19 @@ describe("character and equipment", () => {
     const p = createPlayer();
     expect(p.name).toBe("The Wanderer");
     expect(p.gold).toBe(100);
-    expect(p.attributes.strength).toBe(10);
+    expect(p).not.toHaveProperty("attributes");
+    expect(p).not.toHaveProperty("level");
   });
   it("derives maximum health", () =>
     expect(stats(createPlayer()).hp).toBe(100));
-  it("derives maximum stamina", () =>
-    expect(stats(createPlayer()).stamina).toBe(100));
   it("includes weapon attack", () =>
-    expect(stats(createPlayer()).attack).toBe(16));
-  it("includes armor without mutating attributes", () => {
+    expect(stats(createPlayer()).attack).toBe(13));
+  it("includes armor without changing base health", () => {
     const p = createPlayer();
     purchase(p, "leather");
     equip(p, "leather", "body");
     expect(stats(p).armor).toBe(2);
-    expect(p.attributes.defense).toBe(10);
+    expect(stats(p).hp).toBe(100);
   });
   it("rejects insufficient gold", () => {
     const p = createPlayer();
@@ -56,28 +48,20 @@ describe("character and equipment", () => {
     purchase(p, "rust");
     expect(equip(p, "rust", "rightHand")).toBe(true);
     expect(p.equipment.rightHand).toBe("rust");
-    expect(stats(p).attack).toBe(19);
+    expect(stats(p).attack).toBe(16);
   });
   it("rejects wrong slot and unowned items", () => {
     const p = createPlayer();
     expect(equip(p, "wood", "helmet")).toBe(false);
     expect(equip(p, "iron", "rightHand")).toBe(false);
   });
-  it("allocates points once", () => {
-    const p = createPlayer();
-    expect(allocate(p, "vitality")).toBe(false);
-    p.points = 1;
-    allocate(p, "vitality");
-    expect(stats(p).hp).toBe(104);
-    expect(p.points).toBe(0);
-  });
 });
 describe("combat damage calculation", () => {
   it("damage never becomes negative", () => {
     const p = createPlayer(),
       e = createPlayer();
-    e.attributes.defense = 999;
-    expect(damage(p, e, 1, false, false)).toBe(1);
+    e.equipment = { body: "plate", helmet: "cap" };
+    expect(damage(p, e, 0.01, false, false)).toBe(1);
   });
   it("guard halves incoming damage", () => {
     const p = createPlayer();
@@ -100,24 +84,6 @@ describe("combat damage calculation", () => {
   });
 });
 describe("progression and persistence", () => {
-  it("grants level and attribute points", () => {
-    const p = createPlayer();
-    expect(experience(p, 100)).toBe(1);
-    expect(p.level).toBe(2);
-    expect(p.points).toBe(2);
-  });
-  it("retains excess experience", () => {
-    const p = createPlayer();
-    experience(p, 120);
-    expect(p.xp).toBe(20);
-  });
-  it("handles multiple levels", () => {
-    const p = createPlayer();
-    expect(experience(p, 460)).toBe(3);
-    expect(p.level).toBe(4);
-    expect(p.xp).toBe(10);
-    expect(p.points).toBe(6);
-  });
   it("prevents duplicate rewards across serialization", () => {
     const p = createPlayer();
     reward(p, "battle", true);
@@ -130,8 +96,27 @@ describe("progression and persistence", () => {
     const p = createPlayer();
     reward(p, "lost", false);
     expect(p.gold).toBe(110);
-    expect(p.xp).toBe(10);
     expect(p.progress).toBe(0);
+  });
+  it("migrates coins and gear while discarding old attributes, level and experience", () => {
+    const p = createPlayer();
+    p.gold = 321;
+    const loaded = deserialize(
+      JSON.stringify({
+        version: 2,
+        player: {
+          ...p,
+          level: 8,
+          xp: 12,
+          points: 4,
+          attributes: { strength: 50 },
+        },
+      }),
+    );
+    expect(loaded).toEqual(p);
+    expect(JSON.parse(serialize(loaded)).version).toBe(3);
+    expect(loaded).not.toHaveProperty("level");
+    expect(loaded).not.toHaveProperty("attributes");
   });
   it("round-trips a valid save", () => {
     const p = createPlayer();

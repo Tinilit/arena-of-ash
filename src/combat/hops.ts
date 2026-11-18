@@ -1,6 +1,5 @@
 export const hopDefinitions = {
   backstep: {
-    cost: 12,
     anticipation: 60,
     speed: 280,
     jumpSpeed: 260,
@@ -8,7 +7,6 @@ export const hopDefinitions = {
     cooldown: 180,
   },
   forwardHop: {
-    cost: 14,
     anticipation: 75,
     speed: 270,
     jumpSpeed: 340,

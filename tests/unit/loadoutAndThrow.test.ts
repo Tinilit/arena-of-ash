@@ -9,8 +9,6 @@ import {
   stats,
 } from "../../src/domain/progression";
 import { deserialize, serialize } from "../../src/persistence/save";
-import { RealtimeBattle } from "../../src/combat/realtime";
-import { opponent } from "../../src/domain/progression";
 import { Animator } from "../../src/characters/animation";
 import { equipmentMotion } from "../../src/characters/equipmentMotion";
 import { item } from "../../src/data/catalog";
@@ -35,7 +33,7 @@ describe("anatomical loadout", () => {
       belt1: "net",
       belt2: "flask",
     });
-    expect(stats(p).attack).toBe(16);
+    expect(stats(p).attack).toBe(13);
     expect(stats(p).armor).toBe(2);
     expect(deserialize(serialize(p))).toEqual(p);
   });
@@ -66,34 +64,6 @@ describe("anatomical loadout", () => {
     p.equipment.belt1 = "wood";
     expect(deserialize(serialize(p)).gold).toBe(100);
   });
-});
-describe("continuous combat stamina", () => {
-  for (const input of [
-    {},
-    { attack: "quick" as const },
-    { move: 1, run: true },
-    { jump: true },
-    { hop: -1 as const },
-  ]) {
-    it(`regenerates while ${JSON.stringify(input)} and stops at the cap/outcome`, () => {
-      const p = createPlayer(),
-        b = new RealtimeBattle(p, opponent(p));
-      b.player.stamina = 50;
-      b.enemy.stamina = 40;
-      b.advance(0, [input, {}]);
-      const before = b.player.stamina;
-      b.advance(100, [{ move: input.move, run: input.run }, {}]);
-      expect(b.player.stamina).toBeGreaterThan(before);
-      expect(b.enemy.stamina).toBeCloseTo(41.4);
-      b.player.stamina = 99.99;
-      b.advance(100, [{}, {}]);
-      expect(b.player.stamina).toBe(100);
-      b.state = "Victory";
-      b.player.stamina = 50;
-      b.advance(1000, [{}, {}]);
-      expect(b.player.stamina).toBe(50);
-    });
-  }
 });
 describe("throw preparation", () => {
   for (const hand of ["rear", "front"] as const) {
@@ -166,7 +136,7 @@ it("preserves live bonuses on active armor/weapon and ignores carried gear", () 
   item("rust")!.attack = 999;
   item("flask")!.attack = 999;
   item("net")!.armor = 999;
-  expect(stats(p).attack).toBe(19);
+  expect(stats(p).attack).toBe(16);
   expect(stats(p).armor).toBe(4);
 });
 

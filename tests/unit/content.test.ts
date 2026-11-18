@@ -156,7 +156,7 @@ describe("runtime content contract", () => {
     expect(purchase(p, "test-spear")).toBe(true);
     expect(equip(p, "test-spear", "rightHand")).toBe(true);
     expect(p.gold).toBe(80);
-    expect(stats(p).attack).toBe(32);
+    expect(stats(p).attack).toBe(29);
     expect(deserialize(serialize(p)).equipment.rightHand).toBe("test-spear");
     expect(item("test-spear")?.attack).toBe(17);
   });

@@ -8,6 +8,7 @@ import {
 } from "../domain/progression";
 import type { Hand } from "../domain/model";
 import type { ArenaFighter } from "../combat/realtime";
+import { knockdownPose } from "./knockdownMotion";
 import { hopPose } from "./hopPose";
 const smooth = (value: number) => {
   const t = Math.max(0, Math.min(1, value));
@@ -37,6 +38,8 @@ export class ArenaMotion {
   private pain: Animator;
   private movementName = "";
   private swing = -1;
+  private falling = false;
+  private fallStart: Pose = {};
   private reaction = -1;
   private carryStart: Pose = {};
   private displayed: Pose = {};
@@ -60,6 +63,23 @@ export class ArenaMotion {
     );
   }
   update(delta: number, f: ArenaFighter): Pose {
+    if (f.knockdown) {
+      if (!this.falling) this.fallStart = { ...this.displayed };
+      this.falling = true;
+      this.name =
+        f.knockdown.phase === "fall"
+          ? "knockdown"
+          : f.knockdown.phase === "down"
+            ? "down"
+            : "getUp";
+      this.displayed = knockdownPose(f.knockdown, this.fallStart, this.primary);
+      return this.displayed;
+    }
+    const recovering = this.falling;
+    if (this.falling) {
+      this.falling = false;
+      this.movementName = "";
+    }
     const running = Math.abs(f.vx) > 115,
       backwards = f.vx * f.facing < 0;
     const name =
@@ -78,7 +98,12 @@ export class ArenaMotion {
               : "walkForward";
     if (name !== this.movementName) {
       this.movementName = name;
-      this.movement.play(name);
+      this.movement.play(
+        name,
+        undefined,
+        undefined,
+        recovering ? this.displayed : undefined,
+      );
     }
     const speed =
       name === "staggerStep"

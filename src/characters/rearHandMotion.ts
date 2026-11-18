@@ -28,13 +28,13 @@ export function rearHandMotion(
       })),
     };
   const quick: HandKey[] = [
-    { time: 0, x: 62, y: 34, wrist: 0.1 },
+    { time: 0, x: 32, y: 65, wrist: 0.3 },
     { time: 0.2, x: 40, y: 48, wrist: spear ? 1.2 : 0.85 },
     { time: 0.34, x: 58, y: 28, wrist: 1.1 },
     { time: 0.5, x: 72, y: 8, wrist: 1.3 },
     { time: 0.68, x: 70, y: 18, wrist: 1.3 },
     { time: 0.84, x: 60, y: 36, wrist: 0.35 },
-    { time: 1, x: 62, y: 34, wrist: 0.1 },
+    { time: 1, x: 32, y: 65, wrist: 0.3 },
   ];
   const heavy: HandKey[] = [
     quick[0],

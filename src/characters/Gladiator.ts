@@ -252,7 +252,23 @@ export class Gladiator {
       this.originX + solved.root.x * this.bodyScale * this.direction;
     this.root.y = this.originY + solved.root.y * this.bodyScale;
     this.root.rotation = solved.root.rotation * this.direction;
-    this.shadow.x = this.root.x;
+    let floorShadowX: number | undefined;
+    if ((p.bodyFloor ?? 0) > 0) {
+      // A rotated helmet can project beyond the unarmored head envelope.
+      const bottom = this.joints.head.getBounds().bottom;
+      this.root.y -= Math.max(0, bottom - this.originY);
+      const parts = this.combatGeometry().body;
+      const left = Math.min(
+        ...parts.map((part) => Math.min(part.a.x, part.b.x) - part.radius),
+      );
+      const right = Math.max(
+        ...parts.map((part) => Math.max(part.a.x, part.b.x) + part.radius),
+      );
+      const shift = Math.max(0, 20 - left) - Math.max(0, right - 1260);
+      this.root.x += shift;
+      floorShadowX = (left + right) / 2 + shift;
+    }
+    this.shadow.x = floorShadowX ?? this.root.x;
   }
   jointSnapshot() {
     const point = (name: string, x = 0, y = 0) => {

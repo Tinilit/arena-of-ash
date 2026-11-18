@@ -1,20 +1,17 @@
 import { BaseScene } from "./BaseScene";
 import { Gladiator } from "../characters/Gladiator";
-import { label, panel, ProgressBar, colors } from "../ui/widgets";
+import { label, panel } from "../ui/widgets";
 import { en } from "../ui/strings";
 import {
-  attributes,
   equipmentSlots,
   slotCategory,
   type EquipmentSlot,
 } from "../domain/model";
 import {
-  allocate,
   equip,
   canEquip,
   unequip,
   stats,
-  threshold,
   primaryWeapon,
 } from "../domain/progression";
 import { item } from "../data/catalog";
@@ -37,7 +34,7 @@ export class CharacterScene extends BaseScene {
     panel(this, 220, 350, 370, 400);
     panel(this, 620, 350, 390, 400);
     panel(this, 1030, 350, 390, 400);
-    label(this, 65, 178, `${p.name} • ${en.level} ${p.level}`, 23);
+    label(this, 65, 178, p.name, 23);
     this.rig = new Gladiator(
       this,
       210,
@@ -170,42 +167,16 @@ export class CharacterScene extends BaseScene {
       () => restart({ page: page + 1 }),
       30,
     ).setEnabled(page + 1 < pages);
-    const xp = new ProgressBar(this, 65, 568, 310, colors.gold);
-    xp.update(p.xp, threshold(p.level));
     const st = stats(p);
     label(
       this,
       65,
-      594,
-      `HP ${st.hp} • SP ${st.stamina} • ATK ${st.attack} • ARM ${st.armor}`,
+      584,
+      `HP ${st.hp} • ATK ${st.attack} • ARM ${st.armor}`,
       16,
     );
     label(this, 430, 571, en.loadoutHint, 16, "#b9aa8d");
-    label(
-      this,
-      430,
-      598,
-      `Select a slot to equip items • ${en.points}: ${p.points}`,
-      16,
-    );
-    attributes.forEach((a, i) => {
-      const x = 65 + i * 243;
-      label(this, x, 633, `${en.attributes[a]}: ${p.attributes[a]}`, 17);
-      this.button(
-        `attribute-${a}`,
-        x + 189,
-        633,
-        35,
-        "+",
-        () => {
-          if (allocate(p, a)) {
-            this.services.save();
-            restart();
-          }
-        },
-        27,
-      ).setEnabled(p.points > 0);
-    });
+    label(this, 430, 598, "Select a slot to equip items", 16);
     this.back();
   }
   override snapshot() {

@@ -9,7 +9,7 @@ import {
   type ContactEvent,
 } from "../combat/realtime";
 import { ArenaAI } from "../combat/ArenaAI";
-import { hopDefinitions, hopKind } from "../combat/hops";
+import { hopKind } from "../combat/hops";
 import type { CombatGeometry } from "../combat/geometry";
 import { seeded } from "../utils/random";
 import { opponent, stats, reward } from "../domain/progression";
@@ -51,6 +51,7 @@ export class ArenaScene extends BaseScene {
     this.battle = new RealtimeBattle(
       this.services.player,
       opponent(this.services.player),
+      seeded(seed ^ 0x4b1d),
     );
     this.ai = new ArenaAI(seeded(seed));
     this.rigs = [
@@ -79,14 +80,10 @@ export class ArenaScene extends BaseScene {
     label(this, 1235, 83, this.battle.enemy.model.name, 23).setOrigin(1, 0.5);
     this.bars = [
       new ProgressBar(this, 44, 109, 345, colors.red),
-      new ProgressBar(this, 44, 130, 345, colors.teal),
       new ProgressBar(this, 891, 109, 345, colors.red),
-      new ProgressBar(this, 891, 130, 345, colors.teal),
     ];
     label(this, 399, 109, "HP", 14);
-    label(this, 399, 130, "SP", 14);
     label(this, 855, 109, "HP", 14);
-    label(this, 855, 130, "SP", 14);
     this.status = label(this, 640, 92, en.fight, 23, "#e8bd72").setOrigin(0.5);
     label(this, 640, 166, en.arenaHint, 14).setOrigin(0.5);
     this.button("front-attack", 330, 611, 280, "LMB / J  Front hand", () => {
@@ -95,7 +92,7 @@ export class ArenaScene extends BaseScene {
     this.button("quick", 640, 611, 280, "RMB / K  Rear hand", () => {
       this.queued = { ...this.queued, attack: "quick", hand: "rear" };
     });
-    this.button("kick", 950, 611, 280, "F  Front kick  18", () => {
+    this.button("kick", 950, 611, 280, "F  Front kick", () => {
       this.queued.attack = "kick";
     });
     for (const [id, text, x] of [
@@ -124,7 +121,7 @@ export class ArenaScene extends BaseScene {
       756,
       667,
       104,
-      `${en.jump} 10`,
+      en.jump,
       () => this.queueJump(),
       38,
     );
@@ -156,8 +153,23 @@ export class ArenaScene extends BaseScene {
         jump: "SPACE",
       }) as typeof this.keys) ?? {};
     this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
-      if (event.repeat || this.ending) return;
-      const key = event.key.toLowerCase();
+      if (
+        event.repeat ||
+        this.ending ||
+        this.paused ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey
+      )
+        return;
+      // Physical codes keep combat controls working with Ukrainian and other layouts.
+      const key = event.code.startsWith("Key")
+        ? event.code.slice(3).toLowerCase()
+        : event.code.startsWith("Digit")
+          ? event.code.slice(5)
+          : event.code === "Space"
+            ? " "
+            : event.key.toLowerCase();
       if (key === "j" || key === "1") {
         this.queued.attack = "quick";
         this.queued.hand = "front";
@@ -263,8 +275,7 @@ export class ArenaScene extends BaseScene {
   private refresh() {
     this.battle.fighters.forEach((f, i) => {
       const s = stats(f.model);
-      this.bars[i * 2].update(f.hp, s.hp);
-      this.bars[i * 2 + 1].update(Math.floor(f.stamina), s.stamina);
+      this.bars[i].update(f.hp, s.hp);
     });
     this.buttons.quick.setEnabled(
       this.battle.canAttack(this.battle.player, "quick"),
@@ -281,13 +292,11 @@ export class ArenaScene extends BaseScene {
       const relative = (direction * player.facing) as -1 | 1,
         kind = hopKind(relative);
       this.buttons["arena-jump"]
-        .setCaption(
-          `${kind === "backstep" ? en.backHop : en.forwardHop} ${hopDefinitions[kind].cost}`,
-        )
+        .setCaption(kind === "backstep" ? en.backHop : en.forwardHop)
         .setEnabled(this.battle.canHop(player, relative));
     } else
       this.buttons["arena-jump"]
-        .setCaption(`${en.jump} ${arenaRules.jumpCost}`)
+        .setCaption(en.jump)
         .setEnabled(
           !this.ending &&
             !player.hop &&
@@ -295,7 +304,7 @@ export class ArenaScene extends BaseScene {
             player.stun === 0 &&
             player.y === 0 &&
             player.vy === 0 &&
-            player.stamina >= arenaRules.jumpCost,
+            !player.knockdown,
         );
     for (const name of ["left", "right", "run", "stance"])
       this.buttons[`arena-${name}`].setEnabled(!this.ending);

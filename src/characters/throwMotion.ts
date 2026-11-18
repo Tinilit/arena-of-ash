@@ -1,111 +1,112 @@
 import type { Clip, Pose } from "./animation";
 import { combatRest } from "./locomotion";
-export const throwTiming = { duration: 1500, release: 0.64 } as const;
-/** A staged overarm preview: load, cock, lead with the elbow, release, follow through. */
+export const throwTiming = { duration: 1700, release: 0.62 } as const;
+/** Plant, turn the trunk, lead with the elbow, then extend and decelerate.
+ * Keep the hand on one continuous overarm arc, away from the IK branch cut.
+ */
 export function throwClip(): Clip {
-  const pose = (extra: Pose): Pose => {
-    const p: Pose = {
-      ...combatRest,
-      throwPreview: 1,
-      throwReleased: 0,
-      throwHeadFront: 0,
-      ...extra,
-    };
-    return p;
-  };
+  const pose = (extra: Pose): Pose => ({
+    ...combatRest,
+    throwPreview: 1,
+    throwReleased: 0,
+    throwHeadFront: 0,
+    ...extra,
+  });
   return {
     duration: throwTiming.duration,
-    blendIn: 120,
+    blendIn: 140,
     discrete: ["throwPreview", "throwReleased", "throwHeadFront"],
     sample: (phase) => ({
-      throwPreview: phase < 0.94 ? 1 : 0,
+      throwPreview: phase < 0.96 ? 1 : 0,
       throwReleased: phase >= throwTiming.release ? 1 : 0,
-      throwHeadFront: phase >= 0.32 && phase < 0.62 ? 1 : 0,
+      throwHeadFront: phase >= 0.25 && phase < 0.58 ? 1 : 0,
     }),
     frames: [
       { time: 0, pose: pose({}) },
       {
         time: 0.18,
         pose: pose({
-          rootX: -5,
-          rootY: 7,
-          torso: -0.11,
-          farHandX: -10,
-          farHandY: 65,
-        }),
-      },
-      {
-        time: 0.28,
-        pose: pose({
           rootX: -4,
           rootY: 7,
           torso: -0.1,
-          farHandX: 50,
-          farHandY: 40,
-          nearFootX: 40,
-          nearFootY: -5,
+          farHandX: 48,
+          farHandY: 18,
+          farWrist: 0.15,
         }),
       },
       {
-        time: 0.36,
+        time: 0.34,
+        pose: pose({
+          rootX: -7,
+          rootY: 8,
+          torso: -0.17,
+          farHandX: 30,
+          farHandY: -50,
+          farWrist: 0.05,
+          nearFootX: 42,
+          nearFootY: -7,
+        }),
+      },
+      {
+        time: 0.46,
         pose: pose({
           rootX: -3,
-          rootY: 5,
-          torso: -0.08,
-          farHandX: 60,
-          farHandY: -25,
-          farWrist: 0.1,
-          nearFootX: 44,
-          nearFootY: -9,
+          rootY: 7,
+          torso: -0.1,
+          farHandX: 12,
+          farHandY: -64,
+          farWrist: 0.08,
+          nearFootX: 55,
+          nearFootY: 0,
         }),
       },
       {
-        time: 0.48,
+        time: 0.54,
         pose: pose({
           rootX: 5,
-          rootY: 8,
-          torso: 0.025,
-          farHandX: -30,
-          farHandY: -55,
-          farWrist: 0.15,
-          nearFootX: 54,
-          nearFootY: -5,
+          rootY: 10,
+          torso: 0.08,
+          farHandX: 42,
+          farHandY: -48,
+          farWrist: 0.12,
+          nearFootX: 55,
         }),
       },
       {
         time: throwTiming.release,
         impact: true,
         pose: pose({
-          rootX: 12,
+          rootX: 11,
           rootY: 12,
-          torso: 0.12,
-          farHandX: 72,
-          farHandY: -8,
+          torso: 0.16,
+          farHandX: 70,
+          farHandY: -19,
           farWrist: 0.2,
-          nearFootX: 58,
+          nearFootX: 55,
         }),
       },
       {
-        time: 0.72,
+        time: 0.73,
         pose: pose({
-          rootX: 14,
+          rootX: 13,
           rootY: 11,
-          torso: 0.14,
-          farHandX: 69,
-          farHandY: 22,
-          farWrist: 0.3,
-          nearFootX: 54,
+          torso: 0.18,
+          farHandX: 63,
+          farHandY: 31,
+          farWrist: 0.25,
+          nearFootX: 55,
         }),
       },
       {
-        time: 0.9,
+        time: 0.88,
         pose: pose({
           rootX: 5,
-          rootY: 6,
-          torso: 0.05,
-          farHandX: 60,
-          farHandY: 36,
-          nearFootX: 39,
+          rootY: 7,
+          torso: 0.07,
+          farHandX: 43,
+          farHandY: 56,
+          farWrist: 0.3,
+          nearFootX: 43,
         }),
       },
       { time: 1, pose: pose({ throwPreview: 0 }) },

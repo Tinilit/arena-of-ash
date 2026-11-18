@@ -41,7 +41,7 @@ describe("equipment catalog", () => {
       purchase(p, id);
       expect(equip(p, id, id === "viking" ? "helmet" : "rightHand")).toBe(true);
     }
-    expect(stats(p).attack).toBe(25);
+    expect(stats(p).attack).toBe(22);
     expect(stats(p).armor).toBe(3);
     expect(deserialize(serialize(p))).toEqual(p);
   });

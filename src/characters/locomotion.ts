@@ -16,7 +16,7 @@ export const freeFrontArm: Pose = {
   nearHandY: 69,
   nearWrist: 0.03,
 };
-export const rearReady: Pose = { farHandX: 62, farHandY: 34, farWrist: 0.1 };
+export const rearReady: Pose = { farHandX: 32, farHandY: 65, farWrist: 0.3 };
 export const combatRest: Pose = {
   weaponGrip: Math.PI / 2,
   rootX: 0,

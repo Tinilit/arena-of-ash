@@ -10,35 +10,14 @@ export const item = (id: string) => items.find((i) => i.id === id);
 export const enemies = [
   {
     name: "Arena Novice",
-    attributes: {
-      strength: 7,
-      agility: 7,
-      vitality: 5,
-      defense: 5,
-      endurance: 6,
-    },
     equipment: { rightHand: "wood" },
   },
   {
     name: "Iron Pit Fighter",
-    attributes: {
-      strength: 11,
-      agility: 10,
-      vitality: 10,
-      defense: 10,
-      endurance: 10,
-    },
     equipment: { rightHand: "rust", body: "leather" },
   },
   {
     name: "Veteran Gladiator",
-    attributes: {
-      strength: 14,
-      agility: 13,
-      vitality: 14,
-      defense: 13,
-      endurance: 13,
-    },
     equipment: {
       rightHand: "iron",
       body: "plate",
@@ -47,6 +26,6 @@ export const enemies = [
   },
 ];
 export const rewards = {
-  victory: { gold: 50, xp: 40 },
-  defeat: { gold: 10, xp: 10 },
+  victory: { gold: 50 },
+  defeat: { gold: 10 },
 };

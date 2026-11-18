@@ -67,13 +67,7 @@ export class MainMenuScene extends BaseScene {
         this.input.keyboard?.removeKey(key, true);
       this.keys = undefined;
     });
-    label(
-      this,
-      960,
-      588,
-      `${this.services.player.name} • ${en.level} ${this.services.player.level}`,
-      20,
-    ).setOrigin(0.5);
+    label(this, 960, 588, this.services.player.name, 20).setOrigin(0.5);
     label(this, 960, 614, en.movementHint, 13).setOrigin(0.5);
     const controls = [
       [

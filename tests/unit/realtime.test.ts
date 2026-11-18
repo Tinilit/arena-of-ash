@@ -86,11 +86,11 @@ describe("moving capsule contact", () => {
   });
 });
 describe("real-time arena rules", () => {
-  it("spends stamina on starting a swing, without precomputing damage", () => {
+  it("starts a swing without resources or precomputed damage", () => {
     const b = make();
     begin(b);
-    expect(b.player.stamina).toBe(88);
-    expect(b.enemy.hp).toBe(80);
+    expect(b.player).not.toHaveProperty("stamina");
+    expect(b.enemy.hp).toBe(100);
     expect(b.contacts).toHaveLength(0);
     expect(b.player.action?.name).toBe("quick");
   });
@@ -101,14 +101,14 @@ describe("real-time arena rules", () => {
     expect(b.resolve([geometry(), geometry()])).toEqual([]);
     b.advance(800, [{}, {}]);
     expect(b.resolve([geometry(), geometry()])).toEqual([]);
-    expect(b.enemy.hp).toBe(80);
+    expect(b.enemy.hp).toBe(100);
   });
   it("never damages a target outside the actual blade, even at the authored impact time", () => {
     const b = make();
     begin(b);
     active(b);
     expect(b.resolve([geometry(-100), geometry(100, 200)])).toEqual([]);
-    expect(b.enemy.hp).toBe(80);
+    expect(b.enemy.hp).toBe(100);
   });
   it("does not sweep an inactive wind-up or a facing flip into the active strike", () => {
     const b = make();
@@ -118,29 +118,14 @@ describe("real-time arena rules", () => {
     expect(b.resolve([geometry(100), geometry(0)])).toEqual([]);
     b.player.facing = -1;
     expect(b.resolve([geometry(-100), geometry(0)])).toEqual([]);
-    expect(b.enemy.hp).toBe(80);
-  });
-  it("requires stamina for a jump and a fresh guard, without exhausting into a free permanent block", () => {
-    const b = make();
-    b.player.stamina = 0;
-    b.advance(8, [{ jump: true, guard: true }, {}]);
-    expect(b.player.y).toBe(0);
-    expect(b.player.guard).toBe(false);
-    b.player.stamina = 10;
-    b.advance(8, [{ guard: true }, {}]);
-    expect(b.player.guard).toBe(true);
-    b.player.stamina = 0;
-    b.advance(8, [{ guard: true }, {}]);
-    expect(b.player.guard).toBe(false);
-    for (let i = 0; i < 10; i++) b.advance(8, [{ guard: true }, {}]);
-    expect(b.player.guard).toBe(false);
+    expect(b.enemy.hp).toBe(100);
   });
   it("damages only once per swing across many contact frames and permits a later swing", () => {
     const b = make();
     begin(b);
     active(b);
     expect(b.resolve([geometry(), geometry()])).toHaveLength(1);
-    expect(b.enemy.hp).toBe(66);
+    expect(b.enemy.hp).toBe(87);
     for (let i = 0; i < 20; i++)
       expect(b.resolve([geometry(), geometry()])).toEqual([]);
     b.advance(450, [{}, {}]);
@@ -148,26 +133,22 @@ describe("real-time arena rules", () => {
     begin(b);
     active(b);
     expect(b.resolve([geometry(), geometry()])).toHaveLength(1);
-    expect(b.enemy.hp).toBe(52);
+    expect(b.enemy.hp).toBe(74);
   });
   it("does not apply random misses to a confirmed physical contact", () => {
     const b = make();
-    b.player.model.attributes.agility = 0;
-    b.enemy.model.attributes.agility = 1000;
     begin(b);
     active(b);
     b.resolve([geometry(), geometry()]);
-    expect(b.enemy.hp).toBeLessThan(80);
+    expect(b.enemy.hp).toBeLessThan(100);
   });
-  it("reduces contact damage while AI guarding and continuously regenerates stamina", () => {
+  it("reduces contact damage while AI guarding", () => {
     const b = make();
     begin(b);
-    b.enemy.stamina = 60;
     b.advance(550, [{}, { guard: true }]);
     const [event] = b.resolve([geometry(), geometry()]);
     expect(event.blocked).toBe(true);
     expect(event.damage).toBe(7);
-    expect(b.enemy.stamina).toBeCloseTo(63.3);
   });
   it("resolves simultaneous lethal contacts as a draw, then ignores further hits", () => {
     const b = make();
@@ -191,17 +172,15 @@ describe("real-time arena rules", () => {
       expect(b.canAttack(b.player, "heavy")).toBe(false);
     },
   );
-  it("rejects unaffordable attacks and overlapping action requests", () => {
+  it("rejects heavy attacks and overlapping action requests", () => {
     const b = make();
-    b.player.stamina = 11;
-    begin(b);
+    begin(b, true);
     expect(b.player.action).toBeNull();
-    b.player.stamina = 100;
     begin(b);
     const id = b.player.action!.id;
     b.advance(0, [{ attack: "heavy" }, {}]);
     expect(b.player.action!.id).toBe(id);
-    expect(b.player.stamina).toBe(88);
+    expect(b.player).not.toHaveProperty("stamina");
   });
   it("allows movement and jumping during a swing without another jump in flight", () => {
     const b = make();
@@ -241,18 +220,15 @@ describe("real-time arena rules", () => {
     b.advance(1000, [{}, {}]);
     expect(b.player.facing).toBe(-1);
   });
-  it("finishes recovery once, caps regeneration and leaves persistent models unchanged", () => {
+  it("runs and jumps repeatedly without a hidden resource, leaving persistent gear unchanged", () => {
     const p = createPlayer(),
       initial = structuredClone(p),
       b = new RealtimeBattle(p, opponent(p));
-    b.player.stamina = 30;
-    b.advance(0, [{ recover: true }, {}]);
-    b.advance(740, [{}, {}]);
-    expect(b.player.stamina).toBeCloseTo(40.36);
-    b.advance(10, [{}, {}]);
-    expect(b.player.stamina).toBeCloseTo(65.5);
-    b.advance(5000, [{}, {}]);
-    expect(b.player.stamina).toBe(100);
+    b.enemy.x = 1190;
+    for (let i = 0; i < 600; i++)
+      b.advance(arenaRules.step, [{ move: -1, run: true, jump: true }, {}]);
+    expect(b.player).not.toHaveProperty("stamina");
+    expect(b.player.y).toBeLessThan(0);
     expect(p).toEqual(initial);
   });
   it("keeps contact windows aligned with sword/spear action durations", () => {
@@ -293,13 +269,13 @@ describe("real-time arena rules", () => {
     ])
       expect(start[key]).toBeCloseTo(displayed[key]!);
   });
-  it("AI closes the distance and selects affordable attacks, guard or jumps and waits for passive regeneration", () => {
+  it("AI closes distance, attacks and waits through knockdown", () => {
     const b = make(),
       ai = new ArenaAI(() => 0.8);
     expect(ai.update(600, b.enemy, b.player).move).toBe(-1);
     b.enemy.x = b.player.x + 120;
     expect(ai.update(600, b.enemy, b.player).attack).toBe("quick");
-    b.enemy.stamina = 5;
+    b.enemy.knockdown = { phase: "down", elapsed: 0 };
     expect(ai.update(600, b.enemy, b.player).recover).toBeUndefined();
     expect(ai.update(600, b.enemy, b.player).attack).toBeUndefined();
   });

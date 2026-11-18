@@ -19,8 +19,6 @@ export const arenaRules = {
   run: 200,
   gravity: 1350,
   jumpSpeed: 500,
-  jumpCost: 10,
-  staminaRegen: 14,
   hitStun: 180,
   hitReaction: 280,
   kickStun: 350,
@@ -28,6 +26,12 @@ export const arenaRules = {
   kickImpulse: 500,
   pushFriction: 600,
 };
+export const knockdownTiming = {
+  fall: 550,
+  down: 1000,
+  getUp: 1800,
+  chance: 0.2,
+} as const;
 export const attackTimings = {
   quick: { duration: 1000, from: 0.45, to: 0.67 },
   kick: { duration: 1050, from: 0.36, to: 0.56 },
@@ -70,6 +74,7 @@ export interface ArenaFighter extends Fighter {
   attackCooldown: number;
   stun: number;
   pushVx: number;
+  knockdown: { phase: "fall" | "down" | "getUp"; elapsed: number } | null;
   reaction: {
     id: number;
     kind: "hit" | "stagger";
@@ -84,6 +89,7 @@ export interface ContactEvent {
   defenderId: string;
   damage: number;
   blocked: boolean;
+  knockdown: boolean;
   kind: "weapon" | "punch" | "kick";
   hand: Hand;
   point: Point;
@@ -107,6 +113,7 @@ function actor(model: Player, x: number, facing: 1 | -1): ArenaFighter {
     stun: 0,
     pushVx: 0,
     reaction: null,
+    knockdown: null,
   };
 }
 export class RealtimeBattle {
@@ -117,7 +124,11 @@ export class RealtimeBattle {
   private previous?: [CombatGeometry, CombatGeometry];
   private previousFacing: number[] = [];
   private previousActive: number[] = [];
-  constructor(player: Player, enemy: Player) {
+  constructor(
+    player: Player,
+    enemy: Player,
+    private random: () => number = Math.random,
+  ) {
     this.fighters = [actor(player, 370, 1), actor(enemy, 910, -1)];
   }
   get player() {
@@ -131,26 +142,27 @@ export class RealtimeBattle {
       this.state === "Fighting" &&
       f.hp > 0 &&
       name !== "heavy" &&
+      !f.knockdown &&
       f.stun === 0 &&
       f.attackCooldown === 0 &&
       !f.action &&
       (name !== "kick" || (f.y === 0 && f.vy === 0 && !f.hop)) &&
-      f.reaction?.kind !== "stagger" &&
-      f.stamina >= actions[name].cost
+      f.reaction?.kind !== "stagger"
     );
   }
   canHop(f: ArenaFighter, direction: -1 | 1) {
     return (
       this.state === "Fighting" &&
+      (direction === -1 || direction === 1) &&
       f === this.player &&
       f.hp > 0 &&
+      !f.knockdown &&
       f.stun === 0 &&
       !f.reaction &&
       f.y === 0 &&
       f.vy === 0 &&
       !f.hop &&
-      f.hopCooldown === 0 &&
-      f.stamina >= hopDefinitions[hopKind(direction)].cost
+      f.hopCooldown === 0
     );
   }
   advance(delta: number, input: [ArenaInput, ArenaInput]) {
@@ -185,19 +197,38 @@ export class RealtimeBattle {
       if (f.action) {
         f.action.elapsed += delta;
         if (f.action.elapsed >= f.action.duration) {
-          if (f.action.name === "recover")
-            f.stamina = Math.min(stats(f.model).stamina, f.stamina + 25);
           f.attackCooldown = f.action.name === "kick" ? 350 : 280;
           f.action = null;
         }
       }
-      const c = f.stun > 0 || f.reaction?.kind === "stagger" ? {} : input[i];
+      if (f.knockdown) {
+        const k = f.knockdown;
+        k.elapsed += delta;
+        if (
+          k.phase === "fall" &&
+          k.elapsed >= knockdownTiming.fall &&
+          f.y === 0
+        ) {
+          k.phase = "down";
+          k.elapsed = 0;
+          f.pushVx = 0;
+        } else if (k.phase === "down" && k.elapsed >= knockdownTiming.down) {
+          k.phase = "getUp";
+          k.elapsed = 0;
+        } else if (k.phase === "getUp" && k.elapsed >= knockdownTiming.getUp) {
+          f.knockdown = null;
+          f.landed = 1000;
+        }
+      }
+      const c =
+        f.knockdown || f.stun > 0 || f.reaction?.kind === "stagger"
+          ? {}
+          : input[i];
       if (c.toggleStance) f.relaxed = !f.relaxed;
-      if (!f.action && !f.hop && !f.reaction)
+      if (!f.action && !f.hop && !f.reaction && !f.knockdown)
         f.facing = this.fighters[1 - i].x >= f.x ? 1 : -1;
       const request = c.attack ?? (c.recover ? "recover" : undefined);
       if (request && this.canAttack(f, request)) {
-        f.stamina -= actions[request].cost;
         f.action = {
           id: ++this.sequence,
           name: request,
@@ -211,7 +242,6 @@ export class RealtimeBattle {
       }
       if (i === 0 && c.hop && this.canHop(f, c.hop)) {
         const kind = hopKind(c.hop);
-        f.stamina -= hopDefinitions[kind].cost;
         f.hop = {
           kind,
           phase: "anticipation",
@@ -220,11 +250,7 @@ export class RealtimeBattle {
         };
       }
       f.guard = Boolean(
-        c.guard &&
-        !f.action &&
-        !f.hop &&
-        !f.reaction &&
-        f.stamina >= (f.guard ? 0.1 : 10),
+        c.guard && !f.action && !f.hop && !f.reaction && !f.knockdown,
       );
       if (f.guard) f.relaxed = false;
       if (
@@ -234,20 +260,15 @@ export class RealtimeBattle {
         !f.reaction &&
         f.y === 0 &&
         f.vy === 0 &&
-        f.stamina >= arenaRules.jumpCost
+        !f.knockdown
       ) {
         f.vy = -arenaRules.jumpSpeed;
-        f.stamina -= arenaRules.jumpCost;
       }
-      const running = c.run && f.stamina >= 1;
+      const running = c.run;
       const movement = Math.max(-1, Math.min(1, c.move ?? 0));
       f.vx =
         movement *
         (running ? arenaRules.run : arenaRules.walk) *
-        Math.max(
-          0.8,
-          Math.min(1.5, 1 + (f.model.attributes.agility - 10) * 0.01),
-        ) *
         (f.guard ? 0.5 : f.action ? 0.7 : 1);
       if (f.hop)
         f.vx =
@@ -255,6 +276,7 @@ export class RealtimeBattle {
             ? f.hop.direction * hopDefinitions[f.hop.kind].speed
             : 0;
       if (
+        f.knockdown ||
         f.action?.name === "kick" ||
         f.stun > 0 ||
         f.reaction?.kind === "stagger"
@@ -282,18 +304,14 @@ export class RealtimeBattle {
           }
         }
       }
-      const drain = f.hop ? 0 : f.guard ? 8 : running && movement ? 10 : 0;
-      const regeneration = arenaRules.staminaRegen;
-      f.stamina = Math.max(
-        0,
-        Math.min(
-          stats(f.model).stamina,
-          f.stamina + (regeneration - drain) * dt,
-        ),
-      );
     });
     const [a, b] = this.fighters;
-    if (Math.abs(a.y - b.y) < 180 && Math.abs(a.x - b.x) < 64) {
+    if (
+      !a.knockdown &&
+      !b.knockdown &&
+      Math.abs(a.y - b.y) < 180 &&
+      Math.abs(a.x - b.x) < 64
+    ) {
       const sign = a.x <= b.x ? -1 : 1;
       const middle = Math.max(
         arenaRules.minX + 32,
@@ -363,9 +381,7 @@ export class RealtimeBattle {
               ? Math.max(
                   1,
                   Math.round(
-                    (8 +
-                      f.model.attributes.strength * 0.4 -
-                      stats(defender.model).armor * 0.5) *
+                    (12 - stats(defender.model).armor * 0.5) *
                       (defender.guard ? 0.5 : 1),
                   ),
                 )
@@ -378,6 +394,10 @@ export class RealtimeBattle {
                   swing.hand,
                 ),
           blocked: defender.guard,
+          knockdown:
+            swing.name === "kick" &&
+            !defender.knockdown &&
+            this.random() < knockdownTiming.chance,
           ...collision,
         });
       }
@@ -388,18 +408,26 @@ export class RealtimeBattle {
       defender.hp = Math.max(0, defender.hp - e.damage);
       const attacker = this.fighters.find((f) => f.model.id === e.attackerId)!;
       const direction: 1 | -1 = attacker.x <= defender.x ? 1 : -1;
+      if (defender.knockdown) {
+        // Further contact still deals damage without restarting a floor transfer.
+        this.contacts.push(e);
+        continue;
+      }
+      if (e.knockdown) defender.knockdown = { phase: "fall", elapsed: 0 };
       defender.stun =
         e.kind === "kick" ? arenaRules.kickStun : arenaRules.hitStun;
-      defender.reaction = {
-        id: e.id,
-        kind: e.kind === "kick" ? "stagger" : "hit",
-        elapsed: 0,
-        duration:
-          e.kind === "kick"
-            ? arenaRules.staggerDuration
-            : arenaRules.hitReaction,
-        direction,
-      };
+      defender.reaction = e.knockdown
+        ? null
+        : {
+            id: e.id,
+            kind: e.kind === "kick" ? "stagger" : "hit",
+            elapsed: 0,
+            duration:
+              e.kind === "kick"
+                ? arenaRules.staggerDuration
+                : arenaRules.hitReaction,
+            direction,
+          };
       defender.pushVx =
         direction * (e.kind === "kick" ? arenaRules.kickImpulse : 65);
       defender.action = null;

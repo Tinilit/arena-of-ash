@@ -198,6 +198,62 @@ export function groundedPose(p: Pose, travelScale = 1) {
       for (const point of [leg.hip, leg.knee, leg.ankle, leg.sole])
         point.y -= penetration;
   }
+  if (v("bodyFloor") > 0) {
+    // A floor transfer is supported by the whole body, not only by the boots.
+    // Use the same local art envelopes and fixed joints as the rendered rig.
+    const boxBottom = (origin: Point, angle: number, box: number[]) => {
+      const [x, y, width, height] = box;
+      return Math.max(
+        ...[x, x + width].flatMap((px) =>
+          [y, y + height].map(
+            (py) => origin.y + rotate({ x: px, y: py }, angle).y,
+          ),
+        ),
+      );
+    };
+    const bodyPoint = (point: Point) =>
+      world(add({ x: 0, y: skeleton.pelvisY }, rotate(point, torso)));
+    const bodyAngle = root.rotation + torso;
+    const arms = [arm("near"), arm("far")];
+    const bottom = Math.max(
+      boxBottom(
+        bodyPoint({ x: 0, y: skeleton.headY }),
+        bodyAngle + v("head"),
+        [-32, -49, 66, 75],
+      ),
+      boxBottom(
+        bodyPoint({ x: 0, y: skeleton.torsoArtY }),
+        bodyAngle,
+        [-38, -14, 76, 96],
+      ),
+      boxBottom(
+        world({ x: 0, y: skeleton.hipY }),
+        root.rotation,
+        [-36, -3, 72, 49],
+      ),
+      ...[nearLeg, farLeg].flatMap((leg) => [
+        leg.knee.y + 11,
+        boxBottom(
+          leg.ankle,
+          root.rotation + leg.angle + leg.bend + leg.foot,
+          [-13, -14, 40, 28],
+        ),
+      ]),
+      ...arms.flatMap((a) => [
+        a.elbow.y + 10,
+        boxBottom(
+          a.hand,
+          bodyAngle + a.angle + a.bend + a.wrist,
+          [-13, -8, 27, 28],
+        ),
+      ]),
+    );
+    const penetration = Math.max(0, bottom);
+    root.y -= penetration;
+    for (const leg of [nearLeg, farLeg])
+      for (const point of [leg.hip, leg.knee, leg.ankle, leg.sole])
+        point.y -= penetration;
+  }
   return {
     root,
     torso,

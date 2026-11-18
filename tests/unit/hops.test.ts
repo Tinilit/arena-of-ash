@@ -11,11 +11,10 @@ const step = (b: RealtimeBattle) => b.advance(arenaRules.step, [{}, {}]);
 describe("player directional hops", () => {
   for (const direction of [-1, 1] as const) {
     const kind = direction < 0 ? "backstep" : "forwardHop";
-    it(`${kind}: spends once, anticipates, follows a ballistic arc, lands and cools down without attacking`, () => {
+    it(`${kind}: anticipates, follows a ballistic arc, lands and cools down without attacking`, () => {
       const b = make(),
         start = b.player.x;
       b.advance(0, [{ hop: direction }, { hop: direction }]);
-      expect(b.player.stamina).toBe(100 - hopDefinitions[kind].cost);
       expect(b.enemy.hop).toBeNull();
       expect(b.player.hop?.phase).toBe("anticipation");
       expect(b.player.y).toBe(0);
@@ -27,7 +26,6 @@ describe("player directional hops", () => {
         step(b);
         minimum = Math.min(minimum, b.player.y);
         expect(b.player.action).toBeNull();
-        expect(b.player.stamina).toBeLessThan(100);
       }
       expect([...phases]).toEqual(["anticipation", "air", "landing"]);
       expect(minimum).toBeCloseTo(
@@ -39,28 +37,20 @@ describe("player directional hops", () => {
       expect(b.player.y).toBe(0);
       expect(b.player.vy).toBe(0);
       expect(b.canHop(b.player, direction)).toBe(false);
-      expect(b.enemy.hp).toBe(80);
+      expect(b.enemy.hp).toBe(100);
       expect(b.contacts).toEqual([]);
       for (let i = 0; i < 25; i++) step(b);
       expect(b.canHop(b.player, direction)).toBe(true);
     });
   }
-  it("rejects insufficient stamina and air retriggers without replacing a hop or ordinary jump", () => {
+  it("rejects air retriggers without replacing a hop or ordinary jump", () => {
     const b = make();
-    b.player.stamina = 11;
-    b.advance(0, [{ hop: -1 }, {}]);
-    expect(b.player.hop).toBeNull();
-    b.player.stamina = 100;
     b.advance(0, [{ hop: -1 }, {}]);
     for (let i = 0; i < 12; i++) step(b);
     const hop = b.player.hop,
-      stamina = b.player.stamina,
       vy = b.player.vy;
     b.advance(arenaRules.step, [{ hop: 1, jump: true }, {}]);
     expect(b.player.hop).toBe(hop);
-    expect(b.player.stamina).toBeCloseTo(
-      stamina + (arenaRules.staminaRegen * arenaRules.step) / 1000,
-    );
     expect(b.player.vy).toBeGreaterThan(vy);
     const ordinary = make();
     ordinary.advance(8, [{ jump: true }, {}]);

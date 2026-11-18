@@ -15,7 +15,7 @@ const cap = (x: number): Capsule => ({
 });
 const make = () => {
   const p = createPlayer();
-  return new RealtimeBattle(p, opponent(p));
+  return new RealtimeBattle(p, opponent(p), () => 0.5);
 };
 const geometry = (front: number, rear: number, body = 0): CombatGeometry => ({
   blade: cap(rear),
@@ -34,7 +34,7 @@ describe("explicit hand attacks", () => {
     const [hit] = b.resolve([geometry(0, 100), geometry(0, 0)]);
     expect(hit.kind).toBe("punch");
     expect(hit.hand).toBe("front");
-    expect(hit.damage).toBe(13);
+    expect(hit.damage).toBe(12);
   });
   it("uses the chosen second weapon's capsule and stats without a primary fallback", () => {
     const b = make();
@@ -44,7 +44,7 @@ describe("explicit hand attacks", () => {
     expect(b.resolve([geometry(100, 0), geometry(0, 0)])).toEqual([]);
     const [hit] = b.resolve([geometry(0, 100), geometry(0, 0)]);
     expect(hit.kind).toBe("weapon");
-    expect(hit.damage).toBe(23);
+    expect(hit.damage).toBe(22);
   });
   it.each(["front", "rear"] as Hand[])(
     "can punch with an empty %s hand",
@@ -138,7 +138,7 @@ describe("pain and front kick", () => {
   });
 });
 
-it("rear overarm wind-up reaches behind the head without moving the shoulder or stretching bones", async () => {
+it("rear overarm wind-up stays continuous above the shoulder without stretching bones", async () => {
   const { equipmentMotion } =
     await import("../../src/characters/equipmentMotion");
   const { Animator } = await import("../../src/characters/animation");
@@ -147,7 +147,7 @@ it("rear overarm wind-up reaches behind the head without moving the shoulder or 
   const a = new Animator(equipmentMotion(undefined, "front"));
   a.play("throw");
   let coiled = false;
-  for (let t = 0; t < 1500; t += 8) {
+  for (let t = 0; t < 1700; t += 8) {
     const p = a.update(8),
       s = groundedPose(p),
       arm = s.farArm;
@@ -170,7 +170,7 @@ it("rear overarm wind-up reaches behind the head without moving the shoulder or 
     expect(
       Math.hypot(arm.hand.x - expected.x, arm.hand.y - expected.y),
     ).toBeLessThan(1e-6);
-    if (p.farHandX! < 0 && p.farHandY! < -50) {
+    if (p.farHandX! < 20 && p.farHandY! < -60) {
       coiled = true;
       expect(p.throwHeadFront).toBe(1);
       expect(p.nearHandY).toBeCloseTo(69, 7);

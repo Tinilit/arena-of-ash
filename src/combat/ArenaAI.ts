@@ -22,6 +22,7 @@ export class ArenaAI {
       guard: this.guardFor > 0,
     };
     if (
+      self.knockdown ||
       self.action ||
       self.stun > 0 ||
       self.reaction ||
@@ -30,7 +31,7 @@ export class ArenaAI {
     )
       return input;
     this.thinking = 250 + this.rng() * 350;
-    if (self.stamina >= 12 && gap <= reach + 20) {
+    if (gap <= reach + 20) {
       const roll = this.rng();
       if (target.action && roll < 0.16) {
         this.guardFor = 650;

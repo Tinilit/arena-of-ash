@@ -34,13 +34,13 @@ On the managed cloud machine, system Chromium is detected automatically. Activat
 
 ## Play
 
-Start from camp, enter the arena, buy equipment and allocate level-up points in Character. Arena combat runs in real time. **A/D** or **Left/Right** move, **Shift** runs, **Space** jumps, **A/D+Space** performs a backward/forward hop relative to facing in the arena, **LMB/J/1** uses the front hand and **RMB/K/2** uses the rear hand. Weapons make light attacks; empty hands punch. **F/3** performs a front kick with contact-based pushback. Heavy attacks are disabled. Stamina regenerates continuously, including during attacks and hops. **R** changes relaxed/combat stance. Move, run and jump during an attack. **Escape** returns to camp without a reward for an unresolved fight.
+Start from camp, enter the arena, buy equipment and manage your loadout in Character. Arena combat runs in real time. **A/D** or **Left/Right** move, **Shift** runs, **Space** jumps, **A/D+Space** performs a backward/forward hop relative to facing in the arena, **LMB/J/1** uses the front hand and **RMB/K/2** uses the rear hand. Weapons make light attacks; empty hands punch. **F/3** performs a front kick with contact-based pushback and a 20% knockdown chance. Heavy attacks are disabled. There are no attributes, character levels or energy costs. **R** changes relaxed/combat stance. Move, run and jump during an attack. **Escape** returns to camp without a reward for an unresolved fight.
 
 Mouse/touch users can hold the arrow/Run buttons, tap Jump or an attack. The free front arm stays behind the torso; each mouse button uses its own hand, including a bare fist when empty. Camp retains its movement demonstration buttons and keyboard controls; **T** previews throwing. Character also has a **Throw preview** button.
 
-Damage requires the active blade to contact a moving body part. A swing that misses costs stamina but no HP. Each swing can hit once; idle weapons, sword grips and spear shafts do not deal damage. Body and blade collision shapes follow the actual articulated rig, including jumps and mirrored facing. See [real-time combat](docs/REALTIME_COMBAT.md).
+Damage requires the active blade to contact a moving body part. A swing that misses deals no damage. Each swing can hit once; idle weapons, sword grips and spear shafts do not deal damage. Body and blade collision shapes follow the actual articulated rig, including jumps and mirrored facing. See [real-time combat](docs/REALTIME_COMBAT.md).
 
-Victory earns 50 gold and 40 XP; defeat earns 10 of each. Every level grants two attribute points. Saves are automatic in localStorage. Reset Progress requires confirmation. There is no special migration for retired catalog items or old appearance preferences.
+Victory earns 50 gold; defeat earns 10 gold. Saves are automatic in localStorage. Reset Progress requires confirmation. Version 2 saves retain coins and equipment while discarded attributes and leveling fields are removed.
 
 ## Equipment
 
@@ -55,7 +55,7 @@ Item definitions live in [`public/content/items.json`](public/content/items.json
 
 ## Scope and documentation
 
-Six scenes, three opponents, five attributes, leveling, persistent saves and a modular articulated rig. The veteran opponent repeats. Fight HP/stamina reset each battle; unfinished fights are not saved. Artwork remains procedural, balance is basic, and there is no audio or backend. Storage failure permits session-only play with a warning. The Phaser bundle produces a size warning.
+Six scenes, three opponents, equipment-based bonuses, persistent saves and a modular articulated rig. The veteran opponent repeats. Fight health resets each battle; unfinished fights are not saved. Artwork remains procedural, balance is basic, and there is no audio or backend. Storage failure permits session-only play with a warning. The Phaser bundle produces a size warning.
 
 See [architecture](docs/ARCHITECTURE.md), [animation](docs/ANIMATION_SYSTEM.md), [anatomy and references](docs/ANTHROPOMETRY.md), [art contract](docs/ART_PIPELINE.md), [game design](docs/GAME_DESIGN.md), [roadmap](docs/ROADMAP.md), and [verification](docs/VERIFICATION.md).
 

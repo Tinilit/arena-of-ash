@@ -172,8 +172,7 @@ async function finish(page: Page, attack = true) {
     if (s.battle?.state === "Fighting" && attack) {
       const inRange = await steer(page, s);
       if (!s.battle.player.action) {
-        if (s.battle.player.stamina >= 12 && inRange)
-          await page.keyboard.press("k");
+        if (inRange) await page.keyboard.press("k");
       }
     }
     await page.waitForTimeout(100);
@@ -218,19 +217,19 @@ test("complete battle, animation impact and persisted victory rewards", async ({
   await click(page, "battle");
   await scene(page, "ArenaScene");
   expect((await snapshot(page)).battle!.player.hp).toBe(100);
-  expect((await snapshot(page)).battle!.enemy.hp).toBe(80);
+  expect((await snapshot(page)).battle!.enemy.hp).toBe(100);
   await shot(page, "arena");
   await click(page, "quick");
   await page.waitForTimeout(720);
-  expect((await snapshot(page)).battle!.enemy.hp).toBe(80);
+  expect((await snapshot(page)).battle!.enemy.hp).toBe(100);
   expect((await snapshot(page)).battle!.contacts).toHaveLength(0);
   await shot(page, "attack-missed-at-distance");
   const hit = await hitEnemy(page);
-  expect(hit.damage).toBe(hit.blocked ? 7 : 14);
-  expect((await snapshot(page)).battle!.enemy.hp).toBe(80 - hit.damage);
+  expect(hit.damage).toBe(hit.blocked ? 7 : 13);
+  expect((await snapshot(page)).battle!.enemy.hp).toBe(100 - hit.damage);
   await finish(page);
   expect((await snapshot(page)).player.gold).toBe(150);
-  expect((await snapshot(page)).player.xp).toBe(40);
+  expect((await snapshot(page)).player).not.toHaveProperty("xp");
   await shot(page, "victory");
   await page.reload();
   await scene(page, "MainMenuScene");
@@ -245,7 +244,7 @@ test("defeat awards once and fight again initializes a fresh battle", async ({
   await finish(page, false);
   const p = (await snapshot(page)).player;
   expect(p.gold).toBe(110);
-  expect(p.xp).toBe(10);
+  expect(p).not.toHaveProperty("level");
   expect(p.rewarded).toHaveLength(1);
   expect(p.progress).toBe(0);
   await shot(page, "defeat");
@@ -263,8 +262,8 @@ test("paginated purchases and inventory equip all remaining items and persist th
   await page.evaluate(
     (p) =>
       localStorage.setItem(
-        "arena-of-ash.v2",
-        JSON.stringify({ version: 2, player: p }),
+        "arena-of-ash.v3",
+        JSON.stringify({ version: 3, player: p }),
       ),
     p,
   );
@@ -313,7 +312,7 @@ test("paginated purchases and inventory equip all remaining items and persist th
   ).toBeLessThan(0.01);
   await shot(page, "new-equipment-arena");
   const hit = await hitEnemy(page);
-  expect(hit.damage).toBe(hit.blocked ? 12 : 23);
+  expect(hit.damage).toBe(hit.blocked ? 11 : 22);
   await shot(page, "spear-thrust");
   await page.reload();
   await scene(page, "MainMenuScene");
@@ -409,36 +408,22 @@ test("default renderer starts without errors", async ({ page }) => {
   await shot(page, "default-renderer");
 });
 
-test("attribute allocation persists and updates battle statistics", async ({
+test("character has gear and health but no attributes, leveling or energy", async ({
   page,
 }) => {
   await launch(page);
   const p = (await snapshot(page)).player;
-  p.level = 2;
-  p.points = 2;
-  await page.evaluate(
-    (p) =>
-      localStorage.setItem(
-        "arena-of-ash.v2",
-        JSON.stringify({ version: 2, player: p }),
-      ),
-    p,
-  );
-  await page.reload();
-  await scene(page, "MainMenuScene");
+  for (const key of ["attributes", "level", "xp", "points"])
+    expect(p).not.toHaveProperty(key);
   await click(page, "character");
-  await click(page, "attribute-vitality");
-  await click(page, "attribute-strength");
-  expect((await snapshot(page)).player.points).toBe(0);
-  expect((await snapshot(page)).player.attributes.vitality).toBe(11);
-  await page.reload();
-  await scene(page, "MainMenuScene");
-  expect((await snapshot(page)).player.attributes.strength).toBe(11);
+  const buttons = (await snapshot(page)).buttons;
+  expect(Object.keys(buttons).some((key) => key.startsWith("attribute-"))).toBe(
+    false,
+  );
+  await page.keyboard.press("Escape");
   await click(page, "battle");
-  await scene(page, "ArenaScene");
-  expect((await snapshot(page)).battle!.player.hp).toBe(104);
-  const hit = await hitEnemy(page);
-  expect(hit.damage).toBe(hit.blocked ? 8 : 15);
+  expect((await snapshot(page)).battle!.player).not.toHaveProperty("stamina");
+  expect((await snapshot(page)).battle!.player.hp).toBe(100);
 });
 
 test("external JSON adds image-backed equipment and changes live stats after refresh without code changes", async ({
@@ -512,7 +497,7 @@ test("external JSON adds image-backed equipment and changes live stats after ref
   if (!("image" in updated)) throw Error("Missing test artwork");
   updated.image.src = "items/runtime-spear-v2.png";
   const firstHit = await hitEnemy(page);
-  expect(firstHit.damage).toBe(firstHit.blocked ? 13 : 25);
+  expect(firstHit.damage).toBe(firstHit.blocked ? 12 : 24);
   expect((await snapshot(page)).content.revision).toBe("runtime-test-1");
   await page.reload();
   await scene(page, "MainMenuScene");
@@ -528,7 +513,7 @@ test("external JSON adds image-backed equipment and changes live stats after ref
   await click(page, "battle");
   await scene(page, "ArenaScene");
   const secondHit = await hitEnemy(page);
-  expect(secondHit.damage).toBe(secondHit.blocked ? 16 : 31);
+  expect(secondHit.damage).toBe(secondHit.blocked ? 15 : 30);
 });
 
 test("invalid external data and undecodable image files keep the game playable", async ({
@@ -577,7 +562,7 @@ test("invalid external data and undecodable image files keep the game playable",
   await scene(page, "ArenaScene");
   expect((await snapshot(page)).rigs![0].weapons[0].texture).toBeNull();
   const hit = await hitEnemy(page);
-  expect(hit.damage).toBe(hit.blocked ? 7 : 14);
+  expect(hit.damage).toBe(hit.blocked ? 7 : 13);
 });
 
 test("shields are absent and the free front arm stays behind the torso while the armed rear arm renders in front", async ({
@@ -602,8 +587,8 @@ test("shields are absent and the free front arm stays behind the torso while the
   await page.evaluate(
     (p) =>
       localStorage.setItem(
-        "arena-of-ash.v2",
-        JSON.stringify({ version: 2, player: p }),
+        "arena-of-ash.v3",
+        JSON.stringify({ version: 3, player: p }),
       ),
     player,
   );
@@ -910,7 +895,7 @@ test("every HP change follows a real swept blade/body contact in both directions
   await shot(page, "realtime-contact-combat");
 });
 
-test("arena hold buttons, passive stamina, jump and boundaries remain responsive without turns", async ({
+test("arena hold buttons, jump and boundaries remain responsive without turns", async ({
   page,
 }) => {
   await launch(page);
@@ -1076,8 +1061,8 @@ test("anatomical slots move weapons between hands and persist two belt attachmen
   await page.evaluate(
     (p) =>
       localStorage.setItem(
-        "arena-of-ash.v2",
-        JSON.stringify({ version: 2, player: p }),
+        "arena-of-ash.v3",
+        JSON.stringify({ version: 3, player: p }),
       ),
     p,
   );
@@ -1178,7 +1163,7 @@ test("throw preview releases once, opens the palm and returns without consuming 
   await shot(page, "camp-throw-preview");
 });
 
-test("stamina rises throughout an attack and hop with no defense or recovery controls", async ({
+test("attacks and hops work without energy, defense or recovery controls", async ({
   page,
 }) => {
   await launch(page);
@@ -1213,9 +1198,7 @@ test("stamina rises throughout an attack and hop with no defense or recovery con
       }),
   );
   expect(poses.some((p) => p.hop && p.action)).toBe(true);
-  expect(poses.at(-1)!.stamina).toBeGreaterThan(poses[0].stamina + 3);
-  for (let i = 1; i < poses.length; i++)
-    expect(poses[i].stamina).toBeGreaterThanOrEqual(poses[i - 1].stamina);
+  for (const pose of poses) expect(pose).not.toHaveProperty("stamina");
 });
 
 test("mouse buttons select exact front/rear hands, empty fists work, and heavy attacks stay disabled", async ({
@@ -1331,8 +1314,8 @@ test("backpack lists all unequipped categories, excludes worn items and restores
   await page.evaluate(
     (p) =>
       localStorage.setItem(
-        "arena-of-ash.v2",
-        JSON.stringify({ version: 2, player: p }),
+        "arena-of-ash.v3",
+        JSON.stringify({ version: 3, player: p }),
       ),
     p,
   );
@@ -1397,7 +1380,121 @@ test("a bare front fist deals contact damage while the rear weapon stays idle", 
   expect(hit).toBeTruthy();
   expect(hit!.hand).toBe("front");
   expect(hit!.kind).toBe("punch");
-  expect(hit!.damage).toBe(hit!.blocked ? 7 : 13);
+  expect(hit!.damage).toBe(hit!.blocked ? 6 : 12);
   expect(contact(hit!.blade, hit!.body)).not.toBeNull();
   await shot(page, "front-fist-physical-contact");
+});
+
+test("physical F kicks with a Ukrainian layout and ignores modified shortcuts", async ({
+  page,
+}) => {
+  await launch(page);
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "\u0430",
+        code: "KeyF",
+        keyCode: 70,
+        ctrlKey: true,
+        bubbles: true,
+      }),
+    ),
+  );
+  await frames(page);
+  expect((await snapshot(page)).battle!.player.action).toBeNull();
+  await page.evaluate(() => {
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "\u0430",
+        code: "KeyF",
+        keyCode: 70,
+        bubbles: true,
+      }),
+    );
+    window.dispatchEvent(
+      new KeyboardEvent("keyup", {
+        key: "\u0430",
+        code: "KeyF",
+        keyCode: 70,
+        bubbles: true,
+      }),
+    );
+  });
+  await expect
+    .poll(async () => (await snapshot(page)).battle!.player.action?.name)
+    .toBe("kick");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].animation)
+    .toBe("kick");
+});
+
+test("a seeded kick knocks down on contact, holds one second and rises through a supported get-up", async ({
+  page,
+}) => {
+  await page.goto("/?seed=5&renderer=canvas");
+  await scene(page, "MainMenuScene");
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 100));
+  await page.keyboard.down("d");
+  for (let i = 0; i < 60; i++) {
+    const s = (await snapshot(page)).battle!;
+    if (s.enemy.x - s.player.x < 190) break;
+    await page.clock.runFor(25);
+  }
+  await page.keyboard.up("d");
+  await page.keyboard.press("f");
+  let event: ContactEvent | undefined;
+  for (let i = 0; i < 45; i++) {
+    await page.clock.runFor(16);
+    event = (await snapshot(page)).battle!.contacts.find(
+      (e) => e.kind === "kick",
+    );
+    if (event) break;
+  }
+  expect(event?.knockdown).toBe(true);
+  expect(contact(event!.blade, event!.body)).not.toBeNull();
+  const seen: { state: ArenaFighter; rig: Rig }[] = [];
+  let capturedDown = false,
+    capturedRise = false;
+  for (let i = 0; i < 180; i++) {
+    const s = await snapshot(page);
+    seen.push({ state: s.battle!.enemy, rig: s.rigs![1] });
+    const k = s.battle!.enemy.knockdown;
+    if (k?.phase === "down" && !capturedDown) {
+      await page.screenshot({
+        path: "test-results/screenshots/kick-knockdown-ground.png",
+      });
+      capturedDown = true;
+    }
+    if (k?.phase === "getUp" && k.elapsed >= 800 && !capturedRise) {
+      await page.screenshot({
+        path: "test-results/screenshots/kick-supported-get-up.png",
+      });
+      capturedRise = true;
+    }
+
+    if (!s.battle!.enemy.knockdown) break;
+    await page.clock.runFor(20);
+  }
+  const down = seen.filter((s) => s.state.knockdown?.phase === "down");
+  const up = seen.filter((s) => s.state.knockdown?.phase === "getUp");
+  expect(down.length).toBeGreaterThanOrEqual(49);
+  expect(up.length).toBeGreaterThanOrEqual(89);
+  for (const { state, rig } of [...down, ...up]) {
+    expect(state.y).toBe(0);
+    expect(state.vy).toBe(0);
+    expect(state.action).toBeNull();
+    anatomy(rig, false);
+    expect(
+      Math.max(rig.near.heel.y, rig.near.toe.y, rig.far.heel.y, rig.far.toe.y),
+    ).toBeLessThanOrEqual(551.1);
+  }
+  expect(up.every((s) => s.rig.animation === "getUp")).toBe(true);
+  expect((await snapshot(page)).battle!.enemy.knockdown).toBeNull();
+  await page.clock.resume();
+  await shot(page, "after-heavy-get-up");
 });
