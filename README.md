@@ -1,6 +1,6 @@
 # Arena of Ash
 
-An original, single-player, turn-based gladiator RPG built with TypeScript, Phaser **3.90.0**, Vite and procedural artwork. The interface is English. The game uses **Ash Vanguard** artwork and **Grounded** joint mechanics exclusively. There is no style studio, alternate style selector or paired-blade item.
+An original, single-player, real-time gladiator action RPG built with TypeScript, Phaser **3.90.0**, Vite and procedural artwork. The interface is English. The game uses **Ash Vanguard** artwork and **Grounded** joint mechanics exclusively. There is no style studio, alternate style selector or paired-blade item.
 
 ## Run
 
@@ -34,9 +34,11 @@ On the managed cloud machine, system Chromium is detected automatically. Activat
 
 ## Play
 
-Start from camp, enter the arena, buy equipment and allocate level-up points in Character. Mouse/touch and keys **1–4** select Quick Attack, Heavy Attack, Defend and Recover. **Escape** returns to camp, abandoning an unresolved fight without rewards. Combat inputs lock while an action or enemy turn resolves.
+Start from camp, enter the arena, buy equipment and allocate level-up points in Character. Arena combat runs in real time. **A/D** or **Left/Right** move, **Shift** runs, **Space** jumps, **J/1** performs a quick attack, **K/2** performs a heavy attack, **L/3** holds guard and **F/4** recovers stamina. **R** changes relaxed/combat stance. Move, run and jump during an attack. **Escape** returns to camp without a reward for an unresolved fight.
 
-In camp, **A/D** walk backward/forward, **Shift+A/D** run, **Space** jumps and **R** toggles relaxed/combat idle. Mouse/touch buttons also demonstrate these movements. The main weapon uses the rear hand; the front hand stays relaxed, with a mount reserved for future equipment.
+Mouse/touch users can hold the arrow/Run buttons, tap Jump or an attack, and toggle Defend. The free front arm stays behind the torso; the rear hand holds the primary weapon. Camp retains its movement demonstration buttons and keyboard controls.
+
+Damage requires the active blade to contact a moving body part. A swing that misses costs stamina but no HP. Each swing can hit once; idle weapons, sword grips and spear shafts do not deal damage. Guard halves contact damage. Body and blade collision shapes follow the actual articulated rig, including jumps and mirrored facing. See [real-time combat](docs/REALTIME_COMBAT.md).
 
 Victory earns 50 gold and 40 XP; defeat earns 10 of each. Every level grants two attribute points. Saves are automatic in localStorage. Reset Progress requires confirmation. There is no special migration for retired catalog items or old appearance preferences.
 

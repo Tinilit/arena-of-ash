@@ -1,12 +1,14 @@
-# M1 game design
+# Game design
 
-The Wanderer begins at level 1 with 100 gold, zero XP, five attributes at 10, and a Wooden Sword. Strength adds physical attack; agility affects hit/crit; vitality adds health; defense reduces damage; endurance adds stamina. Gear modifies derived stats only.
+The Wanderer begins at level 1 with 100 gold, zero XP, five attributes at 10, and a Wooden Sword. Strength adds physical attack; agility scales movement speed by 1% per point relative to 10 (clamped to 80–150%); vitality adds health; defense reduces damage; endurance adds stamina. Gear modifies derived stats only.
 
-HP = 60 + vitality × 4. Stamina = 50 + endurance × 5. Attack = 6 + strength × 0.9 + total gear attack. Armor is summed gear protection. Damage = max(1, round(attack × action multiplier − defender defense × 0.35 − armor)). Critical damage ×1.5; guard ×0.5; final rounded minimum 1. No passive HP regeneration in battle.
+HP = 60 + vitality × 4. Stamina = 50 + endurance × 5. Attack = 6 + strength × 0.9 + total gear attack. Armor is summed gear protection. Contact damage = max(1, round(attack × action multiplier − defender defense × 0.35 − armor)), then guard halves it with rounding and a minimum of 1. Hit/miss is geometric, with no random accuracy or critical rolls. There is no passive HP regeneration.
 
-Quick: cost 12, accuracy 90%, multiplier 1. Heavy: cost 25, accuracy 72%, multiplier 1.6. Accuracy adds 1 percentage point per agility difference and clamps to 15–95%. Critical chance is agility ×0.5%, capped at 25%. Defend restores 8 stamina and halves the next incoming attack; the stance is consumed even on a miss. Recover restores 25 stamina. All restoration caps at maximum.
+Quick costs 12 stamina and lasts 650 ms; heavy costs 25 and lasts 1100 ms, with multipliers 1 and 1.6. Stamina is spent at action start, including on a miss. Their active contact intervals are 30–70% and 46–80%. An active blade/leaf head must touch an opponent's body capsule. One swing can damage that opponent once; recovery, anticipation and idle weapons do no damage. Running and jumping can overlap a swing. Sword grips and spear shafts are excluded from damaging geometry.
 
-Enemy AI recovers below 12 stamina, otherwise has a 15% defend choice, a heavy choice when affordable, or quick. RNG is injected; seeded generation supports reproducible tests. Inputs are rejected during resolution and when unaffordable.
+Walk/run speeds start at 110/200 logical units per second. Running costs 10 stamina/second; a grounded jump costs 10, with gravity 1350 and initial vertical speed 500. No mid-air second jump is allowed. Guard costs 8 stamina/second and halves contact damage while held or toggled; a fresh guard needs 10 stamina. Recover takes 750 ms and restores 25 once on completion. Idle/walking regenerate 14 stamina/second when not attacking, guarding or running. Restoration is capped at maximum. Bounds and body separation prevent walking through the arena walls or a standing opponent.
+
+The AI moves into weapon reach, attacks with affordable actions, backs away when crowded, and sometimes guards, jumps or recovers. Its decisions use injected randomness; damage does not. Both fighters update at the same fixed 120 Hz step. Simultaneous lethal contacts produce a draw with the defeat payout. Losing focus pauses simulation and clears held input.
 
 Opponents: Arena Novice → Iron Pit Fighter → Veteran Gladiator. Wins advance; the veteran repeats. Victory grants 50 gold / 40 XP. Defeat grants 10 gold / 10 XP. A new battle starts fully healed and rested. Esc abandons a battle without a reward. Persistent reward IDs prevent duplicate payouts.
 

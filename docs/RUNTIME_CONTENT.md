@@ -97,3 +97,15 @@ No polling, filesystem watching, arbitrary script execution or mid-session catal
 Gameplay tests use a fixed catalog fixture so new live definitions, reordering or balance edits do not require changing gameplay assertions. Content validation reads the actual publication file and checks every referenced local image.
 
 The current default catalog has nine items and intentionally omits shields. Shield slot/drawing support is retained for a later explicit restoration; no opponent currently references a shield definition, so the old `shield` ID is no longer mandatory. The character UI displays only slots present in the active catalog.
+
+## Weapon contact shape
+
+Real-time combat uses a capsule along the weapon's local Y axis. Only a sword blade or spear leaf head deals damage; the grip/haft is excluded. Optional weapon-only metadata can author this independently of the image size, without rebuilding:
+
+```json
+"hitbox": { "startY": -150, "endY": -113, "radius": 6 }
+```
+
+Coordinates are logical pixels relative to the image grip before the rig's rotation, scale and facing. Negative Y points toward the blade tip. `startY` must be less than `endY`, both within -600…600; radius must be 0.5…40. These endpoints bound the whole capsule, including its round ends. Put the shape inside the visible damaging blade. There is one damaging capsule per weapon. Body collision remains rig-authored.
+
+If omitted, included drawings use their authored blade/head dimensions. Runtime images use a conservative estimated blade/head region; supply `hitbox` to align unusual artwork. If an image fails to decode, both the visual and collision profile use the procedural fallback, while live stats remain active. Existing session definitions stay stable until refresh. See [real-time combat](REALTIME_COMBAT.md).

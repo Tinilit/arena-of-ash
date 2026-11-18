@@ -9,6 +9,11 @@ export type Attribute = (typeof attributes)[number];
 export type Attributes = Record<Attribute, number>;
 export type Slot = "weapon" | "helmet" | "chest" | "shield";
 export type WeaponType = "sword" | "spear";
+export interface WeaponHitbox {
+  startY: number;
+  endY: number;
+  radius: number;
+}
 export interface ItemImage {
   src: string;
   width: number;
@@ -27,6 +32,7 @@ export interface Item {
   weaponType?: WeaponType;
   description?: string;
   image?: ItemImage;
+  hitbox?: WeaponHitbox;
 }
 export interface Player {
   id: string;

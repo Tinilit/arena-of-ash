@@ -1,7 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
 import bundled from "../fixtures/catalog.json" with { type: "json" };
 import type { Player } from "../../src/domain/model";
-import type { Fighter, State, CombatEvent } from "../../src/combat/engine";
+import type {
+  ArenaFighter,
+  ArenaState,
+  ContactEvent,
+} from "../../src/combat/realtime";
+import { contact, type CombatGeometry } from "../../src/combat/geometry";
 interface Point {
   x: number;
   y: number;
@@ -56,11 +61,12 @@ interface Snapshot {
   player: Player;
   buttons: Record<string, Point>;
   rigs?: Rig[];
+  geometry?: CombatGeometry[];
   battle?: {
-    state: State;
-    player: Fighter;
-    enemy: Fighter;
-    pending: CombatEvent | null;
+    state: ArenaState;
+    player: ArenaFighter;
+    enemy: ArenaFighter;
+    contacts: ContactEvent[];
   };
 }
 const errors = new WeakMap<Page, string[]>();
@@ -117,24 +123,60 @@ async function launch(page: Page) {
   await page.goto("/?seed=42&renderer=canvas");
   await scene(page, "MainMenuScene");
 }
-async function finish(page: Page, attack = true) {
-  for (let i = 0; i < 500; i++) {
+async function steer(page: Page, state: Snapshot) {
+  const { player, enemy } = state.battle!;
+  const range = player.model.equipment.weapon?.includes("spear") ? 170 : 120;
+  const gap = Math.abs(player.x - enemy.x),
+    toward = Math.sign(enemy.x - player.x);
+  const direction = gap > range + 8 ? toward : gap < range - 8 ? -toward : 0;
+  for (const [key, held] of [
+    ["a", direction < 0],
+    ["d", direction > 0],
+  ] as const)
+    if (held) await page.keyboard.down(key);
+    else await page.keyboard.up(key);
+  return gap < range + 20;
+}
+async function hitEnemy(page: Page, action: "quick" | "heavy" = "quick") {
+  const first = (await snapshot(page)).battle!.contacts.at(-1)?.id ?? 0;
+  for (let i = 0; i < 100; i++) {
     const s = await snapshot(page);
-    if (s.scene === "ResultScene") return;
-    if (s.battle?.state === "PlayerTurn")
-      await click(
-        page,
-        attack
-          ? s.battle.player.stamina >= 12
-            ? "quick"
-            : "recover"
-          : "defend",
-      );
-    await page.waitForTimeout(180);
+    const contact = s.battle?.contacts.find(
+      (e) => e.id > first && e.attackerId === "wanderer",
+    );
+    if (contact) {
+      await page.keyboard.up("a");
+      await page.keyboard.up("d");
+      return contact;
+    }
+    if (s.scene !== "ArenaScene" || s.battle?.state !== "Fighting")
+      throw Error("Fight ended before a player contact");
+    if ((await steer(page, s)) && !s.battle.player.action)
+      await page.keyboard.press(action === "quick" ? "j" : "k");
+    await page.waitForTimeout(90);
+  }
+  throw Error("No physical weapon contact");
+}
+async function finish(page: Page, attack = true) {
+  for (let i = 0; i < 450; i++) {
+    const s = await snapshot(page);
+    if (s.scene === "ResultScene") {
+      await page.keyboard.up("a");
+      await page.keyboard.up("d");
+      return;
+    }
+    if (s.battle?.state === "Fighting" && attack) {
+      const inRange = await steer(page, s);
+      if (!s.battle.player.action) {
+        if (s.battle.player.stamina < 12) await page.keyboard.press("f");
+        else if (inRange) await page.keyboard.press("j");
+      }
+    }
+    await page.waitForTimeout(100);
   }
   throw Error("Battle did not finish");
 }
-function anatomy(r: Rig) {
+function anatomy(r: Rig, level = true) {
   const len = (a: Point, b: Point) =>
     Math.hypot(a.x - b.x, a.y - b.y) / r.scale;
   for (const side of [r.near, r.far]) {
@@ -142,7 +184,7 @@ function anatomy(r: Rig) {
     expect(len(side.knee, side.ankle)).toBeCloseTo(52, 3);
     expect(len(side.shoulder, side.elbow)).toBeCloseTo(40, 3);
     expect(len(side.elbow, side.hand)).toBeCloseTo(34, 3);
-    expect(side.heel.y).toBeCloseTo(side.toe.y, 3);
+    if (level) expect(side.heel.y).toBeCloseTo(side.toe.y, 3);
   }
 }
 
@@ -175,14 +217,13 @@ test("complete battle, animation impact and persisted victory rewards", async ({
   expect((await snapshot(page)).battle!.enemy.hp).toBe(80);
   await shot(page, "arena");
   await click(page, "quick");
-  await expect
-    .poll(async () => (await snapshot(page)).battle?.player.stamina)
-    .toBe(88);
-  await shot(page, "attack");
-  await expect
-    .poll(async () => (await snapshot(page)).battle?.state, { timeout: 15000 })
-    .toBe("PlayerTurn");
-  expect((await snapshot(page)).battle!.enemy.hp).toBe(66);
+  await page.waitForTimeout(720);
+  expect((await snapshot(page)).battle!.enemy.hp).toBe(80);
+  expect((await snapshot(page)).battle!.contacts).toHaveLength(0);
+  await shot(page, "attack-missed-at-distance");
+  const hit = await hitEnemy(page);
+  expect(hit.damage).toBe(hit.blocked ? 7 : 14);
+  expect((await snapshot(page)).battle!.enemy.hp).toBe(80 - hit.damage);
   await finish(page);
   expect((await snapshot(page)).player.gold).toBe(150);
   expect((await snapshot(page)).player.xp).toBe(40);
@@ -265,14 +306,9 @@ test("paginated purchases and inventory equip all remaining items and persist th
     ),
   ).toBeLessThan(0.01);
   await shot(page, "new-equipment-arena");
-  await click(page, "quick");
-  await expect
-    .poll(async () => (await snapshot(page)).battle?.enemy.hp)
-    .toBe(57);
+  const hit = await hitEnemy(page);
+  expect(hit.damage).toBe(hit.blocked ? 12 : 23);
   await shot(page, "spear-thrust");
-  await expect
-    .poll(async () => (await snapshot(page)).battle?.state, { timeout: 15000 })
-    .toBe("PlayerTurn");
   await page.reload();
   await scene(page, "MainMenuScene");
   const loaded = (await snapshot(page)).player;
@@ -284,44 +320,36 @@ test("paginated purchases and inventory equip all remaining items and persist th
   expect(loaded.gold).toBe(415);
   expect(loaded.inventory).toHaveLength(9);
 });
-test("real joint transforms keep fixed bones, level soles and rear-foot support during a step", async ({
+test("arena movement, running, jumping and attacks share fixed-length joint transforms", async ({
   page,
 }) => {
   await launch(page);
   await click(page, "battle");
   await scene(page, "ArenaScene");
   const initial = (await snapshot(page)).rigs![0];
-  (await snapshot(page)).rigs!.forEach(anatomy);
+  (await snapshot(page)).rigs!.forEach((r) => anatomy(r));
   await shot(page, "anatomy-idle");
-  await click(page, "heavy");
-  // Measure every rendered frame in the browser. Screenshots and Node round trips
-  // during this window can skip a brief lift on a busy software renderer.
-  const samples = await page.evaluate(
-    () =>
-      new Promise<Rig[]>((resolve) => {
-        const rigs: Rig[] = [],
-          end = performance.now() + 1350;
-        const sample = () => {
-          const current = (
-            window as unknown as { __arena: { snapshot: () => Snapshot } }
-          ).__arena.snapshot();
-          rigs.push(current.rigs![0]);
-          if (performance.now() < end) requestAnimationFrame(sample);
-          else resolve(rigs);
-        };
-        requestAnimationFrame(sample);
-      }),
-  );
-  let lifted = false;
-  expect(samples.length).toBeGreaterThan(2);
-  for (const rig of samples) {
-    anatomy(rig);
-    expect(rig.far.heel.x).toBeCloseTo(initial.far.heel.x, 3);
-    expect(rig.far.heel.y).toBeCloseTo(initial.far.heel.y, 3);
-    expect(rig.near.heel.y).toBeLessThanOrEqual(initial.near.heel.y + 0.01);
-    if (rig.near.heel.y < initial.near.heel.y - 2) lifted = true;
-  }
-  expect(lifted).toBe(true);
+  await page.keyboard.down("d");
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("k");
+  await page.waitForTimeout(230);
+  const moving = await snapshot(page);
+  expect(moving.battle!.player.x).toBeGreaterThan(initial.origin.x + 10);
+  expect(moving.battle!.player.action?.name).toBe("heavy");
+  expect(moving.rigs![0].animation).toBe("heavy");
+  await shot(page, "arena-running-attack");
+  await page.keyboard.press("Space");
+  await page.waitForTimeout(220);
+  const jumping = await snapshot(page);
+  expect(jumping.battle!.player.y).toBeLessThan(-25);
+  expect(jumping.battle!.player.action?.name).toBe("heavy");
+  jumping.rigs!.forEach((r) => anatomy(r, false));
+  await shot(page, "arena-jumping-attack");
+  await page.keyboard.up("d");
+  await page.keyboard.up("Shift");
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.player.y)
+    .toBe(0);
 });
 test("keyboard input, scene shutdown, reset confirmation and viewport scaling", async ({
   page,
@@ -330,13 +358,13 @@ test("keyboard input, scene shutdown, reset confirmation and viewport scaling", 
   await click(page, "battle");
   await page.keyboard.press("2");
   await expect
-    .poll(async () => (await snapshot(page)).battle?.state)
-    .toBe("PlayerAnimating");
+    .poll(async () => (await snapshot(page)).battle?.player.action?.name)
+    .toBe("heavy");
   await page.keyboard.press("Escape");
   await scene(page, "MainMenuScene");
   await page.waitForTimeout(1300);
   await click(page, "battle");
-  await page.keyboard.press("3");
+  await click(page, "defend");
   await expect
     .poll(async () => (await snapshot(page)).battle?.player.guard)
     .toBe(true);
@@ -397,10 +425,8 @@ test("attribute allocation persists and updates battle statistics", async ({
   await click(page, "battle");
   await scene(page, "ArenaScene");
   expect((await snapshot(page)).battle!.player.hp).toBe(104);
-  await click(page, "quick");
-  await expect
-    .poll(async () => (await snapshot(page)).battle?.enemy.hp)
-    .toBe(65);
+  const hit = await hitEnemy(page);
+  expect(hit.damage).toBe(hit.blocked ? 8 : 15);
 });
 
 test("external JSON adds image-backed equipment and changes live stats after refresh without code changes", async ({
@@ -421,6 +447,7 @@ test("external JSON adds image-backed equipment and changes live stats after ref
         visual: "war-spear",
         weaponType: "spear",
         description: "Loaded from an external catalog.",
+        hitbox: { startY: -115, endY: -85, radius: 3 },
         image: {
           src: "items/runtime-spear.png",
           width: 18,
@@ -472,10 +499,8 @@ test("external JSON adds image-backed equipment and changes live stats after ref
   const updated = live.items[live.items.length - 1];
   if (!("image" in updated)) throw Error("Missing test artwork");
   updated.image.src = "items/runtime-spear-v2.png";
-  await click(page, "quick");
-  await expect
-    .poll(async () => (await snapshot(page)).battle?.enemy.hp)
-    .toBe(55);
+  const firstHit = await hitEnemy(page);
+  expect(firstHit.damage).toBe(firstHit.blocked ? 13 : 25);
   expect((await snapshot(page)).content.revision).toBe("runtime-test-1");
   await page.reload();
   await scene(page, "MainMenuScene");
@@ -488,10 +513,8 @@ test("external JSON adds image-backed equipment and changes live stats after ref
   ).toBe(true);
   await click(page, "battle");
   await scene(page, "ArenaScene");
-  await click(page, "quick");
-  await expect
-    .poll(async () => (await snapshot(page)).battle?.enemy.hp)
-    .toBe(49);
+  const secondHit = await hitEnemy(page);
+  expect(secondHit.damage).toBe(secondHit.blocked ? 16 : 31);
 });
 
 test("invalid external data and undecodable image files keep the game playable", async ({
@@ -539,10 +562,8 @@ test("invalid external data and undecodable image files keep the game playable",
   await click(page, "battle");
   await scene(page, "ArenaScene");
   expect((await snapshot(page)).rigs![0].weapons[0].texture).toBeNull();
-  await click(page, "quick");
-  await expect
-    .poll(async () => (await snapshot(page)).battle?.enemy.hp)
-    .toBe(66);
+  const hit = await hitEnemy(page);
+  expect(hit.damage).toBe(hit.blocked ? 7 : 14);
 });
 
 test("shields are absent and the free front arm stays behind the torso while the armed rear arm renders in front", async ({
@@ -625,7 +646,7 @@ test("shields are absent and the free front arm stays behind the torso while the
     }
   await expect
     .poll(async () => (await snapshot(page)).battle?.state, { timeout: 15000 })
-    .toBe("PlayerTurn");
+    .toBe("Fighting");
   await click(page, "defend");
   await shot(page, "rig-armored-guard");
 });
@@ -687,7 +708,7 @@ test("both legs stay beneath the skirt and arms keep their own shoulder attachme
     }
   await expect
     .poll(async () => (await snapshot(page)).battle?.state, { timeout: 15000 })
-    .toBe("PlayerTurn");
+    .toBe("Fighting");
   await click(page, "heavy");
   await page.waitForTimeout(250);
   await shot(page, "rig-revised-heavy");
@@ -710,10 +731,11 @@ test("camp supports both stances, forward/back walks, running and a grounded jum
   expect(forward).toBeGreaterThan(startX + 10);
   await shot(page, "camp-walk-forward");
   await page.keyboard.up("d");
+  const backwardStart = (await snapshot(page)).rigs![0].origin.x;
   await page.keyboard.down("a");
   await page.waitForTimeout(420);
   expect((await snapshot(page)).rigs![0].animation).toBe("walkBackward");
-  expect((await snapshot(page)).rigs![0].origin.x).toBeLessThan(forward);
+  expect((await snapshot(page)).rigs![0].origin.x).toBeLessThan(backwardStart);
   await shot(page, "camp-walk-backward");
   await page.keyboard.up("a");
   await page.keyboard.down("Shift");
@@ -758,7 +780,7 @@ test("camp supports both stances, forward/back walks, running and a grounded jum
   await click(page, "battle");
   await scene(page, "ArenaScene");
   for (const fighter of (await snapshot(page)).rigs!) {
-    expect(fighter.animation).toBe("idleCombat");
+    expect(["idleCombat", "walkForward", "run"]).toContain(fighter.animation);
     expect(fighter.primaryHand).toBe("rear");
     expect(
       Math.hypot(
@@ -771,4 +793,107 @@ test("camp supports both stances, forward/back walks, running and a grounded jum
   await click(page, "heavy");
   await page.waitForTimeout(300);
   await shot(page, "rear-hand-heavy");
+});
+
+test("every HP change follows a real swept blade/body contact in both directions", async ({
+  page,
+}) => {
+  await launch(page);
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  await hitEnemy(page);
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.player.action)
+    .toBeNull();
+  await page.keyboard.press("k");
+  const samples = await page.evaluate(
+    () =>
+      new Promise<NonNullable<Snapshot["battle"]>[]>((resolve) => {
+        const get = () =>
+          (
+            window as unknown as { __arena: { snapshot: () => Snapshot } }
+          ).__arena.snapshot();
+        const poses = [get().battle!],
+          end = performance.now() + 3300;
+        const sample = () => {
+          const state = get();
+          if (state.scene !== "ArenaScene") {
+            resolve(poses);
+            return;
+          }
+          poses.push(state.battle!);
+          if (performance.now() < end) requestAnimationFrame(sample);
+          else resolve(poses);
+        };
+        requestAnimationFrame(sample);
+      }),
+  );
+  expect(samples.length).toBeGreaterThan(5);
+  const seen = new Set(samples[0].contacts.map((e) => e.id));
+  const attackers = new Set<string>();
+  for (let i = 1; i < samples.length; i++) {
+    const current = samples[i],
+      previous = samples[i - 1];
+    const events = current.contacts.filter((e) => !seen.has(e.id));
+    for (const event of events) {
+      expect(contact(event.blade, event.body)).not.toBeNull();
+      attackers.add(event.attackerId);
+      seen.add(event.id);
+    }
+    for (const name of ["player", "enemy"] as const) {
+      const lost = events
+        .filter((e) => e.defenderId === current[name].model.id)
+        .reduce((sum, e) => sum + e.damage, 0);
+      expect(current[name].hp).toBe(Math.max(0, previous[name].hp - lost));
+    }
+  }
+  expect(attackers.has("wanderer")).toBe(true);
+  expect(attackers.has("enemy")).toBe(true);
+  await shot(page, "realtime-contact-combat");
+});
+
+test("arena hold buttons, guard, jump and boundaries remain responsive without turns", async ({
+  page,
+}) => {
+  await launch(page);
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  const initial = (await snapshot(page)).battle!.player.x;
+  const position = (await snapshot(page)).buttons["arena-left"];
+  await page.mouse.move(position.x, position.y);
+  await page.mouse.down();
+  await page.waitForTimeout(400);
+  await page.mouse.up();
+  const after = (await snapshot(page)).battle!.player.x;
+  expect(after).toBeLessThan(initial - 20);
+  await page.waitForTimeout(180);
+  expect((await snapshot(page)).battle!.player.x).toBeCloseTo(after, 1);
+  await click(page, "defend");
+  expect((await snapshot(page)).battle!.player.guard).toBe(true);
+  await click(page, "defend");
+  expect((await snapshot(page)).battle!.player.guard).toBe(false);
+  await click(page, "arena-jump");
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.player.y)
+    .toBeLessThan(-20);
+  await shot(page, "arena-touch-jump");
+  await expect
+    .poll(async () => (await snapshot(page)).battle?.player.y)
+    .toBe(0);
+  await page.keyboard.down("a");
+  await page.keyboard.down("Shift");
+  await page.waitForTimeout(1800);
+  expect((await snapshot(page)).battle!.player.x).toBe(90);
+  expect(Math.abs((await snapshot(page)).battle!.player.vx)).toBeLessThan(0.01);
+  await page.keyboard.up("a");
+  await page.keyboard.up("Shift");
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  const paused = (await snapshot(page)).battle!;
+  await page.waitForTimeout(400);
+  expect((await snapshot(page)).battle!.player.hp).toBe(paused.player.hp);
+  expect((await snapshot(page)).battle!.player.x).toBe(paused.player.x);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.keyboard.press("Escape");
+  await scene(page, "MainMenuScene");
+  expect((await snapshot(page)).player.rewarded).toHaveLength(0);
 });

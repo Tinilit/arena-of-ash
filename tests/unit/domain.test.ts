@@ -7,24 +7,13 @@ import {
   experience,
   reward,
   allocate,
-  opponent,
 } from "../../src/domain/progression";
-import {
-  Battle,
-  damage,
-  accuracy,
-  fighter,
-  actions,
-  criticalChance,
-} from "../../src/combat/engine";
-import { decide } from "../../src/combat/ai";
+import { damage } from "../../src/combat/engine";
 import { serialize, deserialize, SaveStore } from "../../src/persistence/save";
 import { seeded } from "../../src/utils/random";
 import { Animator } from "../../src/characters/animation";
 import { groundedMotion } from "../../src/characters/groundedMotion";
 const clips = groundedMotion.ash;
-const make = () =>
-  new Battle(createPlayer(), opponent(createPlayer()), () => 0.4);
 describe("character and equipment", () => {
   it("creates the initial character", () => {
     const p = createPlayer();
@@ -83,103 +72,26 @@ describe("character and equipment", () => {
     expect(p.points).toBe(0);
   });
 });
-describe("combat", () => {
-  it.each([
-    ["quick", 12],
-    ["heavy", 25],
-  ] as const)("%s spends correct stamina at impact", (action, cost) => {
-    const b = make();
-    const e = b.begin(action)!;
-    expect(b.player.stamina).toBe(100);
-    b.impact(e);
-    expect(b.player.stamina).toBe(100 - cost);
-  });
-  it("rejects insufficient stamina", () => {
-    const b = make();
-    b.player.stamina = 11;
-    expect(b.begin("quick")).toBeNull();
-    expect(b.state).toBe("PlayerTurn");
-  });
-  it("rejects queued input", () => {
-    const b = make();
-    b.begin("quick");
-    expect(b.begin("quick")).toBeNull();
-  });
+describe("combat damage calculation", () => {
   it("damage never becomes negative", () => {
     const p = createPlayer(),
       e = createPlayer();
     e.attributes.defense = 999;
     expect(damage(p, e, 1, false, false)).toBe(1);
   });
-  it("defend halves incoming damage", () => {
+  it("guard halves incoming damage", () => {
     const p = createPlayer();
     expect(damage(p, p, 1, false, true)).toBe(
       Math.round(damage(p, p, 1, false, false) / 2),
     );
   });
-  it("criticals increase damage", () => {
+  it("supports an explicit critical modifier without choosing whether contact occurred", () => {
     const p = createPlayer();
     expect(damage(p, p, 1, true, false)).toBeGreaterThan(
       damage(p, p, 1, false, false),
     );
   });
-  it("clamps accuracy and critical chance", () => {
-    expect(accuracy(0.9, 999, 0)).toBe(0.95);
-    expect(accuracy(0.9, 0, 999)).toBe(0.15);
-    expect(criticalChance(999)).toBe(0.25);
-  });
-  it("applies each impact only once", () => {
-    const b = make();
-    const e = b.begin("quick")!;
-    const before = b.enemy.hp;
-    expect(b.impact(e)).toBe(true);
-    expect(b.impact(e)).toBe(false);
-    expect(b.enemy.hp).toBe(before - e.damage);
-  });
-  it("consumes stance even on a missed attack", () => {
-    const b = new Battle(createPlayer(), opponent(createPlayer()), () => 0.99);
-    b.enemy.guard = true;
-    const e = b.begin("quick")!;
-    b.impact(e);
-    expect(b.enemy.guard).toBe(false);
-    expect(e.hit).toBe(false);
-  });
-  it("recovers and defends capped stamina", () => {
-    const b = make();
-    b.player.stamina = 99;
-    const e = b.begin("defend")!;
-    b.impact(e);
-    expect(b.player.stamina).toBe(100);
-    expect(b.player.guard).toBe(true);
-  });
-  it("does not complete until impact", () => {
-    const b = make();
-    b.begin("quick");
-    b.complete();
-    expect(b.state).toBe("PlayerAnimating");
-  });
-  it("detects both victory and defeat", () => {
-    for (const win of [true, false]) {
-      const b = make();
-      if (!win) b.state = "EnemyThinking";
-      (win ? b.enemy : b.player).hp = 1;
-      const e = b.begin("heavy")!;
-      b.impact(e);
-      b.complete();
-      expect(b.state).toBe(win ? "Victory" : "Defeat");
-      expect(b.begin("quick")).toBeNull();
-    }
-  });
-  it("AI always chooses affordable actions", () => {
-    const rng = seeded(42);
-    for (let sp = 0; sp < 100; sp++) {
-      const f = fighter(createPlayer());
-      f.stamina = sp;
-      for (let i = 0; i < 30; i++)
-        expect(actions[decide(f, rng)].cost).toBeLessThanOrEqual(sp);
-    }
-  });
-  it("seeded randomness is repeatable", () => {
+  it("seeded AI randomness is repeatable", () => {
     const a = seeded(13),
       b = seeded(13);
     expect(Array.from({ length: 10 }, a)).toEqual(

@@ -6,7 +6,10 @@ import { drawPart, drawGear } from "../rendering/characterVisuals";
 import { equipmentMotion } from "./equipmentMotion";
 import { groundedPose, skeleton } from "./kinematics";
 import type { WeaponHand, Stance } from "./locomotion";
-import { Animator } from "./animation";
+import { Animator, type Pose } from "./animation";
+import type { CombatGeometry, Capsule } from "../combat/geometry";
+import { weaponHitbox } from "../combat/weaponGeometry";
+import { itemTextureKey } from "../content/textures";
 export interface RigOptions {
   weaponHand?: WeaponHand;
   stance?: Stance;
@@ -23,6 +26,9 @@ export class Gladiator {
   private limbs: Record<string, LimbArt> = {};
   private skirt!: Phaser.GameObjects.Container;
   private weapons: Phaser.GameObjects.Container[] = [];
+  private bladeProfile: ReturnType<typeof weaponHitbox>;
+  private displayedAnimation?: string;
+  private displayedPose: Pose = {};
   constructor(
     private scene: Phaser.Scene,
     private originX: number,
@@ -33,6 +39,11 @@ export class Gladiator {
     options: RigOptions = {},
   ) {
     const weapon = item(model.equipment.weapon ?? "");
+    this.bladeProfile = weaponHitbox(
+      weapon?.image && !scene.textures.exists(itemTextureKey(weapon.id))
+        ? { ...weapon, image: undefined, hitbox: undefined }
+        : weapon,
+    );
     this.primaryHand = options.weaponHand ?? "rear";
     this.animator = new Animator(equipmentMotion(weapon, this.primaryHand));
     this.animator.setIdle(
@@ -151,8 +162,12 @@ export class Gladiator {
     this.update(0);
   }
   update(delta: number) {
-    const p = this.animator.update(delta),
-      solved = groundedPose(p);
+    this.applyPose(this.animator.update(delta));
+  }
+  applyPose(p: Pose, animation?: string) {
+    this.displayedPose = { ...p };
+    this.displayedAnimation = animation;
+    const solved = groundedPose(p);
     this.joints.torso.rotation = solved.torso;
     this.joints.backTorso.rotation = solved.torso;
     this.joints.frontTorso.rotation = solved.torso;
@@ -201,7 +216,7 @@ export class Gladiator {
     return {
       physical: true,
       primaryHand: this.primaryHand,
-      animation: this.animator.name,
+      animation: this.displayedAnimation ?? this.animator.name,
       origin: { x: this.originX, y: this.originY },
       body: {
         layers: this.joints.pelvis.list.map((part) => part.name),
@@ -254,6 +269,56 @@ export class Gladiator {
   setStance(stance: Stance) {
     this.animator.setIdle(stance === "relaxed" ? "idleRelaxed" : "idleCombat");
   }
+  setArenaTransform(x: number, y: number, facing: 1 | -1, floor: number) {
+    this.originX = x;
+    this.originY = y;
+    this.direction = facing;
+    this.root.setScale(this.bodyScale * facing, this.bodyScale);
+    this.shadow.y = floor + 4;
+    this.shadow.setScale(Math.max(0.55, 1 - (floor - y) / 350));
+  }
+  combatGeometry(): CombatGeometry {
+    const point = (name: string, x = 0, y = 0) => {
+      const p = this.joints[name]
+        .getWorldTransformMatrix()
+        .transformPoint(x, y);
+      return { x: p.x, y: p.y };
+    };
+    const capsule = (
+      a: ReturnType<typeof point>,
+      b: ReturnType<typeof point>,
+      radius: number,
+    ): Capsule => ({ a, b, radius: radius * this.bodyScale });
+    const body: Capsule[] = [
+      capsule(point("head", 0, -25), point("head", 0, 0), 21),
+      capsule(point("torso", 0, -55), point("torso", 0, -20), 26),
+      capsule(point("pelvis", -15, 20), point("pelvis", 15, 20), 20),
+    ];
+    for (const side of ["near", "far"]) {
+      body.push(
+        capsule(point(`${side}Arm`), point(`${side}Elbow`), 9),
+        capsule(point(`${side}Elbow`), point(`${side}Hand`), 7),
+        capsule(point(`${side}Hand`), point(`${side}Hand`, 0, 12), 6),
+        capsule(point(`${side}Thigh`), point(`${side}Shin`), 11),
+        capsule(point(`${side}Shin`), point(`${side}Foot`), 8),
+        capsule(point(`${side}Foot`, -9, 9), point(`${side}Foot`, 22, 9), 5),
+      );
+    }
+    const profile = this.bladeProfile,
+      weapon = this.weapons[0];
+    let blade: Capsule | null = null;
+    if (profile && weapon) {
+      const matrix = weapon.getWorldTransformMatrix();
+      const radius = Math.min(
+        profile.radius,
+        (profile.endY - profile.startY) / 2,
+      );
+      const p = matrix.transformPoint(0, profile.startY + radius);
+      const q = matrix.transformPoint(0, profile.endY - radius);
+      blade = capsule({ x: p.x, y: p.y }, { x: q.x, y: q.y }, radius);
+    }
+    return { blade, body };
+  }
   moveBy(worldX: number) {
     this.originX += worldX;
   }
@@ -267,7 +332,7 @@ export class Gladiator {
     return this.handMounts[hand];
   }
   play(name: string, impact?: () => void, complete?: () => void) {
-    this.animator.play(name, impact, complete);
+    this.animator.play(name, impact, complete, this.displayedPose);
   }
   flash() {
     this.scene.tweens.add({

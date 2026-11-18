@@ -1,31 +1,29 @@
-# Release verification — 2026-11-18
+# Real-time arena verification — 2026-11-18
 
-The draft uses Ash Vanguard art and Grounded motion. It adds the neck/shoulder redesign, rear-hand sword/spear attacks, a softly bent front arm with a neutral wrist, curved fingers and a separate equipment mount, forward/backward walking, forward/backward running, jumping and relaxed/combat idles. The original front-hand attack library remains available for future equipment. The default catalog still has nine items without shields.
+This change replaces turn-based combat with continuous movement, running, jumping and overlapping rear-hand attacks. The free front arm, refined shoulders, Ash Vanguard artwork, Grounded rig and nine-item shield-free catalog remain. Damage requires active blade/body contact; no animation marker or random accuracy roll changes HP.
 
-## Local validation
+## Checks
 
 Validated with Node.js 22, Phaser 3.90.0 and system Chromium:
 
-| Check                   | Result                                 |
-| ----------------------- | -------------------------------------- |
-| Strict TypeScript check | Passed                                 |
-| ESLint                  | Passed                                 |
-| Vitest                  | 113 tests passed across 6 files        |
-| Playwright              | 13 browser scenarios passed            |
-| Pages production build  | Passed with `/arena-of-ash/` base path |
+| Check                  | Result                                 |
+| ---------------------- | -------------------------------------- |
+| Strict TypeScript      | Passed                                 |
+| ESLint                 | Passed                                 |
+| Vitest                 | 128 tests passed across 7 files        |
+| Playwright             | 15 browser scenarios                   |
+| Pages production build | Passed with `/arena-of-ash/` base path |
 
-Unit checks cover combat, progression, equipment, saves, runtime content, fixed bone lengths, joint limits, foot/floor support and blade/face clearance. New movement checks cover stance-foot translation cancellation in both directions, matching foot velocity at contact boundaries, continuous cycle phase after overshooting a boundary, jump landing and returning once to the selected idle, including a stance change in flight. The free elbow stays softly flexed and its wrist neutral through actions and movement. Sword and longest-spear face clearance is sampled every 8 ms for every clip with either primary hand.
+The 26 new real-time unit checks cover capsule intersections, parallel/degenerate segments, fast sweeps, simultaneously moving targets, near misses, anticipation/recovery exclusion, facing changes, one hit per swing, guard, stamina, jumping, landing, bounds/body separation, simultaneous lethal trades, outcomes, recovery caps, source-model isolation, action/clip timing, layered locomotion, death continuity from the displayed composite pose, affordable AI decisions and runtime weapon geometry validation. Existing tests retain progression, equipment, saves, runtime content, IK constraints, fixed bone lengths, planted support, interpolation continuity and blade/face clearance.
 
-Browser checks cover complete victory/defeat, single rewards, all nine purchases, pagination, equipment/save persistence, attribute allocation, keyboard input, scene shutdown, reset and viewport scaling. They also cover runtime image-backed gear, changed live stats, invalid-content fallback, both legs below the skirt, the free front arm behind the torso and the armed rear arm in front, and their actual shoulder/hip transforms in both facing directions. The camp scenario exercises walking forward/back, running, jumping, both idle stances, rear-hand weapon grip and unchanged player progression. An equipped spear/helmet jump checks framing below the title. Every scenario checks console and uncaught errors. After the free-arm pose/art/layer refinement, the affected camp, equipped/mirrored rig and shoulder-attachment scenarios were rerun. Default-renderer startup is covered separately from deterministic Canvas gameplay.
+Browser scenarios cover a distant missed attack, approaching and making real contact, full victory/defeat, single rewards, fresh battles, all purchases/equipment persistence, live item images/stats, invalid-art fallback, keyboard shutdown, responsive views, body/arm draw order and shoulder attachments, camp controls and arena run/jump/attack composition. The added contact scenario samples both HP counters and recorded contact shapes: every decrement equals new collision events, each recorded blade/body pair intersects and both fighters deal contact damage. The hold-control scenario covers mouse movement, guard toggling, jumping, bounds, stopped wall movement, focus pause and abandoning without rewards.
 
-Screenshots under `test-results/screenshots/` include `camp-walk-forward.png`, `camp-walk-backward.png`, `camp-run.png`, `camp-jump.png`, `camp-equipped-jump.png`, `camp-combat-idle.png`, `rear-hand-combat-idle.png`, `rear-hand-heavy.png` and equipped/mirrored fighters, guard, victory and defeat. These are review artifacts, not frame-rate measurements on every device. The existing Phaser bundle-size warning remains.
+The first full local browser run passed 14 scenarios; the existing camp walking assertion used a position sampled before a screenshot while the key was still held. It now samples at the actual direction change and is rerun separately. Publishing CI runs the complete suite again. The production entry exposes no development snapshot or hitbox overlay.
 
-## References and controls
+Screenshots under `test-results/screenshots/` include `attack-missed-at-distance.png`, `arena-running-attack.png`, `arena-jumping-attack.png`, `realtime-contact-combat.png`, `arena-touch-jump.png`, full battle results and the preserved equipped/arm/shoulder/camp views. Capsule shapes approximate drawn body/blade silhouettes; these are not per-pixel alpha collisions or frame-rate measurements on every device. The existing Phaser bundle-size warning remains.
 
-Shoulder construction follows the anatomy illustrations and cutout-rig guides linked in [rig refinement](RIG_REFINEMENT.md). The shared coordinate contract is in [anthropometry](ANTHROPOMETRY.md); hand selection, contact phases, jump support and transitions are in [animation](ANIMATION_SYSTEM.md).
+## Controls and publication
 
-In camp: **A/D** walk backward/forward, **Shift+A/D** run, **Space** jumps and **R** toggles stance. Mouse/touch buttons demonstrate a movement cycle or change stance. Arena remains turn-based and starts in combat idle.
+A/D or Left/Right move; Shift runs; Space jumps; J/1 quick-attacks; K/2 heavy-attacks; hold L/3 to guard; F/4 recovers; R toggles stance; Escape returns to camp. Mouse/touch supports held movement/run buttons, Jump, attacks and a Defend toggle. See [real-time combat](REALTIME_COMBAT.md), [animation](ANIMATION_SYSTEM.md) and [runtime collision metadata](RUNTIME_CONTENT.md#weapon-contact-shape).
 
-## Publication status
-
-The public playtest address is https://tinilit.github.io/arena-of-ash/. Publication is authorized for this change set. The `Validate and deploy game` workflow validates the pushed commit before publishing its Pages build. Verify the successful workflow's exact commit and compare the served JavaScript bundle with the local `/arena-of-ash/` build; local validation alone does not establish a public update. Cloud environment publication and GitHub Pages deployment are separate operations.
+The public playtest address is https://tinilit.github.io/arena-of-ash/. The `Validate and deploy game` workflow gates publication on the pushed commit's checks. Match its successful deployment to the exact commit and compare the served JavaScript bundle with the local `/arena-of-ash/` build; local test success alone does not establish a public update. Cloud environment publication and GitHub Pages deployment are separate operations.

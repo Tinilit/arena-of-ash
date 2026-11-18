@@ -1,49 +1,81 @@
+import Phaser from "phaser";
 import { BaseScene } from "./BaseScene";
 import { Gladiator } from "../characters/Gladiator";
+import { ArenaMotion } from "../characters/ArenaMotion";
 import {
-  Battle,
-  actions,
-  type Action,
-  type CombatEvent,
-} from "../combat/engine";
-import { decide } from "../combat/ai";
+  RealtimeBattle,
+  arenaRules,
+  type ArenaInput,
+  type ContactEvent,
+} from "../combat/realtime";
+import { ArenaAI } from "../combat/ArenaAI";
+import type { CombatGeometry } from "../combat/geometry";
+import { actions } from "../combat/engine";
 import { seeded } from "../utils/random";
 import { opponent, stats, reward } from "../domain/progression";
 import { label, ProgressBar, colors } from "../ui/widgets";
 import { en } from "../ui/strings";
-import type Phaser from "phaser";
+
 export class ArenaScene extends BaseScene {
-  battle!: Battle;
-  private rigs!: Gladiator[];
+  battle!: RealtimeBattle;
+  private rigs!: [Gladiator, Gladiator];
+  private motions!: [ArenaMotion, ArenaMotion];
+  private ai!: ArenaAI;
   private bars!: ProgressBar[];
-  private turn!: Phaser.GameObjects.Text;
-  private log!: Phaser.GameObjects.Text;
-  private messages: string[] = [];
+  private status!: Phaser.GameObjects.Text;
+  private keys: Record<string, Phaser.Input.Keyboard.Key> = {};
+  private queued: ArenaInput = {};
+  private held = new Map<string, Set<number>>();
+  private touchGuard = false;
   private battleId = "";
   private ending = false;
-  private rng = seeded(1);
+  private accumulator = 0;
+  private paused = false;
+  private debug?: Phaser.GameObjects.Graphics;
+  private geometry?: [CombatGeometry, CombatGeometry];
   constructor() {
     super("ArenaScene");
   }
   create() {
     this.prepare(en.arena);
-    this.messages = [];
-    this.ending = false;
     this.battleId = crypto.randomUUID();
+    this.ending = false;
+    this.accumulator = 0;
+    this.queued = {};
+    this.held.clear();
+    this.touchGuard = false;
+    this.paused = false;
     const query = new URLSearchParams(location.search);
     const seed =
       import.meta.env.DEV && query.has("seed")
         ? Number(query.get("seed"))
         : crypto.getRandomValues(new Uint32Array(1))[0];
-    this.rng = seeded(seed);
-    this.battle = new Battle(
-      structuredClone(this.services.player),
+    this.battle = new RealtimeBattle(
+      this.services.player,
       opponent(this.services.player),
-      this.rng,
     );
+    this.ai = new ArenaAI(seeded(seed));
     this.rigs = [
-      new Gladiator(this, 490, 533, this.battle.player.model),
-      new Gladiator(this, 790, 533, this.battle.enemy.model, true),
+      new Gladiator(
+        this,
+        this.battle.player.x,
+        arenaRules.floor,
+        this.battle.player.model,
+        false,
+        1,
+      ),
+      new Gladiator(
+        this,
+        this.battle.enemy.x,
+        arenaRules.floor,
+        this.battle.enemy.model,
+        true,
+        1,
+      ),
+    ];
+    this.motions = [
+      new ArenaMotion(this.battle.player.model),
+      new ArenaMotion(this.battle.enemy.model),
     ];
     label(this, 44, 83, this.battle.player.model.name, 23);
     label(this, 1235, 83, this.battle.enemy.model.name, 23).setOrigin(1, 0.5);
@@ -57,136 +89,291 @@ export class ArenaScene extends BaseScene {
     label(this, 399, 130, "SP", 14);
     label(this, 855, 109, "HP", 14);
     label(this, 855, 130, "SP", 14);
-    this.turn = label(this, 640, 92, en.turn, 23, "#e8bd72").setOrigin(0.5);
-    label(this, 640, 169, en.hint, 17).setOrigin(0.5);
-    (["quick", "heavy", "defend", "recover"] as Action[]).forEach((a, i) =>
+    this.status = label(this, 640, 92, en.fight, 23, "#e8bd72").setOrigin(0.5);
+    label(this, 640, 166, en.arenaHint, 14).setOrigin(0.5);
+    (["quick", "heavy", "defend", "recover"] as const).forEach((a, i) =>
       this.button(
         a,
         173 + i * 310,
         611,
         280,
-        `${i + 1}  ${en[a]}  ${actions[a].cost || "+" + (a === "defend" ? 8 : 25)}`,
-        () => this.act(a),
+        `${i + 1}  ${en[a]}${actions[a].cost ? "  " + actions[a].cost : ""}`,
+        () => {
+          if (a === "defend") this.touchGuard = !this.touchGuard;
+          else if (a === "recover") this.queued.recover = true;
+          else {
+            this.touchGuard = false;
+            this.queued.attack = a;
+          }
+        },
       ),
     );
-    this.log = label(this, 640, 672, "", 18).setOrigin(0.5);
+    for (const [id, text, x] of [
+      ["left", "←", 408],
+      ["right", "→", 524],
+      ["run", en.run, 640],
+    ] as const) {
+      const button = this.button(
+        `arena-${id}`,
+        x,
+        667,
+        104,
+        text,
+        () => {},
+        38,
+      );
+      const pointers = new Set<number>();
+      this.held.set(id, pointers);
+      button.on("pointerdown", (p: Phaser.Input.Pointer) => pointers.add(p.id));
+      button.on("pointerout", (p: Phaser.Input.Pointer) =>
+        pointers.delete(p.id),
+      );
+    }
+    this.button(
+      "arena-jump",
+      756,
+      667,
+      104,
+      `${en.jump} 10`,
+      () => {
+        this.queued.jump = true;
+      },
+      38,
+    );
+    this.button(
+      "arena-stance",
+      872,
+      667,
+      104,
+      en.stance,
+      () => {
+        this.queued.toggleStance = true;
+      },
+      38,
+    );
+    if (this.input.manager.pointersTotal < 4)
+      this.input.addPointer(4 - this.input.manager.pointersTotal);
+    const releasePointer = (p: Phaser.Input.Pointer) =>
+      this.held.forEach((set) => set.delete(p.id));
+    const releaseAllPointers = () => this.held.forEach((set) => set.clear());
+    this.input.on("pointerup", releasePointer);
+    this.input.on("gameout", releaseAllPointers);
+    this.keys =
+      (this.input.keyboard?.addKeys({
+        left: "A",
+        right: "D",
+        arrowLeft: "LEFT",
+        arrowRight: "RIGHT",
+        run: "SHIFT",
+        jump: "SPACE",
+        guard: "L",
+        guardNumber: "THREE",
+      }) as typeof this.keys) ?? {};
     this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
-      const a = (["quick", "heavy", "defend", "recover"] as Action[])[
-        Number(event.key) - 1
-      ];
-      if (a) this.act(a);
+      if (event.repeat || this.ending) return;
+      const key = event.key.toLowerCase();
+      if (key === "j" || key === "1") {
+        this.queued.attack = "quick";
+        this.touchGuard = false;
+      }
+      if (key === "k" || key === "2") {
+        this.queued.attack = "heavy";
+        this.touchGuard = false;
+      }
+      if (key === "f" || key === "4") this.queued.recover = true;
+      if (key === " ") this.queued.jump = true;
+      if (key === "r") this.queued.toggleStance = true;
     });
+    const pause = () => {
+      this.paused = true;
+      this.clearInput();
+      this.accumulator = 0;
+    };
+    const resume = () => {
+      this.paused = false;
+      this.accumulator = 0;
+    };
+    this.game.events.on(Phaser.Core.Events.BLUR, pause);
+    this.game.events.on(Phaser.Core.Events.FOCUS, resume);
+    this.events.once("shutdown", () => {
+      this.input.off("pointerup", releasePointer);
+      this.input.off("gameout", releaseAllPointers);
+      this.game.events.off(Phaser.Core.Events.BLUR, pause);
+      this.game.events.off(Phaser.Core.Events.FOCUS, resume);
+      this.clearInput();
+      for (const key of Object.values(this.keys))
+        this.input.keyboard?.removeKey(key, true);
+      this.keys = {};
+    });
+    if (import.meta.env.DEV && query.has("hitboxes"))
+      this.debug = this.add.graphics().setDepth(100);
+    this.pose(0);
     this.refresh();
+  }
+  private clearInput() {
+    this.queued = {};
+    this.touchGuard = false;
+    this.held.forEach((set) => set.clear());
+    Object.values(this.keys).forEach((key) => key.reset());
+  }
+  private inputState(): ArenaInput {
+    const down = (name: string) =>
+      Boolean(this.keys[name]?.isDown || this.held.get(name)?.size);
+    const input: ArenaInput = {
+      ...this.queued,
+      move:
+        Number(down("right") || down("arrowRight")) -
+        Number(down("left") || down("arrowLeft")),
+      run: down("run"),
+      guard: down("guard") || down("guardNumber") || this.touchGuard,
+    };
+    this.queued = {};
+    return input;
+  }
+  private pose(delta: number) {
+    this.battle.fighters.forEach((f, i) => {
+      const rig = this.rigs[i];
+      rig.setArenaTransform(
+        f.x,
+        arenaRules.floor + f.y,
+        f.facing,
+        arenaRules.floor,
+      );
+      rig.applyPose(this.motions[i].update(delta, f), this.motions[i].name);
+    });
+    this.geometry = [
+      this.rigs[0].combatGeometry(),
+      this.rigs[1].combatGeometry(),
+    ];
   }
   private refresh() {
-    [this.battle.player, this.battle.enemy].forEach((f, i) => {
+    this.battle.fighters.forEach((f, i) => {
       const s = stats(f.model);
       this.bars[i * 2].update(f.hp, s.hp);
-      this.bars[i * 2 + 1].update(f.stamina, s.stamina);
+      this.bars[i * 2 + 1].update(Math.floor(f.stamina), s.stamina);
     });
-    this.turn.setText(
-      this.battle.state === "PlayerTurn"
-        ? en.turn
-        : this.battle.state === "PlayerAnimating"
-          ? en.playerActing
-          : en.enemyTurn,
+    for (const a of ["quick", "heavy", "recover"] as const)
+      this.buttons[a].setEnabled(this.battle.canAttack(this.battle.player, a));
+    this.buttons.defend.setEnabled(!this.ending && !this.battle.player.action);
+    this.buttons.defend.setCaption(
+      this.battle.player.guard ? en.guarding : `3  ${en.defend}`,
     );
-    for (const a of Object.keys(actions) as Action[])
-      this.buttons[a].setEnabled(
-        this.battle.state === "PlayerTurn" &&
-          this.battle.player.stamina >= actions[a].cost,
-      );
-    this.log.setText(this.messages.slice(-2).join("\n"));
-  }
-  private act(a: Action) {
-    if (this.battle.state !== "PlayerTurn") return;
-    const event = this.battle.begin(a);
-    if (event) this.present(event);
-  }
-  private present(event: CombatEvent) {
-    this.refresh();
-    const index = event.attackerId === this.battle.player.model.id ? 0 : 1;
-    const attacker = this.rigs[index];
-    const defender = this.rigs[1 - index];
-    attacker.play(
-      event.action,
-      () => {
-        if (!this.battle.impact(event)) return;
-        let message =
-          event.action === "defend"
-            ? en.guard
-            : event.action === "recover"
-              ? en.rest
-              : !event.hit
-                ? en.miss
-                : `${event.critical ? en.critical + " " : ""}−${event.damage}`;
-        message = `${index === 0 ? this.battle.player.model.name : this.battle.enemy.model.name}: ${message}`;
-        this.messages.push(message);
-        if (actions[event.action].multiplier) {
-          if (event.hit) {
-            defender.flash();
-            defender.play(event.outcome ? "death" : "hit");
-            this.cameras.main.shake(80, 0.002);
-          }
-          const text = label(
-            this,
-            defender.root.x,
-            290,
-            event.hit ? `−${event.damage}` : en.miss,
-            32,
-            event.critical ? "#e8bd72" : "#f4e2bc",
-          ).setOrigin(0.5);
-          this.tweens.add({
-            targets: text,
-            y: 245,
-            alpha: 0,
-            duration: 900,
-            onComplete: () => text.destroy(),
-          });
-        }
-        this.refresh();
-      },
-      () => {
-        this.battle.complete();
-        this.refresh();
-        if (this.battle.state === "Victory" || this.battle.state === "Defeat") {
-          this.finish();
-        } else if (this.battle.state === "EnemyThinking") {
-          this.time.delayedCall(320, () => {
-            const e = this.battle.begin(decide(this.battle.enemy, this.rng));
-            if (e) this.present(e);
-          });
-        }
-      },
+    this.buttons["arena-jump"].setEnabled(
+      !this.ending &&
+        this.battle.player.y === 0 &&
+        this.battle.player.stamina >= arenaRules.jumpCost,
     );
+    for (const name of ["left", "right", "run", "stance"])
+      this.buttons[`arena-${name}`].setEnabled(!this.ending);
+  }
+  private present(event: ContactEvent) {
+    const defender = this.battle.fighters.findIndex(
+      (f) => f.model.id === event.defenderId,
+    );
+    this.rigs[defender].flash();
+    const text = label(
+      this,
+      event.point.x,
+      event.point.y,
+      `${event.blocked ? en.blocked + " " : ""}−${event.damage}`,
+      26,
+      event.blocked ? "#9bc6d1" : "#f4e2bc",
+    ).setOrigin(0.5);
+    this.tweens.add({
+      targets: text,
+      y: text.y - 50,
+      alpha: 0,
+      duration: 700,
+      onComplete: () => text.destroy(),
+    });
+    this.cameras.main.shake(55, 0.001);
   }
   private finish() {
     if (this.ending) return;
     this.ending = true;
+    this.clearInput();
     const win = this.battle.state === "Victory";
     const payout = reward(this.services.player, this.battleId, win);
     this.services.save();
-    this.rigs[win ? 0 : 1].play("victory");
-    this.time.delayedCall(1400, () =>
+    this.status.setText(
+      this.battle.state === "Draw" ? en.draw : win ? en.victory : en.defeat,
+    );
+    this.rigs.forEach((rig, i) =>
+      rig.play(this.battle.fighters[i].hp <= 0 ? "death" : "victory"),
+    );
+    this.time.delayedCall(1500, () =>
       this.scene.start("ResultScene", {
         win,
+        draw: this.battle.state === "Draw",
         opponent: this.battle.enemy.model.name,
         payout,
       }),
     );
   }
   update(_time: number, delta: number) {
-    this.rigs?.forEach((r) => r.update(delta));
+    if (!this.battle || this.paused) return;
+    const elapsed = Math.min(delta, 100);
+    if (this.ending) {
+      this.rigs.forEach((rig, i) => {
+        const f = this.battle.fighters[i];
+        if (f.y < 0) {
+          f.y = Math.min(0, f.y + (f.vy * elapsed) / 1000);
+          f.vy += (arenaRules.gravity * elapsed) / 1000;
+        }
+        rig.setArenaTransform(
+          f.x,
+          arenaRules.floor + f.y,
+          f.facing,
+          arenaRules.floor,
+        );
+        rig.update(elapsed);
+      });
+      return;
+    }
+    this.accumulator += elapsed;
+    while (this.accumulator >= arenaRules.step && !this.ending) {
+      const commands = this.inputState();
+      this.battle.advance(arenaRules.step, [
+        commands,
+        this.ai.update(arenaRules.step, this.battle.enemy, this.battle.player),
+      ]);
+      this.pose(arenaRules.step);
+      this.battle
+        .resolve(this.geometry!)
+        .forEach((event) => this.present(event));
+      this.accumulator -= arenaRules.step;
+      if (this.battle.state !== "Fighting") this.finish();
+    }
+    this.refresh();
+    if (this.debug && this.geometry) {
+      this.debug.clear();
+      this.geometry.forEach((g) => {
+        for (const part of g.body) {
+          this.debug!.lineStyle(part.radius * 2, 0x22ccff, 0.25);
+          this.debug!.lineBetween(part.a.x, part.a.y, part.b.x, part.b.y);
+        }
+        if (g.blade) {
+          this.debug!.lineStyle(g.blade.radius * 2, 0xff4444, 0.8);
+          this.debug!.lineBetween(
+            g.blade.a.x,
+            g.blade.a.y,
+            g.blade.b.x,
+            g.blade.b.y,
+          );
+        }
+      });
+    }
   }
   override snapshot() {
     return {
       ...super.snapshot(),
-      rigs: this.rigs.map((rig) => rig.jointSnapshot()),
+      rigs: this.rigs.map((r) => r.jointSnapshot()),
+      geometry: structuredClone(this.geometry),
       battle: structuredClone({
         state: this.battle.state,
         player: this.battle.player,
         enemy: this.battle.enemy,
-        pending: this.battle.pending,
+        contacts: this.battle.contacts,
       }),
     };
   }

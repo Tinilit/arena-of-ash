@@ -8,7 +8,7 @@ Root → pelvis/waist at (0,-120). Far hip (-8,10) → thigh 54 → shin 52 → 
 
 `Animator` accepts a clip library, derives its interpolation keys/rest pose from the library, and blends from the last displayed pose on interruption. Shape-preserving cubic Hermite interpolation shares tangents at interior keys, so motion flows through intermediate poses. Direction changes and clip boundaries ease to rest; values remain within their authored interval range. Actual elapsed milliseconds and disabled Phaser delta smoothing keep events aligned on slower renderers. Idle loops; action clips return to idle; death and victory hold their final pose.
 
-Impact frames fire once when crossed, including skipped frames. The presentation layer applies the precomputed combat event then updates HP/stamina and reactions. Completion advances the battle state only after impact and animation completion. `stop()` removes callbacks on scene shutdown. No scene-specific attack timers guess impact timing.
+Authored impact markers still fire once when crossed, including skipped frames, but Arena damage does not subscribe to them. Arena uses fixed-step active contact windows and actual blade/body geometry. Animation completion alone never changes HP. `stop()` removes callbacks on scene shutdown. See [real-time combat](REALTIME_COMBAT.md).
 
 `equipmentMotion.ts` selects a spear-specific clip library for Training Spear and Ashwood War Spear; swords use the standard Ash library. The same event lifecycle and damage calculation apply. Add new motions using local targets, explicit impact frames and reachable support poses. Validate fixed lengths, flexion, foot support, blade/face clearance, interruption and actual rendered joint transforms.
 
@@ -26,6 +26,14 @@ Impact frames fire once when crossed, including skipped frames. The presentation
 
 Walk cycles last 1000 ms at ±60 logical units/second; running cycles last 640 ms at ±120. During stance, each foot moves opposite actor translation at exactly the same speed. The swing foot follows a lifted arc with endpoint tangents matching contact travel, avoiding a velocity snap at toe-off and heel-strike. Walking has 60% contact per leg with double support; running has 35% with flight intervals. Fixed-length IK poses the legs, counter-rotates soles and retains floor contact. Entry/exit blends cover 160–180 ms; initial transition frames intentionally blend toward the new support pattern. Procedural phase sampling preserves excess elapsed time at loop boundaries.
 
-The 1000 ms jump has anticipation, takeoff, folded airborne legs, descent and a bent-knee landing. Foot support is released in flight and restored on landing, with existing sole-floor protection. Completion returns once to the chosen idle. `CampMovement` moves the preview within bounds; this does not change turn-based combat or persistent progression.
+The 1000 ms jump has anticipation, takeoff, folded airborne legs, descent and a bent-knee landing. Foot support is released in flight and restored on landing, with existing sole-floor protection. Completion returns once to the chosen idle. `CampMovement` moves the preview within bounds; this does not deal damage or change persistent progression.
 
 In camp: **A/D** walk backward/forward, **Shift+A/D** run, **Space** jumps, **R** changes stance. Touch/mouse buttons demonstrate one movement cycle or toggle stance. Key-down events capture short jump/stance taps even between render frames. Both arm roles remain consistent through all motions.
+
+## Arena composition
+
+`ArenaMotion` samples the movement cycle at a speed proportional to actual horizontal velocity, so planted travel still matches actor movement. Locomotion supplies the legs/root and free arm; quick/heavy/recover actions supply the torso, head and weapon hand. An attack never replaces a running or airborne lower-body pose. Jump height comes from `RealtimeBattle` gravity; the rig releases foot support and folds its legs without adding the camp jump's vertical root track a second time. Landing uses a short knee compression. Facing follows the opponent outside an action and remains locked during a swing.
+
+Arena attack durations remain 650/1100 ms. Contact windows are 30–70% / 46–80%; their duration alignment is tested against both sword and spear libraries. Anticipation/recovery contacts and orientation flips are never swept into active damage. Physical contact flashes the defender and places damage text at the contact point. No critical/accuracy roll substitutes for collision.
+
+Death/victory playback is primed from the last displayed composite pose before switching back to the rig animator. A running or airborne actor therefore does not snap to an old idle before falling.

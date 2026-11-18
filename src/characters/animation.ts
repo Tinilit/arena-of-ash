@@ -54,7 +54,8 @@ export class Animator {
       (this.clip.loop === true || this.elapsed < this.clip.duration)
     );
   }
-  play(name: string, impact?: () => void, complete?: () => void) {
+  play(name: string, impact?: () => void, complete?: () => void, from?: Pose) {
+    if (from) this.current = { ...from };
     this.currentName = name === "idle" ? this.idleKey : name;
     const source = this.library[this.currentName] ?? this.library.idle;
     this.transition = { ...this.current };

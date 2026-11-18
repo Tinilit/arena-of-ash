@@ -102,6 +102,18 @@ export function parseCatalog(
     const spearVisual = v.visual === "spear" || v.visual === "war-spear";
     if (slot === "weapon" && (v.weaponType === "spear") !== spearVisual)
       throw Error("Weapon animation must match its fallback visual");
+    let hitbox: Item["hitbox"];
+    if (v.hitbox !== undefined) {
+      if (slot !== "weapon") throw Error("Only weapons can define a hitbox");
+      const h = record(v.hitbox);
+      hitbox = {
+        startY: number(h.startY, -600, 600),
+        endY: number(h.endY, -600, 600),
+        radius: number(h.radius, 0.5, 40),
+      };
+      if (hitbox.startY >= hitbox.endY)
+        throw Error("Invalid weapon hitbox interval");
+    }
     return {
       id,
       name: text(v.name, 36),
@@ -119,6 +131,7 @@ export function parseCatalog(
       ...(v.image === undefined
         ? {}
         : { image: image(v.image, source, revision) }),
+      ...(hitbox ? { hitbox } : {}),
     };
   });
   for (const [id, slot] of Object.entries(required))

@@ -4,6 +4,7 @@ import { en } from "../ui/strings";
 import { Gladiator } from "../characters/Gladiator";
 interface Result {
   win: boolean;
+  draw?: boolean;
   opponent: string;
   payout: { gold: number; xp: number; levels: number } | null;
 }
@@ -13,13 +14,13 @@ export class ResultScene extends BaseScene {
     super("ResultScene");
   }
   create(data: Result) {
-    this.prepare(data.win ? en.victory : en.defeat);
+    this.prepare(data.draw ? en.draw : data.win ? en.victory : en.defeat);
     panel(this, 425, 342, 660, 350);
     label(
       this,
       425,
       230,
-      data.win ? en.victory : en.defeat,
+      data.draw ? en.draw : data.win ? en.victory : en.defeat,
       56,
       "#e8bd72",
     ).setOrigin(0.5);
