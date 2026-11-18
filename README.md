@@ -34,7 +34,7 @@ On the managed cloud machine, system Chromium is detected automatically. Activat
 
 ## Play
 
-Start from camp, enter the arena, buy equipment and allocate level-up points in Character. Arena combat runs in real time. **A/D** or **Left/Right** move, **Shift** runs, **Space** jumps, **J/1** performs a quick attack, **K/2** performs a heavy attack, **L/3** holds guard and **F/4** recovers stamina. **R** changes relaxed/combat stance. Move, run and jump during an attack. **Escape** returns to camp without a reward for an unresolved fight.
+Start from camp, enter the arena, buy equipment and allocate level-up points in Character. Arena combat runs in real time. **A/D** or **Left/Right** move, **Shift** runs, **Space** jumps, **A/D+Space** performs a backward/forward hop relative to facing in the arena, **J/1** performs a quick attack, **K/2** performs a heavy attack, **L/3** holds guard and **F/4** recovers stamina. **R** changes relaxed/combat stance. Move, run and jump during an attack. **Escape** returns to camp without a reward for an unresolved fight.
 
 Mouse/touch users can hold the arrow/Run buttons, tap Jump or an attack, and toggle Defend. The free front arm stays behind the torso; the rear hand holds the primary weapon. Camp retains its movement demonstration buttons and keyboard controls.
 

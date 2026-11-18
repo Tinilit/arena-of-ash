@@ -332,14 +332,18 @@ test("arena movement, running, jumping and attacks share fixed-length joint tran
   await page.keyboard.down("d");
   await page.keyboard.down("Shift");
   await page.keyboard.press("k");
-  await page.waitForTimeout(230);
+  await expect
+    .poll(async () => (await snapshot(page)).battle!.player.x)
+    .toBeGreaterThan(initial.origin.x + 10);
   const moving = await snapshot(page);
   expect(moving.battle!.player.x).toBeGreaterThan(initial.origin.x + 10);
   expect(moving.battle!.player.action?.name).toBe("heavy");
   expect(moving.rigs![0].animation).toBe("heavy");
   await shot(page, "arena-running-attack");
   await page.keyboard.press("Space");
-  await page.waitForTimeout(220);
+  await expect
+    .poll(async () => (await snapshot(page)).battle!.player.y)
+    .toBeLessThan(-25);
   const jumping = await snapshot(page);
   expect(jumping.battle!.player.y).toBeLessThan(-25);
   expect(jumping.battle!.player.action?.name).toBe("heavy");
@@ -906,9 +910,13 @@ test("arena hold buttons, guard, jump and boundaries remain responsive without t
   await page.waitForTimeout(180);
   expect((await snapshot(page)).battle!.player.x).toBeCloseTo(after, 1);
   await click(page, "defend");
-  expect((await snapshot(page)).battle!.player.guard).toBe(true);
+  await expect
+    .poll(async () => (await snapshot(page)).battle!.player.guard)
+    .toBe(true);
   await click(page, "defend");
-  expect((await snapshot(page)).battle!.player.guard).toBe(false);
+  await expect
+    .poll(async () => (await snapshot(page)).battle!.player.guard)
+    .toBe(false);
   await click(page, "arena-jump");
   await expect
     .poll(async () => (await snapshot(page)).battle?.player.y)
@@ -933,4 +941,107 @@ test("arena hold buttons, guard, jump and boundaries remain responsive without t
   await page.keyboard.press("Escape");
   await scene(page, "MainMenuScene");
   expect((await snapshot(page)).player.rewarded).toHaveLength(0);
+});
+
+test("direction plus Space hops without an automatic attack and bots keep ordinary movement", async ({
+  page,
+}) => {
+  await launch(page);
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  for (const [key, kind, sign] of [
+    ["a", "backstep", -1],
+    ["d", "forwardHop", 1],
+  ] as const) {
+    const initial = (await snapshot(page)).battle!.player.x;
+    // Observe the complete motion, including short anticipation/landing phases.
+    const observing = page.evaluate(
+      () =>
+        new Promise<NonNullable<Snapshot["battle"]>[]>((resolve) => {
+          const poses: NonNullable<Snapshot["battle"]>[] = [],
+            end = performance.now() + 1100;
+          const sample = () => {
+            const s = (
+              window as unknown as { __arena: { snapshot: () => Snapshot } }
+            ).__arena.snapshot();
+            if (s.battle) poses.push(s.battle);
+            if (performance.now() < end) requestAnimationFrame(sample);
+            else resolve(poses);
+          };
+          requestAnimationFrame(sample);
+        }),
+    );
+    await page.keyboard.down(key);
+    await page.keyboard.press("Space");
+    await page.keyboard.up(key);
+    const samples = await observing;
+    const hopping = samples.filter((s) => s.player.hop?.kind === kind);
+    expect(hopping.length).toBeGreaterThan(2);
+    expect(hopping.some((s) => s.player.y < -15)).toBe(true);
+    expect(hopping.some((s) => s.player.hop?.phase === "landing")).toBe(true);
+    expect((hopping.at(-1)!.player.x - initial) * sign).toBeGreaterThan(85);
+    expect(samples.every((s) => s.enemy.hop === null)).toBe(true);
+    expect(samples.every((s) => s.player.action === null)).toBe(true);
+    expect(
+      samples.every((s) =>
+        s.contacts.every((e) => e.attackerId !== "wanderer"),
+      ),
+    ).toBe(true);
+    await expect
+      .poll(async () => (await snapshot(page)).battle!.player.hop)
+      .toBeNull();
+    await page.waitForTimeout(200);
+  }
+  await page.keyboard.press("Space");
+  await expect
+    .poll(async () => (await snapshot(page)).battle!.player.y)
+    .toBeLessThan(-25);
+  expect((await snapshot(page)).battle!.player.hop).toBeNull();
+  await shot(page, "ordinary-jump-after-hops");
+});
+
+test("relaxed stance is upright with almost straight legs and an actually lowered weapon", async ({
+  page,
+}) => {
+  await launch(page);
+  await page.waitForTimeout(350);
+  const check = (r: Rig) => {
+    expect(Math.abs(r.body.torso.right.y - r.body.torso.origin.y)).toBeLessThan(
+      0.001,
+    );
+    for (const leg of [r.near, r.far]) {
+      const a = { x: leg.knee.x - leg.hip.x, y: leg.knee.y - leg.hip.y },
+        b = { x: leg.ankle.x - leg.knee.x, y: leg.ankle.y - leg.knee.y };
+      const bend = Math.acos(
+        Math.max(
+          -1,
+          Math.min(
+            1,
+            (a.x * b.x + a.y * b.y) /
+              (Math.hypot(a.x, a.y) * Math.hypot(b.x, b.y)),
+          ),
+        ),
+      );
+      expect(bend).toBeGreaterThan(0.025);
+      expect(bend).toBeLessThan(0.08);
+      expect(Math.abs(leg.heel.y - leg.toe.y)).toBeLessThan(0.01);
+    }
+  };
+  check((await snapshot(page)).rigs![0]);
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  await page.keyboard.press("r");
+  await page.waitForTimeout(350);
+  const s = await snapshot(page);
+  expect(s.battle!.player.relaxed).toBe(true);
+  check(s.rigs![0]);
+  const blade = s.geometry![0].blade!;
+  expect(blade.a.y).toBeGreaterThan(blade.b.y);
+  expect(blade.a.y).toBeLessThan(551 - 10);
+  await shot(page, "upright-relaxed-arena");
+  await page.keyboard.press("j");
+  await expect
+    .poll(async () => (await snapshot(page)).battle!.player.action?.name)
+    .toBe("quick");
+  expect((await snapshot(page)).battle!.player.relaxed).toBe(false);
 });

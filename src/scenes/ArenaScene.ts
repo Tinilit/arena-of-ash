@@ -9,6 +9,7 @@ import {
   type ContactEvent,
 } from "../combat/realtime";
 import { ArenaAI } from "../combat/ArenaAI";
+import { hopDefinitions, hopKind } from "../combat/hops";
 import type { CombatGeometry } from "../combat/geometry";
 import { actions } from "../combat/engine";
 import { seeded } from "../utils/random";
@@ -135,9 +136,7 @@ export class ArenaScene extends BaseScene {
       667,
       104,
       `${en.jump} 10`,
-      () => {
-        this.queued.jump = true;
-      },
+      () => this.queueJump(),
       38,
     );
     this.button(
@@ -181,7 +180,7 @@ export class ArenaScene extends BaseScene {
         this.touchGuard = false;
       }
       if (key === "f" || key === "4") this.queued.recover = true;
-      if (key === " ") this.queued.jump = true;
+      if (key === " ") this.queueJump();
       if (key === "r") this.queued.toggleStance = true;
     });
     const pause = () => {
@@ -217,18 +216,31 @@ export class ArenaScene extends BaseScene {
     Object.values(this.keys).forEach((key) => key.reset());
   }
   private inputState(): ArenaInput {
-    const down = (name: string) =>
-      Boolean(this.keys[name]?.isDown || this.held.get(name)?.size);
     const input: ArenaInput = {
       ...this.queued,
-      move:
-        Number(down("right") || down("arrowRight")) -
-        Number(down("left") || down("arrowLeft")),
-      run: down("run"),
-      guard: down("guard") || down("guardNumber") || this.touchGuard,
+      move: this.direction(),
+      run: this.down("run"),
+      guard: this.down("guard") || this.down("guardNumber") || this.touchGuard,
     };
     this.queued = {};
     return input;
+  }
+  private down(name: string) {
+    return Boolean(this.keys[name]?.isDown || this.held.get(name)?.size);
+  }
+  private direction() {
+    return (
+      Number(this.down("right") || this.down("arrowRight")) -
+      Number(this.down("left") || this.down("arrowLeft"))
+    );
+  }
+  private queueJump() {
+    const direction = this.direction();
+    delete this.queued.jump;
+    delete this.queued.hop;
+    if (direction)
+      this.queued.hop = (direction * this.battle.player.facing) as -1 | 1;
+    else this.queued.jump = true;
   }
   private pose(delta: number) {
     this.battle.fighters.forEach((f, i) => {
@@ -258,11 +270,26 @@ export class ArenaScene extends BaseScene {
     this.buttons.defend.setCaption(
       this.battle.player.guard ? en.guarding : `3  ${en.defend}`,
     );
-    this.buttons["arena-jump"].setEnabled(
-      !this.ending &&
-        this.battle.player.y === 0 &&
-        this.battle.player.stamina >= arenaRules.jumpCost,
-    );
+    const player = this.battle.player,
+      direction = this.direction();
+    if (direction) {
+      const relative = (direction * player.facing) as -1 | 1,
+        kind = hopKind(relative);
+      this.buttons["arena-jump"]
+        .setCaption(
+          `${kind === "backstep" ? en.backHop : en.forwardHop} ${hopDefinitions[kind].cost}`,
+        )
+        .setEnabled(this.battle.canHop(player, relative));
+    } else
+      this.buttons["arena-jump"]
+        .setCaption(`${en.jump} ${arenaRules.jumpCost}`)
+        .setEnabled(
+          !this.ending &&
+            !player.hop &&
+            player.y === 0 &&
+            player.vy === 0 &&
+            player.stamina >= arenaRules.jumpCost,
+        );
     for (const name of ["left", "right", "run", "stance"])
       this.buttons[`arena-${name}`].setEnabled(!this.ending);
   }

@@ -10,6 +10,7 @@ export interface Clip {
   loop?: boolean;
   hold?: boolean;
   blendIn?: number;
+  blendRanges?: Record<string, [number, number]>;
   sample?: (phase: number) => Pose;
 }
 export class Animator {
@@ -141,13 +142,18 @@ export class Animator {
         ),
       );
     if (this.clip.blendIn && this.age < this.clip.blendIn) {
-      const v = this.age / this.clip.blendIn,
-        blend = v * v * (3 - 2 * v);
-      for (const key of this.poseKeys)
+      for (const key of this.poseKeys) {
+        const [start, end] = this.clip.blendRanges?.[key] ?? [0, 1];
+        const v = Math.max(
+          0,
+          Math.min(1, (this.age / this.clip.blendIn - start) / (end - start)),
+        );
+        const blend = v * v * (3 - 2 * v);
         result[key] =
           (this.transition[key] ?? result[key] ?? 0) +
           ((result[key] ?? 0) - (this.transition[key] ?? result[key] ?? 0)) *
             blend;
+      }
     }
     this.current = result;
     if (t === 1) {

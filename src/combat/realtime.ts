@@ -2,6 +2,7 @@ import type { Player } from "../domain/model";
 import { item } from "../data/catalog";
 import { stats } from "../domain/progression";
 import { actions, damage, fighter, type Fighter } from "./engine";
+import { hopDefinitions, hopKind, type Hop } from "./hops";
 import {
   sweptContact,
   type CombatGeometry,
@@ -32,6 +33,7 @@ export interface ArenaInput {
   move?: number;
   run?: boolean;
   jump?: boolean;
+  hop?: -1 | 1;
   attack?: Attack;
   guard?: boolean;
   recover?: boolean;
@@ -53,6 +55,8 @@ export interface ArenaFighter extends Fighter {
   action: Swing | null;
   relaxed: boolean;
   landed: number;
+  hop: Hop | null;
+  hopCooldown: number;
 }
 export interface ContactEvent {
   id: number;
@@ -75,6 +79,8 @@ function actor(model: Player, x: number, facing: 1 | -1): ArenaFighter {
     action: null,
     relaxed: false,
     landed: 1000,
+    hop: null,
+    hopCooldown: 0,
   };
 }
 export class RealtimeBattle {
@@ -103,12 +109,41 @@ export class RealtimeBattle {
       (name === "recover" || Boolean(item(f.model.equipment.weapon ?? "")))
     );
   }
+  canHop(f: ArenaFighter, direction: -1 | 1) {
+    return (
+      this.state === "Fighting" &&
+      f === this.player &&
+      f.hp > 0 &&
+      f.y === 0 &&
+      f.vy === 0 &&
+      !f.hop &&
+      f.hopCooldown === 0 &&
+      f.stamina >= hopDefinitions[hopKind(direction)].cost
+    );
+  }
   advance(delta: number, input: [ArenaInput, ArenaInput]) {
     if (this.state !== "Fighting") return;
     const dt = delta / 1000;
     const before = this.fighters.map((f) => f.x);
     this.fighters.forEach((f, i) => {
       f.landed += delta;
+      f.hopCooldown = Math.max(0, f.hopCooldown - delta);
+      if (f.hop) {
+        const h = f.hop,
+          definition = hopDefinitions[h.kind];
+        h.elapsed += delta;
+        if (
+          h.phase === "anticipation" &&
+          h.elapsed >= definition.anticipation
+        ) {
+          h.phase = "air";
+          h.elapsed = 0;
+          f.vy = -definition.jumpSpeed;
+        } else if (h.phase === "landing" && h.elapsed >= definition.landing) {
+          f.hop = null;
+          f.hopCooldown = definition.cooldown;
+        }
+      }
       if (f.action) {
         f.action.elapsed += delta;
         if (f.action.elapsed >= f.action.duration) {
@@ -119,7 +154,8 @@ export class RealtimeBattle {
       }
       const c = input[i];
       if (c.toggleStance) f.relaxed = !f.relaxed;
-      if (!f.action) f.facing = this.fighters[1 - i].x >= f.x ? 1 : -1;
+      if (!f.action && !f.hop)
+        f.facing = this.fighters[1 - i].x >= f.x ? 1 : -1;
       const request = c.attack ?? (c.recover ? "recover" : undefined);
       if (request && this.canAttack(f, request)) {
         f.stamina -= actions[request].cost;
@@ -132,10 +168,28 @@ export class RealtimeBattle {
         };
         f.relaxed = false;
       }
+      if (i === 0 && c.hop && this.canHop(f, c.hop)) {
+        const kind = hopKind(c.hop);
+        f.stamina -= hopDefinitions[kind].cost;
+        f.hop = {
+          kind,
+          phase: "anticipation",
+          elapsed: 0,
+          direction: (c.hop * f.facing) as 1 | -1,
+        };
+      }
       f.guard = Boolean(
-        c.guard && !f.action && f.stamina >= (f.guard ? 0.1 : 10),
+        c.guard && !f.action && !f.hop && f.stamina >= (f.guard ? 0.1 : 10),
       );
-      if (c.jump && f.y === 0 && f.stamina >= arenaRules.jumpCost) {
+      if (f.guard) f.relaxed = false;
+      if (
+        c.jump &&
+        !c.hop &&
+        !f.hop &&
+        f.y === 0 &&
+        f.vy === 0 &&
+        f.stamina >= arenaRules.jumpCost
+      ) {
         f.vy = -arenaRules.jumpSpeed;
         f.stamina -= arenaRules.jumpCost;
       }
@@ -149,6 +203,11 @@ export class RealtimeBattle {
           Math.min(1.5, 1 + (f.model.attributes.agility - 10) * 0.01),
         ) *
         (f.guard ? 0.5 : f.action ? 0.7 : 1);
+      if (f.hop)
+        f.vx =
+          f.hop.phase === "air"
+            ? f.hop.direction * hopDefinitions[f.hop.kind].speed
+            : 0;
       f.x = Math.max(
         arenaRules.minX,
         Math.min(arenaRules.maxX, f.x + f.vx * dt),
@@ -159,11 +218,16 @@ export class RealtimeBattle {
         if (f.y >= 0) {
           f.y = 0;
           f.vy = 0;
-          f.landed = 0;
+          // Hops own their landing compression; do not replay the jump bounce.
+          f.landed = f.hop ? 180 : 0;
+          if (f.hop?.phase === "air") {
+            f.hop.phase = "landing";
+            f.hop.elapsed = 0;
+          }
         }
       }
-      const drain = f.guard ? 8 : running && movement ? 10 : 0;
-      const regeneration = !f.action && !drain ? 14 : 0;
+      const drain = f.hop ? 0 : f.guard ? 8 : running && movement ? 10 : 0;
+      const regeneration = !f.action && !f.hop && !drain ? 14 : 0;
       f.stamina = Math.max(
         0,
         Math.min(

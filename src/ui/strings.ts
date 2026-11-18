@@ -3,7 +3,9 @@ export const en = {
   draw: "DRAW",
   guarding: "3  Guarding • tap to release",
   arenaHint:
-    "A/D / ←→: move • Shift: run • Space: jump • J/1: quick • K/2: heavy • L/3: guard • F/4: recover • R: stance • Esc: camp",
+    "A/D: move • Shift: run • Space: jump • A/D+Space: back/forward hop • J/1: quick • K/2: heavy • L/3: guard • F/4: recover • R: stance • Esc: camp",
+  backHop: "Backhop",
+  forwardHop: "Hop",
   movementHint: "A/D: walk • Shift: run • Space: jump • R: stance",
   walkBack: "Back",
   walk: "Walk",

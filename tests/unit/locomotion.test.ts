@@ -188,7 +188,12 @@ for (const hand of ["rear", "front"] as const)
           );
           const arm = hand === "rear" ? s.farArm : s.nearArm;
           const angle =
-            r + torso + arm.angle + arm.bend + arm.wrist + Math.PI / 2;
+            r +
+            torso +
+            arm.angle +
+            arm.bend +
+            arm.wrist +
+            (p.weaponGrip ?? Math.PI / 2);
           const local = (y: number) => {
             const q = add(arm.hand, rotate({ x: 0, y }, angle));
             return rotate(
@@ -207,3 +212,140 @@ for (const hand of ["rear", "front"] as const)
       }
     });
   }
+
+it("relaxed idle stands upright on nearly straight planted legs with the blade lowered", () => {
+  for (const id of ["wood", "war-spear"]) {
+    const a = new Animator(equipmentMotion(item(id)));
+    a.play("idleRelaxed");
+    a.update(400);
+    for (let t = 0; t < 2600; t += 16) {
+      const p = a.update(16),
+        s = groundedPose(p);
+      expect(s.torso).toBe(0);
+      expect(s.root.rotation).toBe(0);
+      for (const leg of [s.nearLeg, s.farLeg]) {
+        expect(leg.bend).toBeGreaterThan(0.025);
+        expect(leg.bend).toBeLessThan(0.08);
+        expect(leg.ankle.y).toBeCloseTo(-14, 7);
+      }
+      const arm = s.farArm;
+      const angle = arm.angle + arm.bend + arm.wrist + p.weaponGrip!;
+      const tip = add(
+        arm.hand,
+        rotate({ x: 0, y: id === "wood" ? -95 : -150 }, angle),
+      );
+      expect(tip.y).toBeGreaterThan(arm.hand.y);
+      expect(tip.y).toBeLessThan(-10);
+    }
+  }
+});
+
+it("raises and lowers a carried spear below the face through stance and movement transitions", () => {
+  const lib = equipmentMotion(item("war-spear"));
+  for (const target of ["idleCombat", "walkForward", "walkBackward", "run"]) {
+    const a = new Animator(lib);
+    a.play("idleRelaxed");
+    a.update(400);
+    for (const name of [target, "idleRelaxed"]) {
+      a.play(name);
+      for (let t = 0; t < 400; t += 8) {
+        const p = a.update(8);
+        const s = groundedPose(p),
+          arm = s.farArm;
+        const angle =
+          s.root.rotation +
+          s.torso +
+          arm.angle +
+          arm.bend +
+          arm.wrist +
+          p.weaponGrip!;
+        const head = add(
+          s.root,
+          rotate(
+            add(
+              { x: 0, y: skeleton.pelvisY },
+              rotate({ x: 0, y: skeleton.headY }, s.torso),
+            ),
+            s.root.rotation,
+          ),
+        );
+        const local = (y: number) =>
+          rotate(
+            add(add(arm.hand, rotate({ x: 0, y }, angle)), {
+              x: -head.x,
+              y: -head.y,
+            }),
+            -(s.root.rotation + s.torso + (p.head ?? 0)),
+          );
+        expect(intersects(local(-150), local(88)), `${name} at ${t}`).toBe(
+          false,
+        );
+        expect(
+          add(arm.hand, rotate({ x: 0, y: -150 }, angle)).y,
+          `${name} floor at ${t}`,
+        ).toBeLessThan(-2);
+      }
+    }
+  }
+});
+
+it("prepares a relaxed spear for an arena attack or guard without crossing the face", async () => {
+  const { RealtimeBattle, arenaRules } =
+    await import("../../src/combat/realtime");
+  const { ArenaMotion } = await import("../../src/characters/ArenaMotion");
+  const { createPlayer } = await import("../../src/domain/model");
+  const { opponent } = await import("../../src/domain/progression");
+  for (const command of [
+    { attack: "quick" as const },
+    { attack: "heavy" as const },
+    { guard: true },
+  ]) {
+    const player = createPlayer();
+    player.equipment.weapon = "war-spear";
+    const battle = new RealtimeBattle(player, opponent(player)),
+      motion = new ArenaMotion(battle.player.model);
+    battle.player.relaxed = true;
+    for (let i = 0; i < 50; i++) motion.update(arenaRules.step, battle.player);
+    battle.advance(0, [command, {}]);
+    for (let i = 0; i < 80; i++) {
+      battle.advance(arenaRules.step, ["guard" in command ? command : {}, {}]);
+      const p = motion.update(arenaRules.step, battle.player),
+        s = groundedPose(p),
+        arm = s.farArm;
+      const angle =
+        s.root.rotation +
+        s.torso +
+        arm.angle +
+        arm.bend +
+        arm.wrist +
+        p.weaponGrip!;
+      const head = add(
+        s.root,
+        rotate(
+          add(
+            { x: 0, y: skeleton.pelvisY },
+            rotate({ x: 0, y: skeleton.headY }, s.torso),
+          ),
+          s.root.rotation,
+        ),
+      );
+      const local = (y: number) =>
+        rotate(
+          add(add(arm.hand, rotate({ x: 0, y }, angle)), {
+            x: -head.x,
+            y: -head.y,
+          }),
+          -(s.root.rotation + s.torso + (p.head ?? 0)),
+        );
+      expect(
+        intersects(local(-150), local(88)),
+        `${JSON.stringify(command)} at ${i * arenaRules.step}ms`,
+      ).toBe(false);
+      if (i < 23)
+        expect(add(arm.hand, rotate({ x: 0, y: -150 }, angle)).y).toBeLessThan(
+          -2,
+        );
+      if (i > 25) expect(p.weaponGrip).toBeCloseTo(Math.PI / 2);
+    }
+  }
+});

@@ -168,6 +168,9 @@ export class Gladiator {
     this.displayedPose = { ...p };
     this.displayedAnimation = animation;
     const solved = groundedPose(p);
+    this.weapons.forEach((weapon) =>
+      weapon.setRotation(p.weaponGrip ?? Math.PI / 2),
+    );
     this.joints.torso.rotation = solved.torso;
     this.joints.backTorso.rotation = solved.torso;
     this.joints.frontTorso.rotation = solved.torso;

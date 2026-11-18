@@ -133,7 +133,7 @@ for (const id of ["spear", "war-spear"])
           s.farArm.angle +
           s.farArm.bend +
           s.farArm.wrist +
-          Math.PI / 2;
+          (p.weaponGrip ?? Math.PI / 2);
         const local = (length: number) => {
           const q = add(s.farArm.hand, rotate({ x: 0, y: length }, angle));
           return rotate({ x: q.x - head.x, y: q.y - head.y }, -headR);

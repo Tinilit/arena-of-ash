@@ -18,6 +18,7 @@ export const freeFrontArm: Pose = {
 };
 export const rearReady: Pose = { farHandX: 62, farHandY: 34, farWrist: 0.1 };
 export const combatRest: Pose = {
+  weaponGrip: Math.PI / 2,
   rootX: 0,
   rootY: 3,
   rootR: 0,
@@ -37,16 +38,28 @@ export const combatRest: Pose = {
   ...freeFrontArm,
   ...rearReady,
 };
+const relaxedFootX = 14,
+  relaxedKnee = 0.06;
+const relaxedReach = Math.sqrt(
+  skeleton.thigh ** 2 +
+    skeleton.shin ** 2 +
+    2 * skeleton.thigh * skeleton.shin * Math.cos(relaxedKnee),
+);
+const relaxedRootY =
+  -skeleton.soleY -
+  skeleton.hipY -
+  Math.sqrt(relaxedReach ** 2 - (relaxedFootX - skeleton.nearHipX) ** 2);
 export const relaxedRest: Pose = {
   ...combatRest,
-  rootY: 0,
+  rootY: relaxedRootY,
   torso: 0,
   head: 0,
-  nearFootX: 22,
-  farFootX: -20,
-  farHandX: 54,
-  farHandY: 43,
-  farWrist: 0.12,
+  nearFootX: relaxedFootX,
+  farFootX: -relaxedFootX,
+  farHandX: 8,
+  farHandY: 71,
+  farWrist: 0.03,
+  weaponGrip: (3 * Math.PI) / 4,
 };
 function forHand(p: Pose, hand: WeaponHand): Pose {
   if (hand === "rear") return p;
@@ -60,11 +73,19 @@ function forHand(p: Pose, hand: WeaponHand): Pose {
     farWrist: p.nearWrist,
   };
 }
-function idle(rest: Pose, hand: WeaponHand): Clip {
+function idle(rest: Pose, hand: WeaponHand, relaxed = false): Clip {
+  const primary = hand === "rear" ? "far" : "near";
+  const handRange: [number, number] = relaxed ? [0, 0.5] : [0.5, 1];
   return {
     duration: 2600,
     loop: true,
-    blendIn: 180,
+    blendIn: 300,
+    blendRanges: {
+      [`${primary}HandX`]: handRange,
+      [`${primary}HandY`]: handRange,
+      [`${primary}Wrist`]: handRange,
+      weaponGrip: relaxed ? [0.5, 1] : [0, 0.5],
+    },
     frames: [
       { time: 0, pose: forHand(rest, hand) },
       {
@@ -72,8 +93,8 @@ function idle(rest: Pose, hand: WeaponHand): Clip {
         pose: forHand(
           {
             ...rest,
-            rootY: rest.rootY! - 0.65,
-            head: rest.head! - 0.012,
+            rootY: rest.rootY! - (relaxed ? 0 : 0.65),
+            head: rest.head! - (relaxed ? 0.006 : 0.012),
             nearHandY: rest.nearHandY! - 0.3,
             farHandY: rest.farHandY! - 0.4,
           },
@@ -162,7 +183,13 @@ function gait(name: keyof typeof movementSpeeds, hand: WeaponHand): Clip {
   return {
     duration,
     loop: true,
-    blendIn: 160,
+    blendIn: 300,
+    blendRanges: {
+      [`${hand === "rear" ? "far" : "near"}HandX`]: [0.5, 1],
+      [`${hand === "rear" ? "far" : "near"}HandY`]: [0.5, 1],
+      [`${hand === "rear" ? "far" : "near"}Wrist`]: [0.5, 1],
+      weaponGrip: [0, 0.5],
+    },
     frames: [
       { time: 0, pose: sample(0) },
       { time: 1, pose: sample(1) },
@@ -176,7 +203,7 @@ export function locomotionClips(hand: WeaponHand): Record<string, Clip> {
     pose: forHand({ ...combatRest, ...pose }, hand),
   });
   return {
-    idleRelaxed: idle(relaxedRest, hand),
+    idleRelaxed: idle(relaxedRest, hand, true),
     idleCombat: idle(combatRest, hand),
     walkForward: gait("walkForward", hand),
     walkBackward: gait("walkBackward", hand),

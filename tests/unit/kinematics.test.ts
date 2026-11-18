@@ -163,7 +163,7 @@ for (const style of visualStyles)
           s.nearArm.angle +
           s.nearArm.bend +
           s.nearArm.wrist +
-          Math.PI / 2;
+          (p.weaponGrip ?? Math.PI / 2);
         const local = (length: number) => {
           const q = add(s.nearArm.hand, rotate({ x: 0, y: -length }, bladeR));
           return rotate({ x: q.x - head.x, y: q.y - head.y }, -headR);
