@@ -33,7 +33,7 @@ Ctrl+front/rear attack throws that hand's weapon. Q/E throws the corresponding b
 
 During the action the real catalog item replaces the normal selected weapon visually. The front throwing arm temporarily enters the foreground plane above the head; its shoulder uses the identical waist/torso transform and returns to its normal deeper plane afterward. The head never changes plane. The rear arm remains foreground throughout.
 
-Release spawns one rotating/aligned projectile at the actual wrist and permanently consumes ownership. A pre-release interruption restores the held/belt visual and retains ownership. Physical swept capsule contact supplies the only damage; airborne and landed poses do not award proximity hits. See [combat lifecycle](REALTIME_COMBAT.md).
+Release spawns one rotating/aligned projectile at the actual wrist and consumes exactly one owned copy from its source slot. A pre-release interruption restores the held/belt visual and retains ownership. G can recover a grounded projectile into a free compatible slot or the backpack, including enemy weapons. Spare copies do not auto-refill slots. The winner can collect items until Continue. Physical swept capsule contact supplies the only damage; airborne and landed poses do not award proximity hits. See [combat lifecycle](REALTIME_COMBAT.md).
 
 ## Potion drinking
 

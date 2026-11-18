@@ -3,7 +3,7 @@ export const en = {
   draw: "DRAW",
   guarding: "3  Guarding • tap to release",
   arenaHint:
-    "A/D: move • Shift: run • Space: jump • A/D+Space: hop • LMB/J: front hand • RMB/K: rear hand • F: kick • Ctrl+attack: throw • Q/E: belt • R: stance • Esc: camp",
+    "A/D move • Shift run • Space jump • A/D+Space hop • LMB/J front • RMB/K rear • Ctrl+attack throw • Q/E belt • F kick • C parry • G pick up • R stance • Esc camp",
   backHop: "Backhop",
   forwardHop: "Hop",
   movementHint:
@@ -57,8 +57,7 @@ export const en = {
     belt1: "Belt • slot 1",
     belt2: "Belt • slot 2",
   },
-  loadoutHint:
-    "Choose a hand or belt slot • Equipped items stay on the slot cards",
+  loadoutHint: "One item per slot • Reserves stay in the backpack",
   throwPreview: "Throw preview",
   throwUnder: "Underarm",
   throwOver: "Overarm",

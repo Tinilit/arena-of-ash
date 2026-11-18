@@ -12,6 +12,7 @@ import { knockdownPose } from "./knockdownMotion";
 import { groundedPose } from "./kinematics";
 import { overhandThrowTiming } from "./throwMotion";
 import { hopPose } from "./hopPose";
+import { parryPose } from "./parryMotion";
 const smooth = (value: number) => {
   const t = Math.max(0, Math.min(1, value));
   return t * t * (3 - 2 * t);
@@ -49,6 +50,7 @@ export class ArenaMotion {
   private primary: Hand;
   private guardStart?: Pose;
   private guardAge = 0;
+  private weaponKinds: Partial<Record<Hand, string>> = {};
   name = "idleCombat";
   constructor(model: ArenaFighter["model"]) {
     this.primary = primaryHand(model);
@@ -66,6 +68,14 @@ export class ArenaMotion {
     );
   }
   update(delta: number, f: ArenaFighter): Pose {
+    for (const hand of ["front", "rear"] as const) {
+      const weapon = weaponForHand(f.model, hand),
+        kind = weapon?.weaponType === "spear" ? "spear" : "sword";
+      if (this.weaponKinds[hand] !== kind && !f.handActions[hand]) {
+        this.actions[hand] = new Animator(equipmentMotion(weapon, hand));
+        this.weaponKinds[hand] = kind;
+      }
+    }
     if (f.knockdown) {
       if (!this.falling) this.fallStart = { ...this.displayed };
       this.falling = true;
@@ -90,7 +100,7 @@ export class ArenaMotion {
         ? f.relaxed
           ? "idleRelaxed"
           : "idleCombat"
-        : f.reaction?.kind === "stagger"
+        : f.reaction?.kind === "stagger" || f.reaction?.kind === "parried"
           ? "staggerStep"
           : running
             ? backwards
@@ -301,6 +311,17 @@ export class ArenaMotion {
       base[`${prefix}WeaponGrip`] = pose.weaponGrip;
       this.name = "defend";
     } else this.guardStart = undefined;
+    if (f.parry) {
+      Object.assign(
+        base,
+        parryPose(
+          base,
+          f.parry.elapsed,
+          weaponForHand(f.model, "rear") ? "rear" : "front",
+        ),
+      );
+      this.name = "parry";
+    }
     base.weaponGrip =
       base[`${this.primary === "rear" ? "far" : "near"}WeaponGrip`];
     this.displayed = { ...base };

@@ -1,24 +1,24 @@
-# Belt throwables, weapon throwing and healing potion — 2026-11-18
+# Inventory quantities, parry and equipment recovery — 2026-11-18
 
-Q/E uses a belt knife, axe or healing potion. Ctrl+the selected mouse/keyboard hand attack throws that hand weapon. Every real throw uses the overarm clip, including in the air; the hands remain independent. Release spawns the actual item at the rendered wrist. Swept blade/head/body contact is required for projectile damage, once. A released item is permanently consumed and saved immediately, including misses or abandoned battles; the shop permits repurchase.
+Consumables support repeated purchases and bundles of 1/5/10. Equipment slots carry one copy each; backpack rows show reserves after subtracting equipped copies. Release/use consumes one source copy without auto-refill. G recovers landed player/enemy equipment into an empty compatible slot or the backpack and immediately persists ownership. A victorious player may collect a lethal thrown weapon before Continue; it remains equipped in the next match.
 
-The shop sells a 30-gold healing potion for up to 35 HP. Its 2100 ms animation raises an open vial to the mouth, tilts for a sip and lowers it. Healing/consumption occurs once at 55%; interruption before the sip retains the potion. Full-health use is disabled. Camp P and Character's Drink potion button provide harmless previews. Net and water flask are removed.
+C provides an immediate 140 ms weapon parry window, a 450 ms action and 750 ms recovery. A confirmed frontal melee contact is deflected for zero damage and gives the attacker 1000 ms stun/off-balance recoil. Late/behind contacts, kicks and projectiles are not parried. The enemy has a separate rare-throw RNG, 12% eligible chance, a nine-second check interval and at most one attempt per fight.
 
 ## Validation
 
 | Check               | Result                                  |
 | ------------------- | --------------------------------------- |
 | TypeScript / ESLint | Passed                                  |
-| Unit tests          | 210 across 16 files                     |
-| Browser scenarios   | 40, including successful focused reruns |
+| Unit tests          | 232 across 19 files                     |
+| Browser scenarios   | 44, including successful focused reruns |
 | Production build    | `/arena-of-ash/` base path              |
 
-Pure tests cover selected-hand release, independent simultaneous throws, one-time consumption, pre-release interruption, airborne gravity/release, fast swept projectile/body contact, owner exclusion, harmless landed objects, rendered fallback profiles, potion healing/cap/interruption, repurchase/save round trips and runtime use/heal validation. Drink pose tests check fixed bones, reachable targets, smooth motion and the vial neck reaching within six logical pixels of the mouth. Existing zero-damage kicks, floor transfers, hand collision, enemy progression, live content, display and anatomy checks remain.
+Unit coverage includes repeated/bulk purchases, exact source-slot consumption, spare-copy counts, two identical equipped copies, legacy saves and invalid count rejection. Parry tests cover real contact, exact timing limits, facing, miss/kick behavior, simultaneous attacker hands, a full second of stun, cooldown/repeat rejection and fixed-length reachable guard poses. Recovery tests cover original slots, full-loadout backpack fallback, enemy ownership transfer, duplicate prevention, grounded reach across the blade span, and settling/collection after victory. Rare AI checks use a separate deterministic stream and verify the one-attempt limit while another weapon remains held.
 
-New browser scenarios exercise a real knife hit, airborne axe plus independent front-hand attack, Ctrl+both mouse buttons, empty hands after release, immediate persistent consumption after reload, replacement purchases, potion purchase/equip/drinking/healing and preview return to idle. Screenshots capture the shop, real contacts, airborne throw, two released weapons and the actual potion sip. The runtime catalog count assertion follows the fixture length; hold-input timing uses the controlled browser clock. A production WebGL smoke check also verifies the Pages path, inventory loss after airborne/hand throws, reload persistence and the absence of the development snapshot API. Existing victory/defeat and Canvas/WebGL, Retina, 4K and logical pointer scenarios remain.
+New browser scenarios purchase/equip reserves, consume one copy from each belt without auto-refill, perform a real timed C parry, recover a lethal thrown weapon after victory, and collect an enemy weapon into persistent player ownership. Existing victory/defeat, two-hand hits, airborne kicks/throws, knockdown, external JSON, Canvas/WebGL, Retina, 4K and logical pointer checks remain. A production WebGL smoke check verifies bulk quantities, a lethal throw, post-victory collection, persistence after reload and the absence of the development snapshot API. Pose assertions wait for the complete stance transition before judging knee angles. Floor-transfer poses are sampled inside the browser at 20 ms intervals to retain full down/get-up coverage without one protocol call per pose.
 
-Pose reviews inspect both facing directions. The common waist/shoulder frame is unchanged; an active front-hand throw temporarily uses the foreground plane, then returns behind the torso. These are authored 2D projections with capsule collision approximations, not rigid-body ragdolls or per-pixel masks. Projectiles settle visibly but cannot be picked up. One copy per catalog ID is owned at a time.
+Collision uses authored 2D capsule approximations rather than per-pixel masks. Pickup ownership is transferred once; leaving without recovery loses the item. Used potions are consumed. Only the player requests parries/pickups; bots retain their regular attacks/guards/jumps and rare weapon throw.
 
 ## Publication
 
-The public site is https://tinilit.github.io/arena-of-ash/. A successful `Validate and deploy game` run must match the pushed commit. Verify the served module path and SHA-256 against the Pages build. Production exposes no development snapshot API. Cloud environment publication and Pages deployment are separate operations.
+The public site is https://tinilit.github.io/arena-of-ash/. A successful `Validate and deploy game` run must match the pushed commit. Compare the served module path and SHA-256 with the Pages build. Production exposes no development snapshot API. Cloud environment publication and Pages deployment are separate operations.

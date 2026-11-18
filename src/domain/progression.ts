@@ -1,4 +1,12 @@
 import { item, rewards } from "../data/catalog";
+import { quantity, availableQuantity, addItem } from "./inventory";
+export {
+  consumeItem,
+  quantity,
+  availableQuantity,
+  backpack,
+  addItem,
+} from "./inventory";
 import {
   slotCategory,
   handSlots,
@@ -18,19 +26,19 @@ export function stats(p: Player, hand?: Hand) {
     armor: gear.reduce((n, i) => n + (i?.armor ?? 0), 0),
   };
 }
-export function purchase(p: Player, id: string) {
+export function purchase(p: Player, id: string, amount = 1) {
   const i = item(id);
-  if (!i || p.inventory.includes(id) || p.gold < i.price) return false;
-  p.gold -= i.price;
-  p.inventory.push(id);
-  return true;
-}
-/** A released throwable is lost even on a miss or an abandoned battle. */
-export function consumeItem(p: Player, id: string) {
-  if (!p.inventory.includes(id)) return false;
-  p.inventory = p.inventory.filter((owned) => owned !== id);
-  for (const slot of Object.keys(p.equipment) as EquipmentSlot[])
-    if (p.equipment[slot] === id) delete p.equipment[slot];
+  if (
+    !i ||
+    !Number.isSafeInteger(amount) ||
+    amount < 1 ||
+    amount > 1000 ||
+    (!i.use && (quantity(p, id) > 0 || amount !== 1)) ||
+    p.gold < i.price * amount
+  )
+    return false;
+  if (!addItem(p, id, amount)) return false;
+  p.gold -= i.price * amount;
   return true;
 }
 export function canEquip(p: Player, id: string, slot: EquipmentSlot) {
@@ -42,8 +50,13 @@ export function canEquip(p: Player, id: string, slot: EquipmentSlot) {
 export function equip(p: Player, id: string, slot: EquipmentSlot) {
   const i = item(id);
   if (!i || !canEquip(p, id, slot)) return false;
-  for (const [position, worn] of Object.entries(p.equipment))
-    if (worn === id) delete p.equipment[position as EquipmentSlot];
+  if (p.equipment[slot] === id) return true;
+  if (!availableQuantity(p, id)) {
+    const worn = (Object.keys(p.equipment) as EquipmentSlot[]).find(
+      (position) => p.equipment[position] === id,
+    );
+    if (worn) delete p.equipment[worn];
+  }
   p.equipment[slot] = id;
   return true;
 }

@@ -54,6 +54,7 @@ export interface Player {
   name: string;
   gold: number;
   inventory: string[];
+  quantities?: Record<string, number>;
   equipment: Partial<Record<EquipmentSlot, string>>;
   progress: number;
   rewarded: string[];
@@ -63,6 +64,7 @@ export const createPlayer = (): Player => ({
   name: "The Wanderer",
   gold: 100,
   inventory: ["wood", "throwing-knife", "throwing-axe"],
+  quantities: {},
   equipment: {
     rightHand: "wood",
     belt1: "throwing-knife",

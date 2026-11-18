@@ -26,7 +26,7 @@ Fighters face the opponent when free and lock facing through an action or direct
 
 ## Controls and lifecycle
 
-A/D or Left/Right move, Shift runs, Space jumps, A/D+Space hops backward/forward relative to facing, LMB/J/1 uses the front hand, RMB/K/2 uses the rear hand, F/3 kicks, and R toggles stance. Escape abandons the fight without a reward. Mouse/touch: hold arrow/Run buttons, tap Jump/attacks. Holding a direction while tapping Jump performs the matching hop; its caption shows the movement kind. Multiple pointers support movement plus actions. Jump/action buttons reflect the relevant movement, recovery and action state. Movement, input and combat stop on outcome; a short death/victory presentation precedes ResultScene.
+A/D or Left/Right move, Shift runs, Space jumps, A/D+Space hops backward/forward relative to facing, LMB/J/1 uses the front hand, RMB/K/2 uses the rear hand, F/3 kicks, and R toggles stance. Escape abandons the fight without a reward. Mouse/touch: hold arrow/Run buttons, tap Jump/attacks. Holding a direction while tapping Jump performs the matching hop; its caption shows the movement kind. Multiple pointers support movement plus actions. Jump/action buttons reflect the relevant movement, recovery and action state. Combat damage and AI stop on outcome. Defeat/draw transition after their short presentation. Victory keeps movement and grounded pickups available until Continue, including settling a lethal projectile onto the floor.
 
 Losing focus pauses simulation, clears queued/held input and discards backlog. Shutdown removes focus, keyboard and pointer listeners. Restarting the scene creates fresh HP/action/contact state. Read-only development snapshots include fighter motion, composed rigs, collision geometry and recent contacts; production exposes no diagnostic API. `?hitboxes=1` draws shapes only in development.
 
@@ -62,12 +62,26 @@ Combat key commands use physical `KeyboardEvent.code`, with a symbol fallback fo
 
 `handActions` and `handCooldowns` are keyed by front/rear; `bodyAction` and `bodyCooldown` handle kicks/recovery. `action` and `attackCooldown` are aggregate presentation views, never the eligibility lock for a hand. Input queues retain both hand requests from the same rendered frame. Contact sweep histories track each swing ID separately, and all hits are collected before shared pain/stun clears both hands. No idle or inactive hand inherits the other hand's hit window.
 
-Enemy loadouts use a separate seeded stream from AI and kick knockdown. Wins are uncapped; three equipment tiers improve main/offhand weapon pools and helmet/body armor. AI considers each equipped hand's reach and cooldown, allowing overlapping attacks. Shields are absent and bots do not request belt actions, throws, kicks or directional hops. See [enemy generation](OPPONENTS.md).
+Enemy loadouts use a separate seeded stream from AI and kick knockdown. Wins are uncapped; three equipment tiers improve main/offhand weapon pools and helmet/body armor. AI considers each equipped hand's reach and cooldown, allowing overlapping attacks. Shields are absent and bots do not request belt actions, parries, pickups, kicks or directional hops. Rare weapon throws use their own RNG and interval. See [enemy generation](OPPONENTS.md).
 
 ## Released items and healing
 
 Actual throws use the overarm clip retimed to 850 ms grounded or 650 ms when started airborne; release is at 60%. Spawn uses the rendered selected wrist, retaining the item’s catalog art and damaging profile. Knives/axes/swords rotate; spears follow velocity. Projectile gravity is 1000 units/s². Each step sweeps the previous/current blade capsule against the opponent’s previous/current body capsules. The owner is excluded; one contact marks the projectile spent and applies normal pain/stun. Landed objects cannot hit. These are capsule approximations, not per-pixel masks.
 
-`consumedItems` records each release/sip once. ArenaScene removes those player IDs from persistent equipment and ownership and saves immediately, before rewards or scene exit. The battle model is a separate copy with matching consumption. Nothing restores the lost item after victory, defeat, Escape or reload; the shop permits repurchase.
+`consumedItems` records each release/sip once. ArenaScene removes those player IDs from persistent equipment and ownership and saves immediately, before rewards or scene exit. The battle model is a separate copy with matching consumption. G can recover a grounded thrown copy into an empty compatible slot or the backpack; collection immediately saves the new owner and count. Victory remains open until Continue. Unrecovered copies stay lost on defeat, leaving or reload; the shop permits consumable repurchase.
 
 Drinking occupies the rear-hand track for 2100 ms, consumes/heals at 55% and clamps HP to its maximum. A pre-sip interruption retains the potion. Full-health use is rejected. Actual belt use temporarily hides the corresponding waist attachment and rear weapon while showing the held catalog item; the weapon returns during recovery.
+
+## Timed parry
+
+C creates a separate parry state, requiring a held weapon and no active action/stun/knockdown. Its 140 ms window is active immediately; the pose raises the selected weapon, then recovers through the 450 ms action. A further 750 ms cooldown prevents repeat spam. Input repeats cannot restart the timer. An interruption retains the remaining cooldown.
+
+The resolver first gathers the same actual swept melee contacts used for damage. A frontal weapon/fist contact inside the window is marked `parried`, deals zero damage, and cancels both attacker hand tracks before applying 1000 ms stun and a short off-balance recoil. Simultaneous hands are deflected together. Misses, late contacts, rear contacts, kicks and projectiles are not parried. Other hits cannot shorten the existing parry stun. No continuous player guard or energy resource is added.
+
+## Counts, collection and aftermath
+
+`domain/inventory.ts` separates total copies, equipped copies and available backpack copies. Slots always hold one copy. `consumedItems` includes the exact source slot; using belt1 cannot delete an identical item in belt2. No battle slot reloads from reserves.
+
+G selects the nearest landed projectile within an 85-unit pickup reach of its grip/blade span. The collector must be alive, grounded and free of action/stun/knockdown. Airborne/spent/expired/already-collected projectiles cannot be collected. One transition to `pickedUp` adds one copy and records its collector/target slot in `collectedItems`. Original empty compatible slots are preferred; occupied equipment is preserved and a full loadout receives the item in its backpack. Scene cursors mirror consumption and collection to the persistent player exactly once. `ArenaMotion` refreshes hand animation libraries when a collected weapon changes sword/spear type.
+
+`advanceAftermath` settles projectiles and moves the winner without further combat contacts. Continue opens ResultScene. This lets a lethal thrown item land and be recovered before the next match. Rewards remain idempotent and are granted on the original outcome, not on collection or Continue.

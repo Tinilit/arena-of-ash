@@ -13,6 +13,8 @@ import {
   unequip,
   stats,
   primaryWeapon,
+  backpack,
+  availableQuantity,
 } from "../domain/progression";
 import { item } from "../data/catalog";
 import { drawGear } from "../rendering/characterVisuals";
@@ -25,8 +27,7 @@ export class CharacterScene extends BaseScene {
     this.prepare(en.characterTitle);
     const p = this.services.player,
       slot = data.slot ?? "rightHand";
-    const worn = new Set(Object.values(p.equipment));
-    const inventory = p.inventory.filter((id) => !worn.has(id));
+    const inventory = backpack(p);
     const pages = Math.max(1, Math.ceil(inventory.length / 8));
     const page = Math.max(0, Math.min(data.page ?? 0, pages - 1));
     const restart = (next: { page?: number; slot?: EquipmentSlot } = {}) =>
@@ -125,10 +126,13 @@ export class CharacterScene extends BaseScene {
             x - 51 - bounds.centerX * scale,
             y + 3 - bounds.centerY * scale,
           );
-        label(this, x - 19, y - 5, definition.name, 14).setWordWrapWidth(
-          95,
-          true,
-        );
+        label(
+          this,
+          x - 19,
+          y - 5,
+          `${definition.name} ×1`,
+          14,
+        ).setWordWrapWidth(95, true);
         this.button(
           `unequip-${position}`,
           x + 61,
@@ -163,7 +167,13 @@ export class CharacterScene extends BaseScene {
                 : !p.equipment.rightHand
                   ? "rightHand"
                   : "leftHand";
-      const name = label(this, 855, y, def.name, 16);
+      const name = label(
+        this,
+        855,
+        y,
+        `${def.name} ×${availableQuantity(p, id)}`,
+        16,
+      );
       if (name.width > 225) name.setFontSize((16 * 225) / name.width);
       this.button(
         `equip-${id}`,
@@ -217,8 +227,12 @@ export class CharacterScene extends BaseScene {
   }
   override snapshot() {
     return {
-      backpack: this.services.player.inventory.filter(
-        (id) => !Object.values(this.services.player.equipment).includes(id),
+      backpack: backpack(this.services.player),
+      backpackQuantities: Object.fromEntries(
+        backpack(this.services.player).map((id) => [
+          id,
+          availableQuantity(this.services.player, id),
+        ]),
       ),
       ...super.snapshot(),
       rigs: this.rig ? [this.rig.jointSnapshot()] : [],

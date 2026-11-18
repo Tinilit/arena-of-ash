@@ -1,13 +1,15 @@
 import type { Player, Hand, EquipmentSlot } from "../domain/model";
 import { item } from "../data/catalog";
 import { handSlots } from "../domain/model";
-import { stats, consumeItem } from "../domain/progression";
+import { stats, consumeItem, addItem, equip } from "../domain/progression";
+import { parryRules } from "./parry";
 import {
   advanceProjectile,
   settleProjectile,
   projectileProfile,
   projectileFloorRadius,
   projectileShape,
+  pickupDistance,
   type Projectile,
 } from "./projectiles";
 import { primaryHand, weaponForHand } from "../domain/progression";
@@ -66,6 +68,8 @@ export interface ArenaInput {
   guard?: boolean;
   recover?: boolean;
   toggleStance?: boolean;
+  parry?: boolean;
+  pickup?: boolean;
 }
 export interface Swing {
   id: number;
@@ -98,10 +102,12 @@ export interface ArenaFighter extends Fighter {
   attackCooldown: number;
   stun: number;
   pushVx: number;
+  parry: { id: number; elapsed: number; succeeded: boolean } | null;
+  parryCooldown: number;
   knockdown: { phase: "fall" | "down" | "getUp"; elapsed: number } | null;
   reaction: {
     id: number;
-    kind: "hit" | "stagger";
+    kind: "hit" | "stagger" | "parried";
     elapsed: number;
     duration: number;
     direction: 1 | -1;
@@ -113,6 +119,7 @@ export interface ContactEvent {
   defenderId: string;
   damage: number;
   blocked: boolean;
+  parried?: boolean;
   knockdown: boolean;
   kind: "weapon" | "punch" | "kick" | "projectile";
   hand: Hand;
@@ -164,6 +171,8 @@ function actor(model: Player, x: number, facing: 1 | -1): ArenaFighter {
     },
     stun: 0,
     pushVx: 0,
+    parry: null,
+    parryCooldown: 0,
     reaction: null,
     knockdown: null,
   };
@@ -182,6 +191,13 @@ export class RealtimeBattle {
     ownerId: string;
     itemId: string;
     actionId: number;
+    sourceSlot?: EquipmentSlot;
+  }[] = [];
+  readonly collectedItems: {
+    ownerId: string;
+    itemId: string;
+    slot?: EquipmentSlot;
+    projectileId: number;
   }[] = [];
   private sequence = 0;
   private previous?: [CombatGeometry, CombatGeometry];
@@ -210,6 +226,7 @@ export class RealtimeBattle {
       f.hp > 0 &&
       name !== "heavy" &&
       !f.knockdown &&
+      !f.parry &&
       f.stun === 0 &&
       !f.bodyAction &&
       f.bodyCooldown === 0 &&
@@ -232,6 +249,96 @@ export class RealtimeBattle {
       ) &&
       !activeActions(f).some((a) => a.sourceSlot === slot)
     );
+  }
+  canParry(f: ArenaFighter) {
+    return (
+      this.state === "Fighting" &&
+      f.hp > 0 &&
+      !f.knockdown &&
+      f.stun === 0 &&
+      !f.parry &&
+      f.parryCooldown === 0 &&
+      !f.action &&
+      f.reaction?.kind !== "stagger" &&
+      f.reaction?.kind !== "parried" &&
+      Boolean(weaponForHand(f.model, "rear") || weaponForHand(f.model, "front"))
+    );
+  }
+  nearbyPickup(f: ArenaFighter) {
+    if (
+      (this.state !== "Fighting" && this.state !== "Victory") ||
+      f.hp <= 0 ||
+      f.y !== 0 ||
+      f.vy !== 0 ||
+      f.stun > 0 ||
+      f.knockdown ||
+      f.parry ||
+      f.action
+    )
+      return undefined;
+    return this.projectiles
+      .filter((p) => p.state === "landed" && pickupDistance(p, f.x) <= 85)
+      .sort(
+        (a, b) =>
+          pickupDistance(a, f.x) - pickupDistance(b, f.x) || a.id - b.id,
+      )[0];
+  }
+  private pickup(f: ArenaFighter) {
+    const p = this.nearbyPickup(f);
+    const definition = p && item(p.itemId);
+    if (!p || !definition || !addItem(f.model, p.itemId)) return;
+    const slots: EquipmentSlot[] =
+      definition.slot === "weapon"
+        ? ["rightHand", "leftHand"]
+        : ["belt1", "belt2"];
+    if (slots.includes(p.sourceSlot)) slots.unshift(p.sourceSlot);
+    const slot = slots.find((s) => !f.model.equipment[s]);
+    if (slot) equip(f.model, p.itemId, slot);
+    p.state = "pickedUp";
+    this.collectedItems.push({
+      ownerId: f.model.id,
+      itemId: p.itemId,
+      slot,
+      projectileId: p.id,
+    });
+  }
+  /** A victorious player can collect equipment before explicitly leaving the arena. */
+  advanceAftermath(delta: number, input: ArenaInput) {
+    if (this.state !== "Victory") return;
+    const dt = delta / 1000,
+      f = this.player;
+    this.projectiles.forEach((p) => {
+      advanceProjectile(p, delta, arenaRules.floor);
+      settleProjectile(p, arenaRules.floor);
+    });
+    f.action = null;
+    f.parry = null;
+    f.hop = null;
+    f.landed += delta;
+    f.stun = Math.max(0, f.stun - delta);
+    if (!f.stun) f.reaction = null;
+    const before = f.x;
+    f.x = Math.max(
+      arenaRules.minX,
+      Math.min(
+        arenaRules.maxX,
+        f.x +
+          Math.max(-1, Math.min(1, input.move ?? 0)) *
+            (input.run ? arenaRules.run : arenaRules.walk) *
+            dt,
+      ),
+    );
+    f.vx = dt ? (f.x - before) / dt : 0;
+    if (f.vx) f.facing = f.vx > 0 ? 1 : -1;
+    if (f.y < 0 || f.vy < 0) {
+      f.y += f.vy * dt + 0.5 * arenaRules.gravity * dt * dt;
+      f.vy += arenaRules.gravity * dt;
+      if (f.y >= 0) {
+        f.y = f.vy = 0;
+        f.landed = 0;
+      }
+    }
+    if (input.pickup) this.pickup(f);
   }
   canUseBelt(f: ArenaFighter, slot: "belt1" | "belt2") {
     const definition = item(f.model.equipment[slot] ?? "");
@@ -261,12 +368,13 @@ export class RealtimeBattle {
     f.reaction = null;
   }
   private consume(f: ArenaFighter, swing: Swing, itemId: string) {
-    consumeItem(f.model, itemId);
+    consumeItem(f.model, itemId, swing.sourceSlot);
     swing.released = true;
     this.consumedItems.push({
       ownerId: f.model.id,
       itemId,
       actionId: swing.id,
+      sourceSlot: swing.sourceSlot,
     });
   }
   private startThrow(f: ArenaFighter, hand: Hand, slot: EquipmentSlot) {
@@ -314,6 +422,14 @@ export class RealtimeBattle {
     const before = this.fighters.map((f) => f.x);
     this.fighters.forEach((f, i) => {
       f.landed += delta;
+      f.parryCooldown = Math.max(0, f.parryCooldown - delta);
+      if (f.parry) {
+        f.parry.elapsed += delta;
+        if (f.parry.elapsed >= parryRules.duration) {
+          f.parry = null;
+          f.parryCooldown = parryRules.cooldown;
+        }
+      }
       f.stun = Math.max(0, f.stun - delta);
       f.bodyCooldown = Math.max(0, f.bodyCooldown - delta);
       for (const hand of ["front", "rear"] as const)
@@ -375,10 +491,20 @@ export class RealtimeBattle {
         }
       }
       const c =
-        f.knockdown || f.stun > 0 || f.reaction?.kind === "stagger"
+        f.knockdown ||
+        f.stun > 0 ||
+        f.reaction?.kind === "stagger" ||
+        f.reaction?.kind === "parried"
           ? {}
           : input[i];
       if (c.toggleStance) f.relaxed = !f.relaxed;
+      if (c.pickup) this.pickup(f);
+      if (c.parry && this.canParry(f)) {
+        f.parryCooldown = parryRules.duration + parryRules.cooldown;
+        f.parry = { id: ++this.sequence, elapsed: 0, succeeded: false };
+        f.relaxed = false;
+        f.reaction = null;
+      }
       if (!f.action && !f.hop && !f.reaction && !f.knockdown)
         f.facing = this.fighters[1 - i].x >= f.x ? 1 : -1;
       for (const hand of new Set([
@@ -430,7 +556,12 @@ export class RealtimeBattle {
         };
       }
       f.guard = Boolean(
-        c.guard && !f.action && !f.hop && !f.reaction && !f.knockdown,
+        c.guard &&
+        !f.action &&
+        !f.hop &&
+        !f.reaction &&
+        !f.knockdown &&
+        !f.parry,
       );
       if (f.guard) f.relaxed = false;
       if (
@@ -450,7 +581,7 @@ export class RealtimeBattle {
       f.vx =
         movement *
         (running ? arenaRules.run : arenaRules.walk) *
-        (f.guard ? 0.5 : f.action && !flyingKick ? 0.7 : 1);
+        (f.guard ? 0.5 : (f.action && !flyingKick) || f.parry ? 0.7 : 1);
       if (f.hop)
         f.vx =
           f.hop.phase === "air"
@@ -460,7 +591,8 @@ export class RealtimeBattle {
         f.knockdown ||
         (f.action?.name === "kick" && f.y === 0 && f.vy === 0) ||
         f.stun > 0 ||
-        f.reaction?.kind === "stagger"
+        f.reaction?.kind === "stagger" ||
+        f.reaction?.kind === "parried"
       )
         f.vx = 0;
       f.vx += f.pushVx;
@@ -688,8 +820,52 @@ export class RealtimeBattle {
       }
     }
     this.projectiles.forEach((p) => settleProjectile(p, arenaRules.floor));
+    const parriedAttackers = new Set<string>();
+    for (const e of events) {
+      const defender = this.fighters.find((f) => f.model.id === e.defenderId)!;
+      const attacker = this.fighters.find((f) => f.model.id === e.attackerId)!;
+      if (
+        (e.kind === "weapon" || e.kind === "punch") &&
+        defender.parry &&
+        defender.parry.elapsed < parryRules.window &&
+        (attacker.x - defender.x) * defender.facing >= 0
+      ) {
+        e.parried = e.blocked = true;
+        e.damage = 0;
+        e.knockdown = false;
+        defender.parry.succeeded = true;
+        parriedAttackers.add(attacker.model.id);
+      }
+    }
+    for (const id of parriedAttackers) {
+      const f = this.fighters.find((f) => f.model.id === id)!;
+      f.stun = Math.max(f.stun, parryRules.stun);
+      f.reaction = {
+        id: ++this.sequence,
+        kind: "parried",
+        elapsed: 0,
+        duration: parryRules.stun,
+        direction: -f.facing as 1 | -1,
+      };
+      f.action = null;
+      f.parry = null;
+      f.hop = null;
+      f.guard = false;
+      f.relaxed = false;
+      f.pushVx = -f.facing * 120;
+      f.bodyCooldown = Math.max(f.bodyCooldown, parryRules.stun);
+      for (const hand of ["front", "rear"] as const)
+        f.handCooldowns[hand] = Math.max(
+          f.handCooldowns[hand],
+          parryRules.stun,
+        );
+    }
     // Resolve trades from the same physical instant before deciding the outcome.
     for (const e of events) {
+      if (e.parried) {
+        this.contacts.push(e);
+        continue;
+      }
       const defender = this.fighters.find((f) => f.model.id === e.defenderId)!;
       defender.hp = Math.max(0, defender.hp - e.damage);
       const attacker = this.fighters.find((f) => f.model.id === e.attackerId)!;
@@ -700,23 +876,27 @@ export class RealtimeBattle {
         continue;
       }
       if (e.knockdown) defender.knockdown = { phase: "fall", elapsed: 0 };
-      defender.stun =
-        e.kind === "kick" ? arenaRules.kickStun : arenaRules.hitStun;
-      defender.reaction = e.knockdown
-        ? null
-        : {
-            id: e.id,
-            kind: e.kind === "kick" ? "stagger" : "hit",
-            elapsed: 0,
-            duration:
-              e.kind === "kick"
-                ? arenaRules.staggerDuration
-                : arenaRules.hitReaction,
-            direction,
-          };
+      defender.stun = Math.max(
+        defender.stun,
+        e.kind === "kick" ? arenaRules.kickStun : arenaRules.hitStun,
+      );
+      if (defender.reaction?.kind !== "parried")
+        defender.reaction = e.knockdown
+          ? null
+          : {
+              id: e.id,
+              kind: e.kind === "kick" ? "stagger" : "hit",
+              elapsed: 0,
+              duration:
+                e.kind === "kick"
+                  ? arenaRules.staggerDuration
+                  : arenaRules.hitReaction,
+              direction,
+            };
       defender.pushVx =
         direction * (e.kind === "kick" ? arenaRules.kickImpulse : 65);
       defender.action = null;
+      defender.parry = null;
       defender.hop = null;
       defender.guard = false;
       defender.relaxed = false;

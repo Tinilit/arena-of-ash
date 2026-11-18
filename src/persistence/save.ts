@@ -5,6 +5,7 @@ import {
   type Player,
 } from "../domain/model";
 import { item } from "../data/catalog";
+import { quantity, equippedCount } from "../domain/inventory";
 export const SAVE_KEY = "arena-of-ash.v3";
 export function serialize(p: Player) {
   return JSON.stringify({ version: 3, player: p });
@@ -20,6 +21,8 @@ export function deserialize(raw: string | null): Player {
       for (const [slot, id] of Object.entries(p.equipment))
         if (["net", "flask"].includes(id))
           delete p.equipment[slot as EquipmentSlot];
+    if (p?.quantities && typeof p.quantities === "object")
+      for (const id of ["net", "flask"]) delete p.quantities[id];
     const integer = (n: unknown) => Number.isSafeInteger(n) && Number(n) >= 0;
     if (
       !p ||
@@ -32,8 +35,18 @@ export function deserialize(raw: string | null): Player {
       !p.inventory.every((id) => typeof id === "string" && item(id)) ||
       !p.equipment ||
       Array.isArray(p.equipment) ||
-      new Set(Object.values(p.equipment)).size !==
-        Object.values(p.equipment).length ||
+      (p.quantities !== undefined &&
+        (!p.quantities ||
+          Array.isArray(p.quantities) ||
+          typeof p.quantities !== "object" ||
+          !Object.entries(p.quantities).every(
+            ([id, n]) =>
+              p.inventory.includes(id) &&
+              Number.isSafeInteger(n) &&
+              n >= 1 &&
+              n <= 1000000,
+          ))) ||
+      p.inventory.some((id) => equippedCount(p, id) > quantity(p, id)) ||
       !Object.entries(p.equipment).every(
         ([slot, id]) =>
           typeof id === "string" &&
@@ -50,6 +63,7 @@ export function deserialize(raw: string | null): Player {
       name: p.name,
       gold: p.gold,
       inventory: p.inventory,
+      quantities: p.quantities ?? {},
       equipment: p.equipment,
       progress: p.progress,
       rewarded: p.rewarded,

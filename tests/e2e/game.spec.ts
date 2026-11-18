@@ -180,6 +180,12 @@ async function finish(page: Page, attack = true) {
       await page.keyboard.up("d");
       return;
     }
+    if (s.buttons["finish-battle"]) {
+      await page.keyboard.up("a");
+      await page.keyboard.up("d");
+      await click(page, "finish-battle");
+      continue;
+    }
     if (s.battle?.state === "Fighting" && attack) {
       const inRange = await steer(page, s);
       if (!s.battle.player.action) {
@@ -1065,7 +1071,9 @@ test("relaxed stance is upright with almost straight legs and an actually lowere
       expect(Math.abs(leg.heel.y - leg.toe.y)).toBeLessThan(0.01);
     }
   };
-  check((await snapshot(page)).rigs![0]);
+  await expect(async () => check((await snapshot(page)).rigs![0])).toPass({
+    timeout: 3000,
+  });
   await click(page, "battle");
   await scene(page, "ArenaScene");
   await page.keyboard.press("r");
@@ -1075,6 +1083,9 @@ test("relaxed stance is upright with almost straight legs and an actually lowere
       return Math.abs(r.body.torso.right.y - r.body.torso.origin.y);
     })
     .toBeLessThan(0.001);
+  await expect(async () => check((await snapshot(page)).rigs![0])).toPass({
+    timeout: 3000,
+  });
   const s = await snapshot(page);
   expect(s.battle!.player.relaxed).toBe(true);
   check(s.rigs![0]);
@@ -1516,29 +1527,38 @@ test("a seeded kick knocks down on contact, holds one second and rises through a
   }
   expect(event?.knockdown).toBe(true);
   expect(contact(event!.blade, event!.body)).not.toBeNull();
-  const seen: { state: ArenaFighter; rig: Rig }[] = [];
-  let capturedDown = false,
-    capturedRise = false;
-  for (let i = 0; i < 180; i++) {
-    const s = await snapshot(page);
-    seen.push({ state: s.battle!.enemy, rig: s.rigs![1] });
-    const k = s.battle!.enemy.knockdown;
-    if (k?.phase === "down" && !capturedDown) {
-      await page.screenshot({
-        path: "test-results/screenshots/kick-knockdown-ground.png",
-      });
-      capturedDown = true;
-    }
-    if (k?.phase === "getUp" && k.elapsed >= 800 && !capturedRise) {
-      await page.screenshot({
-        path: "test-results/screenshots/kick-supported-get-up.png",
-      });
-      capturedRise = true;
-    }
-
-    if (!s.battle!.enemy.knockdown) break;
-    await page.clock.runFor(20);
-  }
+  // Sample inside the browser to avoid a protocol round trip for every pose.
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __arena: { snapshot: () => Snapshot };
+      __knockdownSamples: { state: ArenaFighter; rig: Rig }[];
+      __knockdownTimer: ReturnType<typeof setInterval>;
+    };
+    w.__knockdownSamples = [];
+    w.__knockdownTimer = setInterval(() => {
+      const s = w.__arena.snapshot();
+      w.__knockdownSamples.push({ state: s.battle!.enemy, rig: s.rigs![1] });
+    }, 20);
+  });
+  await page.clock.runFor(600);
+  expect((await snapshot(page)).battle!.enemy.knockdown?.phase).toBe("down");
+  await page.screenshot({
+    path: "test-results/screenshots/kick-knockdown-ground.png",
+  });
+  await page.clock.runFor(1800);
+  expect((await snapshot(page)).battle!.enemy.knockdown?.phase).toBe("getUp");
+  await page.screenshot({
+    path: "test-results/screenshots/kick-supported-get-up.png",
+  });
+  await page.clock.runFor(1200);
+  const seen = await page.evaluate(() => {
+    const w = window as unknown as {
+      __knockdownSamples: { state: ArenaFighter; rig: Rig }[];
+      __knockdownTimer: ReturnType<typeof setInterval>;
+    };
+    clearInterval(w.__knockdownTimer);
+    return w.__knockdownSamples;
+  });
   const down = seen.filter((s) => s.state.knockdown?.phase === "down");
   const up = seen.filter((s) => s.state.knockdown?.phase === "getUp");
   expect(down.length).toBeGreaterThanOrEqual(49);
@@ -2025,4 +2045,260 @@ test("shop potion equips on the belt, heals at the animated sip and remains spen
     "healing-potion",
   );
   expect((await snapshot(page)).player.gold).toBe(70);
+});
+
+const ownedCopies = (p: Player, id: string) =>
+  p.inventory.includes(id) ? (p.quantities?.[id] ?? 1) : 0;
+async function savedFixture(page: Page, p: Player) {
+  await page.addInitScript((p) => {
+    if (!localStorage.getItem("arena-of-ash.v3"))
+      localStorage.setItem(
+        "arena-of-ash.v3",
+        JSON.stringify({ version: 3, player: p }),
+      );
+  }, p);
+}
+
+test("bulk consumables retain backpack reserves while each belt slot carries one copy", async ({
+  page,
+}) => {
+  const p = createPlayer();
+  p.gold = 1000;
+  await savedFixture(page, p);
+  await page.clock.install();
+  await launch(page);
+  await click(page, "shop");
+  await click(page, "shop-next");
+  await click(page, "quantity-5");
+  for (const id of ["throwing-knife", "throwing-axe", "healing-potion"])
+    await click(page, `buy-${id}`);
+  let s = await snapshot(page);
+  expect(s.player.gold).toBe(500);
+  expect(ownedCopies(s.player, "throwing-knife")).toBe(6);
+  expect(ownedCopies(s.player, "throwing-axe")).toBe(6);
+  expect(ownedCopies(s.player, "healing-potion")).toBe(5);
+  await shot(page, "bulk-consumable-shop");
+  await click(page, "back");
+  await click(page, "character");
+  await click(page, "slot-belt2");
+  await click(page, "equip-throwing-knife");
+  s = await snapshot(page);
+  expect(s.player.equipment.belt1).toBe("throwing-knife");
+  expect(s.player.equipment.belt2).toBe("throwing-knife");
+  expect(s.buttons["equip-throwing-knife"]).toBeTruthy();
+  await shot(page, "stacked-backpack-single-belt-copies");
+  await click(page, "back");
+  await click(page, "battle");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  await page.keyboard.down("a");
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("q");
+  await page.clock.runFor(600);
+  s = await snapshot(page);
+  expect(ownedCopies(s.player, "throwing-knife")).toBe(5);
+  expect(s.player.equipment.belt1).toBeUndefined();
+  expect(s.player.equipment.belt2).toBe("throwing-knife");
+  await page.clock.runFor(650);
+  await page.keyboard.press("q");
+  await page.clock.runFor(100);
+  expect((await snapshot(page)).battle!.projectiles).toHaveLength(1);
+  await page.keyboard.press("e");
+  await page.clock.runFor(600);
+  expect(ownedCopies((await snapshot(page)).player, "throwing-knife")).toBe(4);
+  await page.keyboard.up("a");
+  await page.keyboard.up("Shift");
+  await page.clock.resume();
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  s = await snapshot(page);
+  expect(ownedCopies(s.player, "throwing-knife")).toBe(4);
+  expect(s.player.equipment.belt1).toBeUndefined();
+  expect(s.player.equipment.belt2).toBeUndefined();
+});
+
+test("a timed C parry deflects a real enemy hit and gives the attacker a full second of stun", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await launch(page);
+  await click(page, "battle");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  await page.keyboard.down("d");
+  for (let i = 0; i < 120; i++) {
+    const b = (await snapshot(page)).battle!;
+    if (b.enemy.action && b.enemy.x - b.player.x <= 145) break;
+    await page.clock.runFor(16);
+  }
+  await page.keyboard.up("d");
+  for (let i = 0; i < 100; i++) {
+    const a = (await snapshot(page)).battle!.enemy.handActions.rear;
+    if (a && a.name === "quick" && a.elapsed >= 425) break;
+    await page.clock.runFor(8);
+  }
+  const before = (await snapshot(page)).battle!.player.hp;
+  await page.keyboard.press("c");
+  let s = await snapshot(page);
+  for (let i = 0; i < 30; i++) {
+    await page.clock.runFor(8);
+    s = await snapshot(page);
+    if (s.battle!.contacts.some((e) => e.parried)) break;
+  }
+  const hit = s.battle!.contacts.find((e) => e.parried);
+  expect(hit).toBeTruthy();
+  expect(hit!.damage).toBe(0);
+  expect(contact(hit!.blade, hit!.body)).not.toBeNull();
+  expect(s.battle!.player.hp).toBe(before);
+  expect(s.battle!.enemy.stun).toBeGreaterThan(900);
+  expect(s.battle!.enemy.reaction?.kind).toBe("parried");
+  expect(s.rigs![0].animation).toBe("parry");
+  anatomy(s.rigs![0]);
+  await page.clock.runFor(80);
+  anatomy((await snapshot(page)).rigs![0]);
+  await page.screenshot({
+    path: "test-results/screenshots/timed-parry-stun.png",
+  });
+  await page.clock.runFor(850);
+  expect((await snapshot(page)).battle!.enemy.stun).toBeGreaterThan(0);
+  await page.clock.runFor(200);
+  expect((await snapshot(page)).battle!.enemy.stun).toBe(0);
+  await page.clock.resume();
+});
+
+test("a lethal thrown weapon settles after victory and can be collected for the next match", async ({
+  page,
+}) => {
+  const live = structuredClone(bundled);
+  live.items.find((i) => i.id === "wood")!.attack = 150;
+  await page.route("**/content/items.json?_=*", (route) =>
+    route.fulfill({ json: live }),
+  );
+  const p = createPlayer();
+  p.inventory.push("plate", "cap");
+  p.equipment.body = "plate";
+  p.equipment.helmet = "cap";
+  await savedFixture(page, p);
+  await page.clock.install();
+  await launch(page);
+  await click(page, "battle");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  await page.keyboard.press("Control+k");
+  let s = await snapshot(page);
+  for (let i = 0; i < 100 && s.battle!.state === "Fighting"; i++) {
+    await page.clock.runFor(25);
+    s = await snapshot(page);
+  }
+  expect(s.battle!.state).toBe("Victory");
+  expect(s.buttons["finish-battle"]).toBeTruthy();
+  await page.clock.runFor(2200);
+  s = await snapshot(page);
+  expect(s.scene).toBe("ArenaScene");
+  const dropped = s.battle!.projectiles.find((p) => p.itemId === "wood")!;
+  expect(dropped.state).toBe("landed");
+  await page.keyboard.down("Shift");
+  for (let i = 0; i < 160; i++) {
+    s = await snapshot(page);
+    if (Math.abs(s.battle!.player.x - dropped.x) < 60) break;
+    const toward = dropped.x > s.battle!.player.x ? "d" : "a",
+      away = toward === "d" ? "a" : "d";
+    await page.keyboard.up(away);
+    await page.keyboard.down(toward);
+    await page.clock.runFor(25);
+  }
+  await page.keyboard.up("a");
+  await page.keyboard.up("d");
+  await page.keyboard.up("Shift");
+  await page.keyboard.press("g");
+  await page.clock.runFor(50);
+  s = await snapshot(page);
+  expect(s.battle!.projectiles.find((p) => p.id === dropped.id)!.state).toBe(
+    "pickedUp",
+  );
+  expect(s.player.equipment.rightHand).toBe("wood");
+  expect(ownedCopies(s.player, "wood")).toBe(1);
+  await page.screenshot({
+    path: "test-results/screenshots/victory-equipment-recovery.png",
+  });
+  await page.clock.resume();
+  await click(page, "finish-battle");
+  await scene(page, "ResultScene");
+  await click(page, "again");
+  await scene(page, "ArenaScene");
+  expect((await snapshot(page)).battle!.player.model.equipment.rightHand).toBe(
+    "wood",
+  );
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect((await snapshot(page)).player.equipment.rightHand).toBe("wood");
+});
+
+test("a rare enemy throw leaves a recoverable weapon that becomes permanent player equipment", async ({
+  page,
+}) => {
+  const p = createPlayer();
+  p.inventory.push("plate", "cap");
+  p.equipment.body = "plate";
+  p.equipment.helmet = "cap";
+  await savedFixture(page, p);
+  await page.clock.install();
+  await page.goto("/?seed=2&renderer=canvas");
+  await scene(page, "MainMenuScene");
+  await click(page, "battle");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 500));
+  await page.keyboard.down("a");
+  await page.keyboard.down("Shift");
+  let s = await snapshot(page);
+  for (let i = 0; i < 100 && !s.battle!.enemy.action?.itemId; i++) {
+    await page.clock.runFor(25);
+    s = await snapshot(page);
+  }
+  expect(s.battle!.enemy.action?.name).toBe("throw");
+  const id = s.battle!.enemy.action!.itemId!,
+    initial = ownedCopies(s.player, id);
+  for (
+    let i = 0;
+    i < 120 &&
+    !s.battle!.projectiles.some(
+      (p) => p.ownerId === "enemy" && p.state === "landed",
+    );
+    i++
+  ) {
+    await page.clock.runFor(25);
+    s = await snapshot(page);
+  }
+  await page.keyboard.up("a");
+  await page.keyboard.up("Shift");
+  const dropped = s.battle!.projectiles.find((p) => p.ownerId === "enemy")!;
+  expect(dropped.state).toBe("landed");
+  expect(s.battle!.enemy.model.equipment[dropped.sourceSlot]).toBeUndefined();
+  for (
+    let i = 0;
+    i < 160 &&
+    s.battle!.projectiles.find((p) => p.id === dropped.id)!.state !==
+      "pickedUp";
+    i++
+  ) {
+    if (Math.abs(dropped.x - s.battle!.player.x) > 60) {
+      await page.keyboard.down(dropped.x > s.battle!.player.x ? "d" : "a");
+    } else {
+      await page.keyboard.up("d");
+      await page.keyboard.up("a");
+      await page.keyboard.press("g");
+    }
+    await page.clock.runFor(16);
+    s = await snapshot(page);
+  }
+  await page.keyboard.up("a");
+  await page.keyboard.up("d");
+  expect(s.battle!.projectiles.find((p) => p.id === dropped.id)!.state).toBe(
+    "pickedUp",
+  );
+  expect(ownedCopies(s.player, id)).toBe(initial + 1);
+  expect(s.player.equipment.leftHand).toBe(id);
+  await page.screenshot({
+    path: "test-results/screenshots/enemy-thrown-weapon-recovered.png",
+  });
+  await page.clock.resume();
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect(ownedCopies((await snapshot(page)).player, id)).toBe(initial + 1);
 });

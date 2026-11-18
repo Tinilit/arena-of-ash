@@ -7,10 +7,16 @@ export class ArenaAI {
   private thinking: Record<Hand, number> = { rear: 450, front: 650 };
   private guardFor = 0;
   private jumpCooldown = 1600;
-  constructor(private rng: Random) {}
+  private throwCooldown = 1800;
+  private throwsRemaining = 1;
+  constructor(
+    private rng: Random,
+    private throwRandom: Random = Math.random,
+  ) {}
   update(delta: number, self: ArenaFighter, target: ArenaFighter): ArenaInput {
     this.guardFor -= delta;
     this.jumpCooldown -= delta;
+    this.throwCooldown -= delta;
     for (const hand of ["rear", "front"] as const) this.thinking[hand] -= delta;
     const hands: Hand[] = (["rear", "front"] as Hand[]).filter((hand) =>
       weaponForHand(self.model, hand),
@@ -38,6 +44,27 @@ export class ArenaAI {
       self.bodyCooldown > 0
     )
       return input;
+    if (
+      this.throwsRemaining &&
+      this.throwCooldown <= 0 &&
+      !self.action &&
+      !self.parry &&
+      gap >= 230 &&
+      gap <= 600
+    ) {
+      this.throwCooldown = 9000;
+      if (this.throwRandom() < 0.12) {
+        const hand = hands.find(
+          (h) => weaponForHand(self.model, h) && self.handCooldowns[h] === 0,
+        );
+        if (hand) {
+          this.throwsRemaining--;
+          input.throws = [hand];
+          input.guard = false;
+          return input;
+        }
+      }
+    }
     for (const hand of hands) {
       if (
         self.handActions[hand] ||

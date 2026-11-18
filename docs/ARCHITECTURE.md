@@ -2,7 +2,7 @@
 
 `main.ts` owns one Phaser game and destroys it on hot replacement. `app/config.ts` defines a 1280×720 logical area with FIT scaling, WebGL preference/Canvas fallback, and six scenes. Boot loads `Services` into the Phaser registry; it owns the player and SaveStore. Appearance is fixed to Ash Vanguard and motion to Grounded, independently of any obsolete browser preference values.
 
-Scene flow: Boot → MainMenu → Arena / Character / Shop. Arena → Result → MainMenu / Arena. Escape returns to camp and abandons unresolved combat. There is no studio or style-selection scene.
+Scene flow: Boot → MainMenu → Arena / Character / Shop. Arena → Victory collection → Result → MainMenu / Arena, or automatic Result after defeat/draw. Escape returns to camp and abandons unresolved combat. There is no studio or style-selection scene.
 
 `domain` defines player identity, inventory, equipment, fixed combat baselines, transactions and opponent progression. The external JSON has twelve default equipment definitions; `data/catalog.ts` exposes the installed session catalog, enemy rank names and rewards. `domain/opponents.ts` generates compatible random loadouts from the active catalog using victory count and an injected RNG. Pure `combat/realtime.ts` owns continuous fighter state, independent hand actions/cooldowns, body actions and knockdown rules, movement, jumping and outcomes. `combat/geometry.ts` handles moving capsule contact; `ArenaAI.ts` chooses movement/actions. None imports Phaser.
 
@@ -29,3 +29,7 @@ Equipment positions (`EquipmentSlot`) are separate from item categories (`Slot`)
 Combat geometry carries per-hand blade/fist capsules and per-foot boot capsules. `Swing.hand` selects the exact rendered branch. Pain/stagger state, stun/cooldown timers and push velocity are pure combat state; `ArenaMotion` composes their visible response without changing stats or awarding damage.
 
 `combat/projectiles.ts` advances independent released-item poses and builds damaging blade/head capsules. The realtime resolver spawns from rendered grip geometry, sweeps projectiles against moving bodies, and applies one contact. It records item consumption at a throw release or potion sip; ArenaScene immediately mirrors this into persistent ownership and saves. `drinkMotion.ts` supplies the same rear-hand animation to belt use and harmless camp/Character previews.
+
+`domain/inventory.ts` stores total counts separately from unique catalog IDs and slot references. Backpack availability subtracts equipped copies; each slot reserves one. Save v3 accepts optional quantities (missing means one) and validates occupied counts against ownership. Bulk purchases are atomic and only apply to consumables.
+
+The pure resolver records `collectedItems` alongside exact-source consumption events. Landed projectiles transition once to pickedUp and transfer ownership, even from enemies. Scene cursors persist each event once. `combat/parry.ts` holds precision timing; contacts drive parry success and a one-second attacker stun, without range-based hit shortcuts. A separate seeded AI stream controls rare weapon throws.

@@ -18,7 +18,7 @@ export interface Projectile {
   floorRadius: number;
   profile: { startY: number; endY: number; radius: number };
   age: number;
-  state: "flying" | "spent" | "landed" | "expired";
+  state: "flying" | "spent" | "landed" | "expired" | "pickedUp";
 }
 export function projectileProfile(item: Item) {
   return (
@@ -59,7 +59,8 @@ export function projectileShape(p: Projectile, previous = false): Capsule {
 }
 export function advanceProjectile(p: Projectile, delta: number, floor: number) {
   p.previous = { x: p.x, y: p.y, angle: p.angle };
-  if (p.state === "landed" || p.state === "expired") return;
+  if (p.state === "landed" || p.state === "expired" || p.state === "pickedUp")
+    return;
   const dt = delta / 1000;
   p.age += delta;
   p.x += p.vx * dt;
@@ -71,6 +72,14 @@ export function advanceProjectile(p: Projectile, delta: number, floor: number) {
   if (p.age > 8000 || p.x < -600 || p.x > 1880) p.state = "expired";
   // Landing is committed after the body sweep, so fast objects cannot skip a hit.
   if (p.y > floor + 200) p.state = "expired";
+}
+export function pickupDistance(p: Projectile, x: number) {
+  const c = projectileShape(p);
+  return Math.max(
+    Math.min(p.x, c.a.x, c.b.x) - x,
+    0,
+    x - Math.max(p.x, c.a.x, c.b.x),
+  );
 }
 export function settleProjectile(p: Projectile, floor: number) {
   if (p.state !== "flying" && p.state !== "spent") return;
