@@ -45,54 +45,6 @@ export class CharacterScene extends BaseScene {
       primaryWeapon(p)?.weaponType === "spear" ? 0.66 : 0.74,
       { stance: "relaxed" },
     );
-    this.button(
-      "preview-throw",
-      145,
-      500,
-      140,
-      en.throwUnder,
-      () => {
-        if (
-          this.rig.animator.running &&
-          !this.rig.animator.name.startsWith("idle")
-        )
-          return;
-        this.rig.play("throw");
-      },
-      36,
-    );
-    this.button(
-      "preview-overhand",
-      295,
-      500,
-      140,
-      en.throwOver,
-      () => {
-        if (
-          this.rig.animator.running &&
-          !this.rig.animator.name.startsWith("idle")
-        )
-          return;
-        this.rig.play("throwOverhand");
-      },
-      36,
-    );
-    this.button(
-      "preview-drink",
-      220,
-      535,
-      290,
-      "Drink potion",
-      () => {
-        if (
-          this.rig.animator.running &&
-          !this.rig.animator.name.startsWith("idle")
-        )
-          return;
-        this.rig.play("drink");
-      },
-      28,
-    );
     equipmentSlots.forEach((position, i) => {
       const x = 525 + (i % 2) * 190,
         y = 225 + Math.floor(i / 2) * 112;
@@ -159,26 +111,6 @@ export class CharacterScene extends BaseScene {
           "#9d947e",
         ).setOrigin(0.5);
     });
-    for (const [kind, x] of [
-      ["crossbow", 145],
-      ["rifle", 295],
-    ] as const)
-      this.button(
-        `preview-${kind}`,
-        x,
-        574,
-        140,
-        kind === "crossbow" ? "Crossbow" : "Rifle",
-        () => {
-          if (
-            this.rig.animator.running &&
-            !this.rig.animator.name.startsWith("idle")
-          )
-            return;
-          this.rig.play(kind === "crossbow" ? "shootCrossbow" : "shootRifle");
-        },
-        30,
-      );
     label(this, 855, 177, "BACKPACK · UNEQUIPPED", 21);
     label(this, 855, 199, `Target: ${en.equipmentSlots[slot]}`, 14, "#b9aa8d");
     inventory.slice(page * 8, (page + 1) * 8).forEach((id, i) => {
@@ -250,7 +182,7 @@ export class CharacterScene extends BaseScene {
     label(
       this,
       65,
-      612,
+      515,
       `HP ${st.hp} • ATK ${st.attack} • ARM ${st.armor}`,
       16,
     );

@@ -30,6 +30,7 @@ interface RigFrame {
   down: Point;
 }
 interface Rig {
+  crossbow: { loaded: boolean; draw: number; supportGrip: Point | null } | null;
   shooting: { kind: number; flash: boolean };
   twoHanded: { active: boolean; supportGrip: Point | null };
   drinking: boolean;
@@ -40,6 +41,7 @@ interface Rig {
   origin: Point;
   body: {
     layers: string[];
+    rearHandPlane?: string;
     arms: string[];
     backArms: string[];
     frontArms: string[];
@@ -251,7 +253,7 @@ test("complete battle, animation impact and persisted victory rewards", async ({
   expect((await snapshot(page)).battle!.player.hp).toBe(100);
   expect((await snapshot(page)).battle!.enemy.hp).toBe(100);
   await shot(page, "arena");
-  await click(page, "quick");
+  await page.keyboard.press("k");
   await page.waitForTimeout(720);
   expect((await snapshot(page)).battle!.enemy.hp).toBe(100);
   expect((await snapshot(page)).battle!.contacts).toHaveLength(0);
@@ -645,7 +647,7 @@ test("shields are absent and the free front arm stays behind the torso while the
   await click(page, "battle");
   await scene(page, "ArenaScene");
   await shot(page, "rig-armored-both-facing");
-  await click(page, "quick");
+  await page.keyboard.press("k");
   const samples = await page.evaluate(
     () =>
       new Promise<Rig[][]>((resolve) => {
@@ -694,7 +696,7 @@ test("both legs stay beneath the skirt and arms keep their own shoulder attachme
   await click(page, "battle");
   await scene(page, "ArenaScene");
   await shot(page, "rig-revised-idle");
-  await click(page, "quick");
+  await page.keyboard.press("k");
   const samples = await page.evaluate(
     () =>
       new Promise<Rig[][]>((resolve) => {
@@ -745,7 +747,7 @@ test("both legs stay beneath the skirt and arms keep their own shoulder attachme
   await expect
     .poll(async () => (await snapshot(page)).battle?.state, { timeout: 15000 })
     .toBe("Fighting");
-  await click(page, "quick");
+  await page.keyboard.press("k");
   await page.waitForTimeout(250);
   await shot(page, "rig-revised-heavy");
 });
@@ -823,7 +825,7 @@ test("camp supports both stances, forward/back walks, running and a grounded jum
         }),
     ),
     (async () => {
-      await click(page, "move-jump");
+      await page.keyboard.press("Space");
       await shot(page, "camp-jump");
     })(),
   ]);
@@ -837,7 +839,7 @@ test("camp supports both stances, forward/back walks, running and a grounded jum
     .poll(async () => (await snapshot(page)).rigs![0].animation)
     .toBe("idleCombat");
   await shot(page, "camp-combat-idle");
-  await click(page, "move-stance");
+  await page.keyboard.press("r");
   await expect
     .poll(async () => (await snapshot(page)).rigs![0].animation)
     .toBe("idleRelaxed");
@@ -863,7 +865,7 @@ test("camp supports both stances, forward/back walks, running and a grounded jum
     ).toBeLessThan(0.02);
   }
   await shot(page, "rear-hand-combat-idle");
-  await click(page, "quick");
+  await page.keyboard.press("k");
   await page.waitForTimeout(300);
   await shot(page, "rear-hand-heavy");
 });
@@ -928,7 +930,7 @@ test("every HP change follows a real swept blade/body contact in both directions
   await shot(page, "realtime-contact-combat");
 });
 
-test("arena hold buttons, jump and boundaries remain responsive without turns", async ({
+test("keyboard movement, jump and boundaries remain responsive without combat buttons", async ({
   page,
 }) => {
   await page.clock.install();
@@ -937,11 +939,10 @@ test("arena hold buttons, jump and boundaries remain responsive without turns", 
   await scene(page, "ArenaScene");
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
   const initial = (await snapshot(page)).battle!.player.x;
-  const position = (await snapshot(page)).buttons["arena-left"];
-  await page.mouse.move(position.x, position.y);
-  await page.mouse.down();
+  expect(Object.keys((await snapshot(page)).buttons)).toEqual([]);
+  await page.keyboard.down("a");
   await page.clock.runFor(400);
-  await page.mouse.up();
+  await page.keyboard.up("a");
   await page.clock.runFor(50);
   const after = (await snapshot(page)).battle!.player.x;
   expect(after).toBeLessThan(initial - 20);
@@ -950,7 +951,7 @@ test("arena hold buttons, jump and boundaries remain responsive without turns", 
   expect((await snapshot(page)).buttons.defend).toBeUndefined();
   expect((await snapshot(page)).buttons.recover).toBeUndefined();
   await page.clock.resume();
-  await click(page, "arena-jump");
+  await page.keyboard.press("Space");
   await expect
     .poll(async () => (await snapshot(page)).battle?.player.y)
     .toBeLessThan(-20);
@@ -1167,7 +1168,6 @@ test("throw preview releases once, opens the palm and returns without consuming 
   page,
 }) => {
   await launch(page);
-  await click(page, "character");
   const before = (await snapshot(page)).player;
   const observing = page.evaluate(
     () =>
@@ -1185,7 +1185,7 @@ test("throw preview releases once, opens the palm and returns without consuming 
         requestAnimationFrame(sample);
       }),
   );
-  await click(page, "preview-throw");
+  await page.keyboard.press("t");
   const poses = await observing;
   expect(
     poses.some(
@@ -1228,7 +1228,6 @@ test("throw preview releases once, opens the palm and returns without consuming 
     .poll(async () => (await snapshot(page)).rigs![0].animation)
     .toBe("idleRelaxed");
   expect((await snapshot(page)).player).toEqual(before);
-  await click(page, "back");
   await page.keyboard.press("t");
   await expect
     .poll(async () => (await snapshot(page)).rigs![0].animation)
@@ -1631,10 +1630,12 @@ test("F during a jump performs a physical flying kick and lands normally", async
 test("both throw styles remain selectable and the overarm serve releases high in front of the head layer", async ({
   page,
 }) => {
+  await page.clock.install();
   await launch(page);
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
   const before = (await snapshot(page)).player;
   await page.keyboard.press("y");
-  const poses = await page.evaluate(
+  const observing = page.evaluate(
     () =>
       new Promise<Rig[]>((resolve) => {
         const poses: Rig[] = [],
@@ -1650,6 +1651,9 @@ test("both throw styles remain selectable and the overarm serve releases high in
         requestAnimationFrame(step);
       }),
   );
+  await page.clock.runFor(2100);
+  const poses = await observing;
+  await page.clock.resume();
   expect(
     poses.some(
       (r) =>
@@ -1673,13 +1677,8 @@ test("both throw styles remain selectable and the overarm serve releases high in
     .poll(async () => (await snapshot(page)).rigs![0].animation)
     .toBe("idleRelaxed");
   await click(page, "character");
-  expect((await snapshot(page)).buttons["preview-throw"]).toBeTruthy();
-  expect((await snapshot(page)).buttons["preview-overhand"]).toBeTruthy();
-  await click(page, "preview-overhand");
-  await expect
-    .poll(async () => (await snapshot(page)).rigs![0].animation)
-    .toBe("throwOverhand");
-  await shot(page, "overarm-throw-preview");
+  expect((await snapshot(page)).buttons["preview-throw"]).toBeUndefined();
+  expect((await snapshot(page)).buttons["preview-overhand"]).toBeUndefined();
 });
 
 test("hand inputs keep separate animation clocks when staggered", async ({
@@ -1975,8 +1974,7 @@ test("drinking brings an open vial to the mouth and returns to idle without cons
   expect(r.animation).toBe("idleRelaxed");
   expect(r.weapons[0].visible).toBe(true);
   await page.clock.resume();
-  await click(page, "character");
-  await click(page, "preview-drink");
+  await page.keyboard.press("p");
   await expect
     .poll(async () => (await snapshot(page)).rigs![0].animation)
     .toBe("drink");
@@ -2351,8 +2349,7 @@ test("crossbow and rifle previews aim, fire and restore equipment without changi
     expect((await snapshot(page)).player).toEqual(before);
   }
   await page.clock.resume();
-  await click(page, "character");
-  await click(page, "preview-rifle");
+  await page.keyboard.press("i");
   await expect
     .poll(async () => (await snapshot(page)).rigs![0].shooting.kind)
     .toBe(2);
@@ -2446,10 +2443,28 @@ test("H captures, holds an opponent overhead and throws into supported floor rec
   await page.screenshot({
     path: "test-results/screenshots/opponent-overhead.png",
   });
+  const carrierX = s.battle!.player.x;
+  await page.keyboard.down("d");
+  await page.clock.runFor(250);
+  await page.keyboard.up("d");
+  expect((await snapshot(page)).battle!.player.x).toBeGreaterThan(
+    carrierX + 15,
+  );
+  await page.keyboard.down("a");
+  await page.clock.runFor(250);
+  await page.keyboard.up("a");
+  s = await snapshot(page);
+  expect(s.battle!.player.facing).toBe(-1);
+  expect(s.battle!.enemy.facing).toBe(-1);
+  expect(s.battle!.enemy.x - s.battle!.player.x).toBeCloseTo(-112, 2);
+  await page.screenshot({
+    path: "test-results/screenshots/carry-walk-turn-left.png",
+  });
   await page.keyboard.press("h");
   await page.clock.runFor(250);
   s = await snapshot(page);
   expect(s.battle!.enemy.grapple?.phase).toBe("air");
+  expect(s.battle!.enemy.vx).toBeLessThan(0);
   expect(s.battle!.enemy.vy).toBeLessThan(0);
   await page.screenshot({
     path: "test-results/screenshots/opponent-thrown.png",
@@ -2479,6 +2494,8 @@ async function twoHandFixture(page: Page, weapon = "greatsword") {
 }
 function sharedGrip(r: Rig) {
   expect(r.twoHanded.active).toBe(true);
+  expect(r.body.backArms).toContain("farArm");
+  expect(r.body.frontArms).not.toContain("farArm");
   expect(r.weapons.filter((w) => w.visible)).toHaveLength(1);
   expect(r.twoHanded.supportGrip).not.toBeNull();
   expect(
@@ -2660,12 +2677,21 @@ for (const weapon of ["wood", "greatsword"])
     const hp = (await snapshot(page)).battle!.enemy.hp;
     await page.keyboard.press("x");
     await page.clock.runFor(300);
+    expect((await snapshot(page)).battle!.player.finisher?.role).toBe(
+      "executor",
+    );
+    const boundX = (await snapshot(page)).battle!.player.x;
+    await page.keyboard.down("a");
+    await page.keyboard.press("Space");
+    await page.clock.runFor(100);
+    await page.keyboard.up("a");
+    expect((await snapshot(page)).battle!.player.x).toBeCloseTo(boundX, 3);
     await page.screenshot({
       path: `test-results/screenshots/${weapon}-finisher-windup.png`,
     });
     let hit: ContactEvent | undefined;
     for (let i = 0; i < 50; i++) {
-      await page.clock.runFor(8);
+      await page.clock.runFor(16);
       const s = await snapshot(page);
       hit = s.battle!.contacts.find((e) => e.kind === "finisher");
       if (hit) break;
@@ -2679,3 +2705,109 @@ for (const weapon of ["wood", "greatsword"])
     });
     await page.clock.resume();
   });
+
+test("camp, character and active arena expose no demonstration or combat action buttons", async ({
+  page,
+}) => {
+  await launch(page);
+  let s = await snapshot(page);
+  expect(Object.keys(s.buttons).sort()).toEqual([
+    "battle",
+    "character",
+    "reset",
+    "shop",
+  ]);
+  await click(page, "character");
+  s = await snapshot(page);
+  expect(
+    Object.keys(s.buttons).some(
+      (k) => k.startsWith("preview-") || k.startsWith("move-"),
+    ),
+  ).toBe(false);
+  await click(page, "back");
+  await click(page, "battle");
+  s = await snapshot(page);
+  expect(Object.keys(s.buttons)).toEqual([]);
+  await page.mouse.click(640, 400, { button: "right" });
+  await expect
+    .poll(
+      async () => (await snapshot(page)).battle!.player.handActions.rear?.name,
+    )
+    .toBe("quick");
+});
+
+test("crossbow is bought and equipped, holds a rear elbow behind the torso, and fires physical bolts without consuming the item", async ({
+  page,
+}) => {
+  await page.route("**/content/items.json?_=*", (route) =>
+    route.fulfill({ json: liveItems }),
+  );
+  const p = createPlayer();
+  p.gold = 1000;
+  p.inventory.push("plate", "viking");
+  p.equipment.body = "plate";
+  p.equipment.helmet = "viking";
+  await savedFixture(page, p);
+  await page.clock.install();
+  await launch(page);
+  await click(page, "shop");
+  await click(page, "shop-next");
+  await click(page, "buy-crossbow");
+  await click(page, "back");
+  await click(page, "character");
+  await click(page, "equip-crossbow");
+  expect((await snapshot(page)).player.equipment.rightHand).toBe("crossbow");
+  await page.screenshot({
+    path: "test-results/screenshots/crossbow-equipment.png",
+  });
+  await click(page, "back");
+  await click(page, "battle");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
+  let s = await snapshot(page);
+  const owned = s.player;
+  expect(s.rigs![0].crossbow?.loaded).toBe(true);
+  expect(s.rigs![0].body.backArms).toContain("farArm");
+  const support = s.rigs![0].crossbow!.supportGrip!;
+  expect(
+    Math.hypot(
+      support.x - s.rigs![0].near.hand.x,
+      support.y - s.rigs![0].near.hand.y,
+    ),
+  ).toBeLessThan(0.01);
+  await page.mouse.click(640, 400, { button: "right" });
+  await page.clock.runFor(400);
+  s = await snapshot(page);
+  expect(s.battle!.projectiles.filter((v) => v.kind === "bolt")).toHaveLength(
+    0,
+  );
+  await page.screenshot({
+    path: "test-results/screenshots/crossbow-aim-ready.png",
+  });
+  await page.clock.runFor(180);
+  s = await snapshot(page);
+  expect(s.battle!.projectiles.filter((v) => v.kind === "bolt")).toHaveLength(
+    1,
+  );
+  expect(s.rigs![0].crossbow?.loaded).toBe(false);
+  await page.screenshot({
+    path: "test-results/screenshots/crossbow-bolt-release.png",
+  });
+  await page.clock.runFor(700);
+  s = await snapshot(page);
+  const hit = s.battle!.contacts.find(
+    (e) => e.kind === "projectile" && e.attackerId === "wanderer",
+  );
+  expect(hit).toBeTruthy();
+  expect(hit!.damage).toBeGreaterThan(0);
+  expect(s.player).toEqual(owned);
+  await page.keyboard.press("k");
+  await page.clock.runFor(40);
+  expect(
+    (await snapshot(page)).battle!.projectiles.filter((v) => v.kind === "bolt"),
+  ).toHaveLength(1);
+  await page.clock.runFor(1800);
+  s = await snapshot(page);
+  expect(s.player.equipment.rightHand).toBe("crossbow");
+  expect(s.rigs![0].crossbow?.loaded).toBe(true);
+  await page.clock.resume();
+});

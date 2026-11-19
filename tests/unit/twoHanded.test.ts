@@ -108,7 +108,7 @@ describe("two-handed ownership and contact rules", () => {
     expect(one.canAttack(one.player, "shove")).toBe(false);
   });
   it.each(["wood", ...ids])(
-    "finishes a grounded opponent with %s only when the weapon actually touches",
+    "binds and reliably executes a grounded opponent with %s",
     (id) => {
       const b = make(id);
       expect(b.canAttack(b.player, "finish")).toBe(false);
@@ -120,13 +120,14 @@ describe("two-handed ownership and contact rules", () => {
       advance(b, 600);
       expect(b.resolve([empty, empty])).toEqual([]);
       expect(b.enemy.hp).toBe(87);
+      advance(b, 100);
       const hit = b.resolve([touching, touching]);
       expect(hit[0]).toMatchObject({ kind: "finisher", damage: 87 });
       expect(b.enemy.hp).toBe(0);
       expect(b.state).toBe("Victory");
     },
   );
-  it("cannot execute with a fist or kill a target that has begun getting up", () => {
+  it("cannot start on a fist or getting-up target, but holds a committed victim down", () => {
     const unarmed = make();
     delete unarmed.player.model.equipment.rightHand;
     unarmed.enemy.knockdown = { phase: "down", elapsed: 0 };
@@ -135,7 +136,7 @@ describe("two-handed ownership and contact rules", () => {
     b.enemy.knockdown = { phase: "down", elapsed: 600 };
     b.advance(0, [{ attack: "finish" }, {}]);
     advance(b, 600);
-    expect(b.enemy.knockdown?.phase).toBe("getUp");
+    expect(b.enemy.knockdown?.phase).toBe("down");
     expect(b.resolve([touching, touching])).toEqual([]);
     expect(b.enemy.hp).toBe(100);
   });

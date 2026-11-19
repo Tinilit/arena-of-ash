@@ -1,3 +1,4 @@
+import { drawCrossbow } from "./crossbow";
 import Phaser from "phaser";
 import { extendedGear, extendedGearBounds } from "./extendedGear";
 import type { Item } from "../domain/model";
@@ -281,6 +282,7 @@ export function drawGear(
       .setDisplaySize(art.width, art.height);
     return scene.add.container(0, 0, [visual]).setName(key);
   }
+  if (id === "crossbow") return drawCrossbow(scene);
   const extended = extendedGear(scene, id);
   if (extended) return bounded(scene, extended, extendedGearBounds[id]);
   const p = palette,

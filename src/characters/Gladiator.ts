@@ -1,3 +1,5 @@
+import { crossbowPose } from "./crossbowMotion";
+import { setCrossbowState } from "../rendering/crossbow";
 import { twoHandPose } from "./twoHandMotion";
 import Phaser from "phaser";
 import type { ArenaFighter } from "../combat/realtime";
@@ -326,6 +328,7 @@ export class Gladiator {
     if (
       sharedWeapon?.hands === 2 &&
       (p.twoHanded ?? 0) < 0.99999 &&
+      (p.rangedHold ?? 0) < 0.99999 &&
       !p.grappling &&
       !p.shootPreview &&
       !p.throwPreview &&
@@ -343,7 +346,10 @@ export class Gladiator {
         "death",
       ].includes(animation ?? this.animator.name)
     )
-      p = twoHandPose(p, sharedWeapon);
+      p =
+        sharedWeapon.weaponType === "crossbow"
+          ? crossbowPose(p)
+          : twoHandPose(p, sharedWeapon);
     this.displayedPose = { ...p };
     this.displayedAnimation = animation;
     const solved = groundedPose(p);
@@ -376,6 +382,12 @@ export class Gladiator {
           !runtimeThrow &&
           !(hand === "rear" && (throwing || drinking)),
       );
+      if (weapon)
+        setCrossbowState(
+          weapon,
+          p.crossbowDraw ?? 1,
+          (p.crossbowLoaded ?? 1) > 0.5,
+        );
       const prop = this.actionProps[hand];
       if (prop) {
         const arm = hand === "rear" ? solved.farArm : solved.nearArm;
@@ -395,6 +407,7 @@ export class Gladiator {
       }
       const closed =
         shooting ||
+        (p.rangedHold ?? 0) > 0.5 ||
         (p.twoHanded ?? 0) > 0.5 ||
         Boolean(weapon) ||
         (p[`${prefix}Fist`] ?? 0) > 0.5 ||
@@ -429,6 +442,16 @@ export class Gladiator {
       : this.joints.backTorso;
     if (this.joints.nearArm.parentContainer !== nearParent)
       nearParent.addAt(this.joints.nearArm, shooting ? 2 : 0);
+    const deepRear = (p.twoHanded ?? 0) > 0.5 || (p.rangedHold ?? 0) > 0.5;
+    const rearParent = deepRear
+      ? this.joints.backTorso
+      : this.joints.frontTorso;
+    if (this.joints.farArm.parentContainer !== rearParent)
+      rearParent.addAt(this.joints.farArm, 0);
+    const handParent = deepRear ? this.joints.frontTorso : this.joints.farElbow;
+    if (this.joints.farHand.parentContainer !== handParent)
+      handParent.add(this.joints.farHand);
+    if (deepRear) this.joints.frontTorso.bringToTop(this.joints.nearArm);
     this.openPalm.setVisible(throwing && released);
     // The rear arm stays in front of the entire torso/head plane throughout
     // throwing. Keep depth fixed instead of hiding a moving hand with the head.
@@ -448,6 +471,22 @@ export class Gladiator {
       this.limbs[`${side}Leg`].pose(leg.bend);
       this.limbs[`${side}Arm`].pose(arm.bend, arm.angle);
     }
+    if (deepRear) {
+      const arm = solved.farArm;
+      const tip = {
+        x:
+          -Math.sin(arm.angle) * skeleton.upperArm -
+          Math.sin(arm.angle + arm.bend) * skeleton.forearm,
+        y:
+          Math.cos(arm.angle) * skeleton.upperArm +
+          Math.cos(arm.angle + arm.bend) * skeleton.forearm,
+      };
+      this.joints.farHand.setPosition(
+        skeleton.farShoulderX + tip.x,
+        skeleton.shoulderY + tip.y,
+      );
+      this.joints.farHand.rotation = arm.angle + arm.bend + arm.wrist;
+    } else this.joints.farHand.setPosition(0, skeleton.forearm);
     this.root.x =
       this.originX + solved.root.x * this.bodyScale * this.direction;
     this.root.y = this.originY + solved.root.y * this.bodyScale;
@@ -464,6 +503,14 @@ export class Gladiator {
         .setPosition(localGun.x, localGun.y)
         .setRotation(-solved.root.rotation - solved.torso);
       gun.flash.setVisible(Math.round(p.shotFlash ?? 0) === i + 1);
+      const canonical = gun.prop.getData("canonicalCrossbow") as
+        Phaser.GameObjects.Container | undefined;
+      if (canonical)
+        setCrossbowState(
+          canonical,
+          (p.crossbowPreviewFired ?? 0) > 0.5 ? 0 : 1,
+          (p.crossbowPreviewFired ?? 0) < 0.5,
+        );
     });
     let floorShadowX: number | undefined;
     if ((p.bodyFloor ?? 0) > 0) {
@@ -505,6 +552,7 @@ export class Gladiator {
       animation: this.displayedAnimation ?? this.animator.name,
       origin: { x: this.originX, y: this.originY },
       body: {
+        rearHandPlane: this.joints.farHand.parentContainer?.name,
         layers: this.joints.pelvis.list.map((part) => part.name),
         arms: [...this.joints.backTorso.list, ...this.joints.frontTorso.list]
           .filter((part) => part.name.endsWith("Arm"))
@@ -542,6 +590,20 @@ export class Gladiator {
         headFront: this.joints.head.parentContainer === this.joints.frontTorso,
       },
       drinking: (this.displayedPose.drinkPreview ?? 0) > 0.5,
+      crossbow:
+        this.equippedWeapon?.weaponType === "crossbow"
+          ? {
+              loaded: (this.displayedPose.crossbowLoaded ?? 1) > 0.5,
+              draw: this.displayedPose.crossbowDraw ?? 1,
+              supportGrip: this.handWeapons.rear
+                ? {
+                    ...this.handWeapons.rear
+                      .getWorldTransformMatrix()
+                      .transformPoint(5, -44),
+                  }
+                : null,
+            }
+          : null,
       twoHanded: {
         active: (this.displayedPose.twoHanded ?? 0) > 0.5,
         supportGrip:
@@ -650,6 +712,17 @@ export class Gladiator {
           ? capsule(point("farHand"), point("nearHand"), 12)
           : undefined,
       grips: { front: point("nearHand"), rear: point("farHand") },
+      muzzles:
+        this.equippedWeapon?.weaponType === "crossbow" &&
+        this.handWeapons.rear?.visible
+          ? {
+              rear: {
+                ...this.handWeapons.rear
+                  .getWorldTransformMatrix()
+                  .transformPoint(-12, -107),
+              },
+            }
+          : {},
       launch: Object.fromEntries(
         Object.entries(this.actionProps)
           .filter(([, prop]) => prop.launch)

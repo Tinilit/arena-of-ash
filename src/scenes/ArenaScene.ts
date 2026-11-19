@@ -1,3 +1,4 @@
+import { drawBolt } from "../rendering/crossbow";
 import Phaser from "phaser";
 import { BaseScene } from "./BaseScene";
 import { Gladiator } from "../characters/Gladiator";
@@ -9,14 +10,11 @@ import {
   type ContactEvent,
 } from "../combat/realtime";
 import { ArenaAI } from "../combat/ArenaAI";
-import { hopKind } from "../combat/hops";
 import type { CombatGeometry } from "../combat/geometry";
 import { seeded } from "../utils/random";
 import {
   opponent,
   stats,
-  twoHandWeapon,
-  primaryHand,
   reward,
   consumeItem,
   addItem,
@@ -36,9 +34,9 @@ export class ArenaScene extends BaseScene {
   private status!: Phaser.GameObjects.Text;
   private keys: Record<string, Phaser.Input.Keyboard.Key> = {};
   private queued: ArenaInput = {};
-  private held = new Map<string, Set<number>>();
   private battleId = "";
   private ending = false;
+  private controlHints: Phaser.GameObjects.Text[] = [];
   private accumulator = 0;
   private paused = false;
   private debug?: Phaser.GameObjects.Graphics;
@@ -66,7 +64,6 @@ export class ArenaScene extends BaseScene {
     this.ending = false;
     this.accumulator = 0;
     this.queued = {};
-    this.held.clear();
     this.paused = false;
     this.consumptionCursor = this.collectionCursor = this.lootElapsed = 0;
     const query = new URLSearchParams(location.search);
@@ -115,121 +112,33 @@ export class ArenaScene extends BaseScene {
     label(this, 399, 109, "HP", 14);
     label(this, 855, 109, "HP", 14);
     this.status = label(this, 640, 92, en.fight, 23, "#e8bd72").setOrigin(0.5);
-    label(this, 640, 166, en.arenaHint, 14).setOrigin(0.5);
+    this.controlHints = [
+      label(
+        this,
+        640,
+        611,
+        "A/D: walk · Shift: run · Space: jump · A/D+Space: hop · R: stance",
+        16,
+      ),
+      label(
+        this,
+        640,
+        641,
+        "LMB/J: front hand · RMB/K: rear hand · Ctrl+attack: throw · Q/E: belt",
+        16,
+      ),
+      label(
+        this,
+        640,
+        671,
+        "F: kick · C: parry · V: shove · X: finish · H: lift/throw · G: pick up · Esc: camp",
+        16,
+      ),
+    ];
+    this.controlHints.forEach((t) => t.setOrigin(0.5));
     this.pickupHint = label(this, 40, 570, "", 13, "#f4d18b")
       .setOrigin(0, 0.5)
       .setDepth(50);
-    this.button(
-      "shove",
-      520,
-      570,
-      210,
-      "V  Weapon shove",
-      () => {
-        this.queued.attack = "shove";
-      },
-      26,
-    );
-    this.button(
-      "finish",
-      760,
-      570,
-      210,
-      "X  Finish grounded",
-      () => {
-        this.queued.attack = "finish";
-      },
-      26,
-    );
-    this.button("parry", 90, 611, 150, "C  Parry", () => {
-      this.queued.parry = true;
-    });
-    this.button("grapple", 1185, 611, 160, "H  Lift", () => {
-      this.queued.grapple = true;
-    });
-    this.button(
-      "pickup",
-      165,
-      667,
-      250,
-      "G  Pick up",
-      () => {
-        this.queued.pickup = true;
-      },
-      38,
-    );
-    this.button("front-attack", 330, 611, 280, "LMB / J  Front hand", () => {
-      this.queueHand("front");
-    });
-    this.button("quick", 640, 611, 280, "RMB / K  Rear hand", () => {
-      this.queueHand("rear");
-    });
-    this.button("kick", 950, 611, 280, "F  Front kick", () => {
-      this.queued.attack = "kick";
-    });
-    for (const [id, text, x] of [
-      ["left", "←", 408],
-      ["right", "→", 524],
-      ["run", en.run, 640],
-    ] as const) {
-      const button = this.button(
-        `arena-${id}`,
-        x,
-        667,
-        104,
-        text,
-        () => {},
-        38,
-      );
-      const pointers = new Set<number>();
-      this.held.set(id, pointers);
-      button.on("pointerdown", (p: Phaser.Input.Pointer) => pointers.add(p.id));
-      button.on("pointerout", (p: Phaser.Input.Pointer) =>
-        pointers.delete(p.id),
-      );
-    }
-    this.button(
-      "arena-jump",
-      756,
-      667,
-      104,
-      en.jump,
-      () => this.queueJump(),
-      38,
-    );
-    this.button(
-      "arena-stance",
-      872,
-      667,
-      104,
-      en.stance,
-      () => {
-        this.queued.toggleStance = true;
-      },
-      38,
-    );
-    for (const [slot, key, x] of [
-      ["belt1", "Q", 1010],
-      ["belt2", "E", 1175],
-    ] as const)
-      this.button(
-        `use-${slot}`,
-        x,
-        667,
-        150,
-        `${key} Belt`,
-        () => {
-          this.queued.belt = slot;
-        },
-        38,
-      );
-    if (this.input.manager.pointersTotal < 4)
-      this.input.addPointer(4 - this.input.manager.pointersTotal);
-    const releasePointer = (p: Phaser.Input.Pointer) =>
-      this.held.forEach((set) => set.delete(p.id));
-    const releaseAllPointers = () => this.held.forEach((set) => set.clear());
-    this.input.on("pointerup", releasePointer);
-    this.input.on("gameout", releaseAllPointers);
     this.keys =
       (this.input.keyboard?.addKeys({
         left: "A",
@@ -283,7 +192,7 @@ export class ArenaScene extends BaseScene {
       const point = pointer.positionToCamera(
         this.cameras.main,
       ) as Phaser.Math.Vector2;
-      if (point.y < 180 || point.y > 570 || point.x < 0 || point.x > 1280)
+      if (point.y < 180 || point.y > 720 || point.x < 0 || point.x > 1280)
         return;
       if (pointer.button === 0 || pointer.button === 2) {
         this.queueHand(
@@ -309,8 +218,6 @@ export class ArenaScene extends BaseScene {
     this.events.once("shutdown", () => {
       this.input.off("pointerdown", useHand);
       this.game.canvas.removeEventListener("contextmenu", contextMenu);
-      this.input.off("pointerup", releasePointer);
-      this.input.off("gameout", releaseAllPointers);
       this.game.events.off(Phaser.Core.Events.BLUR, pause);
       this.game.events.off(Phaser.Core.Events.FOCUS, resume);
       this.clearInput();
@@ -330,7 +237,6 @@ export class ArenaScene extends BaseScene {
   }
   private clearInput() {
     this.queued = {};
-    this.held.forEach((set) => set.clear());
     Object.values(this.keys).forEach((key) => key.reset());
   }
   private inputState(): ArenaInput {
@@ -343,7 +249,7 @@ export class ArenaScene extends BaseScene {
     return input;
   }
   private down(name: string) {
-    return Boolean(this.keys[name]?.isDown || this.held.get(name)?.size);
+    return Boolean(this.keys[name]?.isDown);
   }
   private direction() {
     return (
@@ -377,96 +283,22 @@ export class ArenaScene extends BaseScene {
     ];
   }
   private refresh() {
-    this.buttons.parry.setEnabled(this.battle.canParry(this.battle.player));
-    this.buttons.grapple
-      .setCaption(
-        this.battle.player.grapple?.role === "lifter" ? "H  Throw" : "H  Lift",
-      )
-      .setEnabled(
-        !this.ending &&
-          (this.battle.player.grapple?.role === "lifter" ||
-            this.battle.canGrapple()),
-      );
     const pickup = this.battle.nearbyPickup(this.battle.player);
-    this.buttons.pickup.setEnabled(Boolean(pickup));
     this.pickupHint.setText(
       pickup
         ? `G: Pick up ${item(pickup.itemId)?.name ?? "equipment"}`
-        : this.battle.state === "Victory"
-          ? "Collect grounded equipment, then Continue"
-          : "",
+        : this.battle.canAttack(this.battle.player, "finish")
+          ? "X: Finish grounded opponent"
+          : this.battle.player.grapple?.phase === "hold"
+            ? "A/D: carry and turn · H: throw"
+            : this.battle.state === "Victory"
+              ? "Collect grounded equipment, then Continue"
+              : "",
     );
     this.battle.fighters.forEach((f, i) => {
       const s = stats(f.model);
       this.bars[i].update(f.hp, s.hp);
     });
-    this.buttons.quick.setEnabled(
-      this.down("control")
-        ? this.battle.canThrow(this.battle.player, "rear")
-        : this.battle.canAttack(this.battle.player, "quick", "rear"),
-    );
-    this.buttons["front-attack"].setEnabled(
-      this.down("control")
-        ? this.battle.canThrow(this.battle.player, "front")
-        : this.battle.canAttack(
-            this.battle.player,
-            "quick",
-            twoHandWeapon(this.battle.player.model) ? "rear" : "front",
-          ),
-    );
-    this.buttons.shove.setEnabled(
-      this.battle.canAttack(this.battle.player, "shove"),
-    );
-    this.buttons.finish.setEnabled(
-      this.battle.canAttack(
-        this.battle.player,
-        "finish",
-        primaryHand(this.battle.player.model),
-      ),
-    );
-    this.buttons["front-attack"].setCaption(
-      twoHandWeapon(this.battle.player.model)
-        ? "LMB / J  Two-hand swing"
-        : "LMB / J  Front hand",
-    );
-    this.buttons.kick.setEnabled(
-      this.battle.canAttack(this.battle.player, "kick"),
-    );
-    for (const [slot, key] of [
-      ["belt1", "Q"],
-      ["belt2", "E"],
-    ] as const) {
-      const definition = item(this.battle.player.model.equipment[slot] ?? "");
-      this.buttons[`use-${slot}`]
-        .setCaption(
-          `${key} ${definition?.use === "drink" ? "Potion" : definition ? definition.name.replace(/^Throwing /, "").slice(0, 10) : "Empty"}`,
-        )
-        .setEnabled(this.battle.canUseBelt(this.battle.player, slot));
-    }
-    const player = this.battle.player,
-      direction = this.direction();
-    if (direction) {
-      const relative = (direction * player.facing) as -1 | 1,
-        kind = hopKind(relative);
-      this.buttons["arena-jump"]
-        .setCaption(kind === "backstep" ? en.backHop : en.forwardHop)
-        .setEnabled(this.battle.canHop(player, relative));
-    } else
-      this.buttons["arena-jump"]
-        .setCaption(en.jump)
-        .setEnabled(
-          !this.ending &&
-            !player.hop &&
-            !player.reaction &&
-            player.stun === 0 &&
-            player.y === 0 &&
-            player.vy === 0 &&
-            !player.knockdown,
-        );
-    for (const name of ["left", "right", "run", "stance"])
-      this.buttons[`arena-${name}`].setEnabled(
-        !this.ending || (this.battle.state === "Victory" && name !== "stance"),
-      );
   }
   private renderProjectiles() {
     for (const projectile of this.battle.projectiles) {
@@ -474,7 +306,11 @@ export class ArenaScene extends BaseScene {
       if (!view) {
         const definition = item(projectile.itemId);
         if (!definition) continue;
-        view = drawGear(this, definition).setMask(this.projectileMask);
+        view = (
+          projectile.kind === "bolt"
+            ? drawBolt(this)
+            : drawGear(this, definition)
+        ).setMask(this.projectileMask);
         this.projectileViews.set(projectile.id, view);
       }
       view
@@ -522,6 +358,7 @@ export class ArenaScene extends BaseScene {
     if (this.ending) return;
     this.ending = true;
     this.clearInput();
+    this.controlHints.forEach((t) => t.setVisible(false));
     const win = this.battle.state === "Victory";
     const payout = reward(this.services.player, this.battleId, win);
     this.services.save();
@@ -538,8 +375,10 @@ export class ArenaScene extends BaseScene {
       payout,
     };
     if (win) {
+      this.input.keyboard?.once("keydown-ENTER", () =>
+        this.scene.start("ResultScene", result),
+      );
       this.status.setText("Victory • Collect equipment");
-      this.buttons.quick.setVisible(false);
       this.button("finish-battle", 640, 611, 280, "Continue", () =>
         this.scene.start("ResultScene", result),
       );

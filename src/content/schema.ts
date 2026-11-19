@@ -16,6 +16,7 @@ const visuals: Record<Slot, readonly string[]> = {
     "greatsword",
     "war-hammer",
     "battle-axe",
+    "crossbow",
   ],
   helmet: ["cap", "viking"],
   chest: ["leather", "plate"],
@@ -109,7 +110,9 @@ export function parseCatalog(
     if (
       v.weaponType !== undefined &&
       (slot !== "weapon" ||
-        !["sword", "spear", "hammer", "axe"].includes(String(v.weaponType)))
+        !["sword", "spear", "hammer", "axe", "crossbow"].includes(
+          String(v.weaponType),
+        ))
     )
       throw Error("Unsupported weapon type");
     if (
@@ -120,7 +123,9 @@ export function parseCatalog(
     if ((v.weaponType === "hammer" || v.weaponType === "axe") && v.hands !== 2)
       throw Error("Heavy axes and hammers require two hands");
     if (
-      ["greatsword", "war-hammer", "battle-axe"].includes(String(v.visual)) &&
+      ["greatsword", "war-hammer", "battle-axe", "crossbow"].includes(
+        String(v.visual),
+      ) &&
       v.hands !== 2
     )
       throw Error("Two-handed visuals require both hands");
@@ -129,6 +134,8 @@ export function parseCatalog(
       (v.weaponType === "axe") !== (v.visual === "battle-axe")
     )
       throw Error("Heavy weapon animation must match its fallback visual");
+    if ((v.weaponType === "crossbow") !== (v.visual === "crossbow"))
+      throw Error("Crossbow animation must match its visual");
     const spearVisual = v.visual === "spear" || v.visual === "war-spear";
     if (slot === "weapon" && (v.weaponType === "spear") !== spearVisual)
       throw Error("Weapon animation must match its fallback visual");

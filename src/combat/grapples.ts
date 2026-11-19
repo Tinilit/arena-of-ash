@@ -39,6 +39,8 @@ export class GrappleController {
       !this.hold &&
       a.hp > 0 &&
       b.hp > 0 &&
+      !a.finisher &&
+      !b.finisher &&
       !a.action &&
       !a.parry &&
       !a.hop &&

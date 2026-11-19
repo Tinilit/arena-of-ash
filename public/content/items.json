@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "revision": "2026-11-19-two-handed-weapons",
+  "revision": "2026-11-19-crossbow",
   "items": [
     {
       "id": "wood",
@@ -172,6 +172,18 @@
         "endY": -101,
         "radius": 18
       }
+    },
+    {
+      "id": "crossbow",
+      "name": "Steel Crossbow",
+      "slot": "weapon",
+      "price": 180,
+      "attack": 14,
+      "armor": 0,
+      "visual": "crossbow",
+      "weaponType": "crossbow",
+      "hands": 2,
+      "description": "Both hands. Fires a bolt, then automatically reloads."
     }
   ]
 }

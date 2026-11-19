@@ -14,6 +14,8 @@ import {
   staggerClip,
 } from "./meleeMotion";
 import { twoHandClip, finisherClip } from "./twoHandMotion";
+import { crossbowPose, crossbowTiming } from "./crossbowMotion";
+import { combatRest } from "./locomotion";
 const base = groundedMotion.ash;
 let spearLibrary: Record<string, Clip> | undefined;
 /** Spears thrust; the equipment renderer does not alter combat rules. */
@@ -180,6 +182,17 @@ export function equipmentMotion(
       throwAction: overhandThrowClip(hand),
       drink: drinkClip(),
       shootCrossbow: shootClip("crossbow"),
+      shoot:
+        weapon?.weaponType === "crossbow"
+          ? {
+              duration: crossbowTiming.duration,
+              frames: [
+                { time: 0, pose: crossbowPose(combatRest) },
+                { time: 1, pose: crossbowPose(combatRest) },
+              ],
+              sample: (t) => crossbowPose(combatRest, t),
+            }
+          : shootClip("crossbow"),
       shootRifle: shootClip("rifle"),
       punch: punchClip(hand),
       kick: kickClip,

@@ -83,59 +83,14 @@ export class MainMenuScene extends BaseScene {
         this.input.keyboard?.removeKey(key, true);
       this.keys = undefined;
     });
-    this.button(
-      "preview-drink",
-      1148,
-      588,
-      180,
-      "Drink potion",
-      () => this.movement.drink(),
-      30,
-    );
     label(this, 960, 588, this.services.player.name, 20).setOrigin(0.5);
-    this.button(
-      "preview-crossbow",
-      240,
-      590,
-      190,
-      "U  Crossbow",
-      () => this.movement.shoot("crossbow"),
-      30,
-    );
-    this.button(
-      "preview-rifle",
-      450,
-      590,
-      190,
-      "I  Rifle",
-      () => this.movement.shoot("rifle"),
-      30,
-    );
-    label(this, 960, 614, en.movementHint, 13).setOrigin(0.5);
-    const controls = [
-      [
-        "move-back",
-        en.walkBack,
-        () => this.movement.demonstrate("walkBackward"),
-      ],
-      ["move-forward", en.walk, () => this.movement.demonstrate("walkForward")],
-      ["move-run", en.run, () => this.movement.demonstrate("run")],
-      ["move-jump", en.jump, () => this.movement.jump()],
-      ["move-stance", en.stance, () => this.movement.toggle()],
-      ["move-throw", en.throwUnder, () => this.movement.throw()],
-      ["move-overhand", en.throwOver, () => this.movement.throw("overhand")],
-    ] as const;
-    controls.forEach(([id, text, run], i) =>
-      this.button(
-        id,
-        i < 5 ? 666 + i * 86 : 1110 + (i - 5) * 100,
-        649,
-        i < 5 ? 82 : 96,
-        text,
-        run,
-        36,
-      ),
-    );
+    label(
+      this,
+      960,
+      625,
+      "A/D: move · Shift: run · Space: jump · R: stance",
+      14,
+    ).setOrigin(0.5);
     label(
       this,
       640,

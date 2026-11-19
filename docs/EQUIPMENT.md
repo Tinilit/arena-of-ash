@@ -25,6 +25,8 @@ Ownership uses unique definition IDs plus optional total `quantities`. Missing c
 
 ## Two-handed weapons
 
-The default catalog has 15 definitions. Greatsword, War Hammer and Battle Axe have `hands: 2` and live on shop page 2. Equip them in Right hand; Left hand displays Supporting grip and cannot carry another item. The item is owned once. Explicitly equipping a one-handed item into Left hand returns the two-handed weapon to the backpack; no ownership is deleted. Ground pickups preserve occupied hands and go into the backpack if both hands are not free.
+The default catalog has 16 definitions. Greatsword, War Hammer and Battle Axe have `hands: 2` and live on shop page 2. Equip them in Right hand; Left hand displays Supporting grip and cannot carry another item. The item is owned once. Explicitly equipping a one-handed item into Left hand returns the two-handed weapon to the backpack; no ownership is deleted. Ground pickups preserve occupied hands and go into the backpack if both hands are not free.
 
-Either ordinary hand-attack input starts the shared rear-hand swing. The support hand is not an empty fist; Ctrl+front attack cannot throw it. Ctrl+rear attack can release the actual weapon. V pushes with the shaft; X performs a physical-contact finisher against a downed target. New weapon attack bonuses are 13/18/16, with 1150/1350/1250 ms swings and 400 ms shared recovery.
+Either ordinary hand-attack input starts the shared rear-hand swing. The support hand is not an empty fist; Ctrl+front attack cannot throw it. Ctrl+rear attack can release the actual weapon. V pushes with the shaft; X binds a downed target into a guaranteed execution. New weapon attack bonuses are 13/18/16, with 1150/1350/1250 ms swings and 400 ms shared recovery.
+
+Steel Crossbow is the sixteenth item, on shop page 2 for 180 gold. It reserves both hands and fires automatically reloaded bolts with either attack input. The trigger hand stays in front of the torso while its elbow is behind it. Shooting keeps the weapon and creates no collectible equipment copy. Throwing the actual crossbow still consumes/releases that item normally.

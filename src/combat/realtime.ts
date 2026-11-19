@@ -3,6 +3,7 @@ import { item } from "../data/catalog";
 import { handSlots } from "../domain/model";
 import { stats, consumeItem, addItem, equip } from "../domain/progression";
 import { parryRules } from "./parry";
+import { FinisherController, type FinishState } from "./finishers";
 import { GrappleController, type GrapplePoseState } from "./grapples";
 import {
   advanceProjectile,
@@ -51,6 +52,7 @@ export const knockdownTiming = {
 } as const;
 import { twoHandDuration } from "../characters/twoHandMotion";
 export const attackTimings = {
+  shoot: { duration: 2600, from: 0.2, to: 0.2 },
   quick: { duration: 1000, from: 0.45, to: 0.67 },
   shove: { duration: 800, from: 0.35, to: 0.55 },
   finish: { duration: 1000, from: 0.55, to: 0.8 },
@@ -61,7 +63,7 @@ export const attackTimings = {
   recover: { duration: 750, from: 1, to: 1 },
 } as const;
 export type Attack = "quick" | "heavy" | "kick" | "throw" | "shove" | "finish";
-export type ArenaAction = Attack | "recover" | "drink";
+export type ArenaAction = Attack | "recover" | "drink" | "shoot";
 export type ArenaState = "Fighting" | "Victory" | "Defeat" | "Draw";
 export interface ArenaInput {
   move?: number;
@@ -110,8 +112,10 @@ export interface ArenaFighter extends Fighter {
   hopCooldown: number;
   attackCooldown: number;
   stun: number;
+  rangedCooldown?: number;
   pushVx: number;
   grapple?: GrapplePoseState;
+  finisher?: FinishState;
   grappleCooldown?: number;
   parry: {
     id: number;
@@ -167,7 +171,8 @@ function actor(model: Player, x: number, facing: 1 | -1): ArenaFighter {
         value?.name === "quick" ||
         value?.name === "heavy" ||
         value?.name === "throw" ||
-        value?.name === "drink"
+        value?.name === "drink" ||
+        value?.name === "shoot"
       )
         this.handActions[value.hand] = value;
       else this.bodyAction = value;
@@ -218,6 +223,7 @@ export class RealtimeBattle {
     projectileId: number;
   }[] = [];
   private sequence = 0;
+  private finishers = new FinisherController();
   private grapples = new GrappleController();
   private previous?: [CombatGeometry, CombatGeometry];
   private previousFacing: number[] = [];
@@ -243,22 +249,41 @@ export class RealtimeBattle {
     name: ArenaAction,
     hand: Hand = primaryHand(f.model),
   ) {
+    if (name === "finish")
+      return (
+        this.state === "Fighting" &&
+        f.hp > 0 &&
+        Boolean(weaponForHand(f.model, hand)) &&
+        f.y === 0 &&
+        f.vy === 0 &&
+        !f.hop &&
+        !f.knockdown &&
+        !f.parry &&
+        !f.grapple &&
+        !f.finisher &&
+        f.stun === 0 &&
+        Boolean(
+          this.finishers.point(
+            f,
+            this.fighters.find((t) => t !== f)!,
+            this.previous?.[this.fighters.indexOf(f) === 0 ? 1 : 0],
+          ),
+        )
+      );
     return (
       this.state === "Fighting" &&
       f.hp > 0 &&
       name !== "heavy" &&
+      (!(
+        weaponForHand(f.model, hand)?.weaponType === "crossbow" &&
+        (name === "quick" || name === "shoot")
+      ) ||
+        (f.rangedCooldown ?? 0) === 0) &&
       (name !== "shove" ||
         (Boolean(twoHandWeapon(f.model)) &&
           f.y === 0 &&
           f.vy === 0 &&
           !f.hop)) &&
-      (name !== "finish" ||
-        (Boolean(weaponForHand(f.model, hand)) &&
-          f.y === 0 &&
-          f.vy === 0 &&
-          !f.hop &&
-          this.fighters.find((t) => t !== f)?.knockdown?.phase === "down" &&
-          Math.abs(f.x - this.fighters.find((t) => t !== f)!.x) <= 260)) &&
       (!twoHandWeapon(f.model) ||
         ((hand === "rear" || name === "kick") &&
           !f.handActions.front &&
@@ -267,11 +292,15 @@ export class RealtimeBattle {
           f.handCooldowns.rear === 0)) &&
       !f.knockdown &&
       !f.parry &&
+      !f.finisher &&
       !f.grapple &&
       f.stun === 0 &&
       !f.bodyAction &&
       f.bodyCooldown === 0 &&
-      (name === "quick" || name === "throw" || name === "drink"
+      (name === "quick" ||
+      name === "throw" ||
+      name === "drink" ||
+      name === "shoot"
         ? !f.handActions[hand] && f.handCooldowns[hand] === 0
         : !f.handActions.front && !f.handActions.rear) &&
       f.reaction?.kind !== "stagger"
@@ -295,6 +324,7 @@ export class RealtimeBattle {
     return (
       this.state === "Fighting" &&
       f.hp > 0 &&
+      !f.finisher &&
       !f.grapple &&
       !f.knockdown &&
       f.stun === 0 &&
@@ -316,11 +346,17 @@ export class RealtimeBattle {
       f.knockdown ||
       f.parry ||
       f.action ||
-      f.grapple
+      f.grapple ||
+      f.finisher
     )
       return undefined;
     return this.projectiles
-      .filter((p) => p.state === "landed" && pickupDistance(p, f.x) <= 85)
+      .filter(
+        (p) =>
+          p.kind !== "bolt" &&
+          p.state === "landed" &&
+          pickupDistance(p, f.x) <= 85,
+      )
       .sort(
         (a, b) =>
           pickupDistance(a, f.x) - pickupDistance(b, f.x) || a.id - b.id,
@@ -453,6 +489,7 @@ export class RealtimeBattle {
       (direction === -1 || direction === 1) &&
       (f === this.player || direction === -1) &&
       f.hp > 0 &&
+      !f.finisher &&
       !f.grapple &&
       f.action?.name !== "finish" &&
       f.action?.name !== "shove" &&
@@ -500,6 +537,7 @@ export class RealtimeBattle {
         }
       }
       f.stun = Math.max(0, f.stun - delta);
+      f.rangedCooldown = Math.max(0, (f.rangedCooldown ?? 0) - delta);
       f.bodyCooldown = Math.max(0, f.bodyCooldown - delta);
       for (const hand of ["front", "rear"] as const)
         f.handCooldowns[hand] = Math.max(0, f.handCooldowns[hand] - delta);
@@ -546,7 +584,7 @@ export class RealtimeBattle {
           f.bodyAction = null;
         }
       }
-      if (f.knockdown) {
+      if (f.knockdown && !f.finisher) {
         const k = f.knockdown;
         k.elapsed += delta;
         if (
@@ -565,15 +603,22 @@ export class RealtimeBattle {
           f.landed = 1000;
         }
       }
-      if (f.grapple?.role === "target") return;
+      if (f.grapple?.role === "target" || f.finisher?.role === "target") return;
+      const carrying =
+        f.grapple?.role === "lifter" && f.grapple.phase === "hold";
       const c =
+        f.finisher ||
         f.knockdown ||
         f.stun > 0 ||
         f.reaction?.kind === "stagger" ||
         f.reaction?.kind === "parried" ||
-        f.grapple
+        (f.grapple &&
+          !(f.grapple.role === "lifter" && f.grapple.phase === "hold"))
           ? {}
-          : input[i];
+          : carrying
+            ? { move: input[i].move }
+            : input[i];
+      if (carrying && c.move) f.facing = c.move > 0 ? 1 : -1;
       if (c.toggleStance) f.relaxed = !f.relaxed;
       if (c.pickup) this.pickup(f);
       if (c.parry && this.canParry(f)) {
@@ -582,7 +627,7 @@ export class RealtimeBattle {
         f.relaxed = false;
         f.reaction = null;
       }
-      if (!f.action && !f.hop && !f.reaction && !f.knockdown)
+      if (!f.grapple && !f.action && !f.hop && !f.reaction && !f.knockdown)
         f.facing = this.fighters[1 - i].x >= f.x ? 1 : -1;
       for (const hand of new Set([
         ...(c.throws ?? []),
@@ -600,12 +645,18 @@ export class RealtimeBattle {
         if (!this.canAttack(f, "quick", hand)) continue;
         f.handActions[hand] = {
           id: ++this.sequence,
-          name: "quick",
+          name:
+            weaponForHand(f.model, hand)?.weaponType === "crossbow"
+              ? "shoot"
+              : "quick",
           hand,
           elapsed: 0,
-          duration: twoHandWeapon(f.model)
-            ? twoHandDuration(twoHandWeapon(f.model)!)
-            : attackTimings.quick.duration,
+          duration:
+            weaponForHand(f.model, hand)?.weaponType === "crossbow"
+              ? attackTimings.shoot.duration
+              : twoHandWeapon(f.model)
+                ? twoHandDuration(twoHandWeapon(f.model)!)
+                : attackTimings.quick.duration,
           hit: false,
         };
         f.relaxed = false;
@@ -618,6 +669,7 @@ export class RealtimeBattle {
             ? "recover"
             : undefined;
       if (request && this.canAttack(f, request)) {
+        if (request === "finish") f.action = null;
         f.bodyAction = {
           id: ++this.sequence,
           name: request,
@@ -626,6 +678,14 @@ export class RealtimeBattle {
           hit: false,
           hand: c.hand ?? primaryHand(f.model),
         };
+        if (request === "finish")
+          this.finishers.start(
+            f,
+            this.fighters[1 - i],
+            weaponForHand(f.model, f.bodyAction.hand)!,
+            f.bodyAction,
+            this.previous?.[1 - i],
+          );
         f.relaxed = false;
         f.reaction = null;
       }
@@ -668,7 +728,7 @@ export class RealtimeBattle {
           : Math.max(-1, Math.min(1, c.move ?? 0));
       f.vx =
         movement *
-        (running ? arenaRules.run : arenaRules.walk) *
+        (carrying ? 80 : running ? arenaRules.run : arenaRules.walk) *
         (f.guard ? 0.5 : (f.action && !flyingKick) || f.parry ? 0.7 : 1);
       if (f.hop)
         f.vx =
@@ -688,8 +748,11 @@ export class RealtimeBattle {
         Math.sign(f.pushVx) *
         Math.max(0, Math.abs(f.pushVx) - arenaRules.pushFriction * dt);
       f.x = Math.max(
-        arenaRules.minX,
-        Math.min(arenaRules.maxX, f.x + f.vx * dt),
+        carrying ? Math.min(f.x, arenaRules.minX + 112) : arenaRules.minX,
+        Math.min(
+          carrying ? Math.max(f.x, arenaRules.maxX - 112) : arenaRules.maxX,
+          f.x + f.vx * dt,
+        ),
       );
       if (f.y < 0 || f.vy < 0) {
         f.y += f.vy * dt + 0.5 * arenaRules.gravity * dt * dt;
@@ -707,6 +770,7 @@ export class RealtimeBattle {
       }
     });
     const [a, b] = this.fighters;
+    this.finishers.update(delta);
     this.grapples.update(
       delta,
       this.state,
@@ -737,6 +801,8 @@ export class RealtimeBattle {
   resolve(geometry: [CombatGeometry, CombatGeometry]): ContactEvent[] {
     if (this.state !== "Fighting") return [];
     const events: ContactEvent[] = [];
+    const execution = this.finishers.resolve(geometry, this.fighters);
+    if (execution) events.push(execution);
     this.fighters.forEach((f, i) => {
       for (const swing of activeActions(f)) {
         if (swing.name === "drink") {
@@ -750,6 +816,42 @@ export class RealtimeBattle {
           ) {
             f.hp = Math.min(stats(f.model).hp, f.hp + definition.heal);
             this.consume(f, swing, definition.id);
+          }
+          continue;
+        }
+        if (swing.name === "shoot") {
+          const weapon = weaponForHand(f.model, swing.hand),
+            origin = geometry[i].muzzles?.[swing.hand];
+          if (
+            !swing.released &&
+            swing.elapsed / swing.duration >= attackTimings.shoot.from &&
+            weapon?.weaponType === "crossbow" &&
+            origin
+          ) {
+            swing.released = true;
+            f.rangedCooldown = 2080;
+            const vx = f.facing * 1150,
+              vy = -20,
+              angle = Math.atan2(vy, vx) + Math.PI / 2;
+            this.projectiles.push({
+              id: swing.id,
+              kind: "bolt",
+              ownerId: f.model.id,
+              itemId: weapon.id,
+              sourceSlot: "rightHand",
+              hand: swing.hand,
+              ...origin,
+              vx,
+              vy,
+              angle,
+              spin: 0,
+              previous: { ...origin, angle },
+              floorRadius: 4,
+              attack: stats(f.model, swing.hand).attack,
+              profile: { startY: -34, endY: 12, radius: 2 },
+              age: 0,
+              state: "flying",
+            });
           }
           continue;
         }
@@ -809,13 +911,9 @@ export class RealtimeBattle {
           }
           continue;
         }
-        if (swing.name === "recover" || swing.hit) continue;
-        const weapon = weaponForHand(f.model, swing.hand);
-        if (
-          swing.name === "finish" &&
-          this.fighters[1 - i].knockdown?.phase !== "down"
-        )
+        if (swing.name === "recover" || swing.name === "finish" || swing.hit)
           continue;
+        const weapon = weaponForHand(f.model, swing.hand);
         const shape = (g: CombatGeometry) =>
           swing.name === "shove"
             ? g.shove
@@ -863,27 +961,23 @@ export class RealtimeBattle {
             kind:
               swing.name === "shove"
                 ? "shove"
-                : swing.name === "finish"
-                  ? "finisher"
-                  : swing.name === "kick"
-                    ? "kick"
-                    : weapon
-                      ? "weapon"
-                      : "punch",
+                : swing.name === "kick"
+                  ? "kick"
+                  : weapon
+                    ? "weapon"
+                    : "punch",
             hand: swing.hand,
             damage:
-              swing.name === "finish"
-                ? defender.hp
-                : swing.name === "kick" || swing.name === "shove"
-                  ? 0
-                  : damage(
-                      f.model,
-                      defender.model,
-                      actions[swing.name].multiplier,
-                      false,
-                      defender.guard,
-                      swing.hand,
-                    ),
+              swing.name === "kick" || swing.name === "shove"
+                ? 0
+                : damage(
+                    f.model,
+                    defender.model,
+                    actions[swing.name].multiplier,
+                    false,
+                    defender.guard,
+                    swing.hand,
+                  ),
             blocked: defender.guard,
             knockdown:
               swing.name === "kick" &&
@@ -1046,7 +1140,10 @@ export class RealtimeBattle {
     if (this.player.hp === 0 && this.enemy.hp === 0) this.state = "Draw";
     else if (this.enemy.hp === 0) this.state = "Victory";
     else if (this.player.hp === 0) this.state = "Defeat";
-    if (this.state !== "Fighting") this.grapples.end();
+    if (this.state !== "Fighting") {
+      this.grapples.end();
+      this.finishers.end();
+    }
     return events;
   }
 }

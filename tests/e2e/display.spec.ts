@@ -117,9 +117,9 @@ for (const profile of [
       const initial = await display(page);
       expect(initial.density).toBe(profile.density);
       sharp(initial);
-      expect(initial.texts.find((t) => t.text === "Walk")!.resolution).toBe(
-        profile.density,
-      );
+      expect(
+        initial.texts.find((t) => t.text === "Enter the arena")!.resolution,
+      ).toBe(profile.density);
       await page.screenshot({
         path: `test-results/screenshots/display-${profile.name}.png`,
       });
@@ -164,7 +164,7 @@ for (const profile of [
         await frames(page);
         sharp(await display(page));
         expect((await state(page)).battle!.player.x).toBe(370);
-        await click(page, "quick");
+        await page.keyboard.press("k");
         await expect
           .poll(async () => (await state(page)).battle?.player.action?.name)
           .toBe("quick");

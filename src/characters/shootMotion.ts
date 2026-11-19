@@ -24,6 +24,7 @@ export function shootClip(kind: ShootingKind): Clip {
     discrete: ["shootPreview", "shotFlash"],
     sample: (phase) => ({
       shootPreview: phase < 0.95 ? mode : 0,
+      crossbowPreviewFired: phase >= 0.52 ? 1 : 0,
       shotFlash: phase >= 0.52 && phase < (rifle ? 0.56 : 0.61) ? mode : 0,
     }),
     frames: [

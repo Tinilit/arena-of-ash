@@ -3,6 +3,7 @@ import { weaponHitbox } from "./weaponGeometry";
 import type { Capsule, Point } from "./geometry";
 export interface Projectile {
   id: number;
+  kind?: "bolt";
   ownerId: string;
   itemId: string;
   hand: Hand;
@@ -21,6 +22,8 @@ export interface Projectile {
   state: "flying" | "spent" | "landed" | "expired" | "pickedUp";
 }
 export function projectileProfile(item: Item) {
+  if (item.weaponType === "crossbow")
+    return { startY: -100, endY: 25, radius: 12 };
   return (
     item.hitbox ??
     (item.image
@@ -33,6 +36,7 @@ export function projectileProfile(item: Item) {
   );
 }
 export function projectileFloorRadius(item: Item) {
+  if (item.visual === "crossbow") return 48;
   return item.image
     ? item.image.width * Math.max(item.image.originX, 1 - item.image.originX)
     : item.visual === "throwing-axe"
@@ -68,8 +72,9 @@ export function advanceProjectile(p: Projectile, delta: number, floor: number) {
   const dt = delta / 1000;
   p.age += delta;
   p.x += p.vx * dt;
-  p.y += p.vy * dt + 500 * dt * dt;
-  p.vy += 1000 * dt;
+  const gravity = p.kind === "bolt" ? 220 : 1000;
+  p.y += p.vy * dt + 0.5 * gravity * dt * dt;
+  p.vy += gravity * dt;
   p.angle = p.spin
     ? p.angle + p.spin * dt
     : Math.atan2(p.vy, p.vx) + Math.PI / 2;

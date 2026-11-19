@@ -21,7 +21,7 @@ export const handSlots: Record<Hand, EquipmentSlot> = {
   front: "leftHand",
   rear: "rightHand",
 };
-export type WeaponType = "sword" | "spear" | "hammer" | "axe";
+export type WeaponType = "sword" | "spear" | "hammer" | "axe" | "crossbow";
 export interface WeaponHitbox {
   startY: number;
   endY: number;

@@ -1,4 +1,4 @@
-import { weaponForHand } from "../domain/progression";
+import { weaponForHand, twoHandWeapon } from "../domain/progression";
 import { weaponHitbox } from "./weaponGeometry";
 import type { Random } from "../utils/random";
 import type { Hand } from "../domain/model";
@@ -49,6 +49,18 @@ export class ArenaAI {
       self.bodyCooldown > 0
     )
       return input;
+    if (twoHandWeapon(self.model)?.weaponType === "crossbow") {
+      return {
+        move: gap > 520 ? toward : gap < 260 ? -toward : 0,
+        attack:
+          !self.action &&
+          self.handCooldowns.rear === 0 &&
+          (self.rangedCooldown ?? 0) === 0
+            ? "quick"
+            : undefined,
+        hand: "rear",
+      };
+    }
     if (self.hop) return { ...input, move: 0, guard: false };
     if (
       !self.action &&

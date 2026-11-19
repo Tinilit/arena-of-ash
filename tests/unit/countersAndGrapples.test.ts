@@ -155,7 +155,7 @@ describe("coupled overhead lift and throw", () => {
       }
     }
   });
-  it("holds until commanded, locks both actors, throws without HP damage and uses heavy floor recovery", () => {
+  it("holds until commanded, allows the carrier to walk, throws without HP damage and uses heavy floor recovery", () => {
     const b = make(),
       saved = JSON.stringify(b.player.model),
       motion = new ArenaMotion(b.enemy.model);
@@ -170,8 +170,8 @@ describe("coupled overhead lift and throw", () => {
       { move: 1, jump: true, attack: "quick" },
       { move: -1, jump: true, attack: "quick" },
     ]);
-    expect(b.player.x).toBe(500);
-    expect(b.enemy.x).toBe(heldX);
+    expect(b.player.x).toBeCloseTo(532, 6);
+    expect(b.enemy.x).toBeCloseTo(heldX + 32, 6);
     expect(b.enemy.action).toBeNull();
     expect(b.canAttack(b.enemy, "quick")).toBe(false);
     expect(b.canParry(b.player)).toBe(false);

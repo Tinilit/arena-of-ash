@@ -14,6 +14,8 @@ import { groundedPose } from "./kinematics";
 import { overhandThrowTiming } from "./throwMotion";
 import { hopPose } from "./hopPose";
 import { parryPose } from "./parryMotion";
+import { crossbowPose } from "./crossbowMotion";
+import { executionPose } from "../combat/finishers";
 import { grapplePose } from "./grappleMotion";
 import { twoHandPose, finishPose } from "./twoHandMotion";
 const smooth = (value: number) => {
@@ -88,6 +90,15 @@ export class ArenaMotion {
         this.actions[hand] = new Animator(equipmentMotion(weapon, hand));
         this.weaponKinds[hand] = kind;
       }
+    }
+    if (f.finisher?.role === "executor") {
+      this.name = "finish";
+      this.displayed = executionPose(
+        primaryWeapon(f.model)!,
+        primaryHand(f.model),
+        f.finisher.elapsed,
+      );
+      return this.displayed;
     }
     if (f.knockdown) {
       if (!this.falling) this.fallStart = { ...this.displayed };
@@ -341,6 +352,24 @@ export class ArenaMotion {
     const twoHand = twoHandWeapon(f.model);
     const shared = f.action;
     if (
+      twoHand?.weaponType === "crossbow" &&
+      !f.grapple &&
+      !f.parry &&
+      !f.reaction &&
+      (!shared || shared.name === "shoot" || shared.name === "kick")
+    ) {
+      Object.assign(
+        base,
+        crossbowPose(
+          base,
+          shared?.name === "shoot"
+            ? shared.elapsed / shared.duration
+            : undefined,
+          (f.rangedCooldown ?? 0) === 0,
+        ),
+      );
+      if (shared?.name === "shoot") this.name = "shoot";
+    } else if (
       twoHand &&
       !f.grapple &&
       !f.parry &&

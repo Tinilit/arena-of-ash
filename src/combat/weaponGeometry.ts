@@ -2,7 +2,7 @@ import type { Item, WeaponHitbox } from "../domain/model";
 
 /** Only the blade/leaf head deals damage. The grip and spear shaft do not. */
 export function weaponHitbox(weapon?: Item): WeaponHitbox | null {
-  if (!weapon) return null;
+  if (!weapon || weapon.weaponType === "crossbow") return null;
   if (weapon.hitbox) return weapon.hitbox;
   if (weapon.image) {
     const top = -weapon.image.height * weapon.image.originY;
