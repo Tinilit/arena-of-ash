@@ -116,6 +116,7 @@ test("chainmail, Roman legionary helm and two-handed trident equip with a true t
   const p = createPlayer();
   p.gold = 2000;
   await savedFixture(page, p);
+  await page.clock.install();
   await launch(page);
   expect((await snapshot(page)).player.inventory).toEqual(["wood"]);
   await click(page, "shop");
@@ -138,17 +139,27 @@ test("chainmail, Roman legionary helm and two-handed trident equip with a true t
   await shot(page, "legionary-mail-trident-loadout");
   await click(page, "back");
   await click(page, "battle");
-  await page.clock.install();
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
+  await page.clock.runFor(100);
   sharedGrip((await snapshot(page)).rigs![0]);
   await page.keyboard.press("k");
-  await page.clock.runFor(400);
-  const drawn = (await snapshot(page)).rigs![0].weapons[0];
+  const attackAt = async (elapsed: number) => {
+    for (let i = 0; i < 50; i++) {
+      await page.clock.runFor(50);
+      const state = await snapshot(page);
+      if (
+        state.battle?.player.action?.name === "quick" &&
+        state.battle.player.action.elapsed >= elapsed
+      )
+        return state;
+    }
+    throw Error(`Trident attack did not reach ${elapsed} ms`);
+  };
+  const drawn = (await attackAt(400)).rigs![0].weapons[0];
   await page.screenshot({
     path: "test-results/screenshots/trident-anticipation.png",
   });
-  await page.clock.runFor(225);
-  const s = await snapshot(page);
+  const s = await attackAt(625);
   sharedGrip(s.rigs![0]);
   expect(s.rigs![0].weapons[0].x - drawn.x).toBeGreaterThan(35);
   const blade = s.geometry![0].blade!;
@@ -224,18 +235,22 @@ test("B toggles full Auto Battle and both fighters act without manual attack inp
     belt2: "throwing-knife",
   };
   await savedFixture(page, p);
+  await page.clock.install();
   await page.goto("/?seed=42&renderer=canvas");
   await scene(page, "MainMenuScene");
   await click(page, "battle");
-  await page.clock.install();
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
+  await page.clock.runFor(100);
   expect((await snapshot(page)).autoBattle).toBe(false);
   await page.keyboard.press("b");
+  await page.clock.runFor(32);
   expect((await snapshot(page)).autoBattle).toBe(true);
   await page.clock.runFor(100);
   await page.keyboard.press("b");
+  await page.clock.runFor(32);
   expect((await snapshot(page)).autoBattle).toBe(false);
   await page.keyboard.press("b");
+  await page.clock.runFor(32);
   const observing = page.evaluate(
     () =>
       new Promise<{
@@ -514,8 +529,10 @@ test("paginated purchases and inventory equip all remaining items and persist th
   expect((await snapshot(page)).player.inventory).toHaveLength(12);
   await click(page, "back");
   await click(page, "character");
+  await click(page, "inventory-next");
   await click(page, "equip-throwing-knife");
   await click(page, "equip-throwing-axe");
+  await click(page, "inventory-prev");
   await click(page, "slot-body");
   await click(page, "equip-plate");
   await click(page, "unequip-rightHand");
