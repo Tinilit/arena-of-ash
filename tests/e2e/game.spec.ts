@@ -1433,7 +1433,7 @@ test("relaxed stance is upright with almost straight legs and an actually lowere
   expect(blade.a.y).toBeGreaterThan(blade.b.y);
   expect(blade.a.y).toBeLessThan(551 - 10);
   await shot(page, "upright-relaxed-arena");
-  await page.keyboard.press("j");
+  await page.keyboard.press("k");
   await expect
     .poll(async () => (await snapshot(page)).battle!.player.action?.name)
     .toBe("quick");
@@ -1592,7 +1592,7 @@ test("attacks and hops work without energy, defense or recovery controls", async
   await page.keyboard.press("4");
   expect((await snapshot(page)).battle!.player.action).toBeNull();
   expect((await snapshot(page)).battle!.player.guard).toBe(false);
-  await page.keyboard.press("j");
+  await page.keyboard.press("k");
   await page.keyboard.down("a");
   await page.keyboard.press("Space");
   await page.keyboard.up("a");
@@ -3308,7 +3308,7 @@ test("worn armor shatters on real contact, removes overlays and stays destroyed 
   expect(s.battle!.projectiles).toEqual([]);
   await shot(page, "armor-shattering-bare-head-and-torso");
   await page.waitForTimeout(350);
-  expect((await snapshot(page)).rigs![0].alpha).toBe(1);
+  await expect.poll(async () => (await snapshot(page)).rigs![0].alpha).toBe(1);
   await page.reload();
   await scene(page, "MainMenuScene");
   expect((await snapshot(page)).player.inventory).toEqual(["wood"]);

@@ -294,8 +294,12 @@ export class ArenaAI {
     const preferred = reach;
     const gap = Math.abs(target.x - self.x),
       toward = Math.sign(target.x - self.x);
+    // Keep weapon distance without perfectly kiting every close-range grab.
+    // Committed swings hold their ground; a live grab reach can still be
+    // interrupted by a hit or deliberately dodged by the tactical policy.
+    const backOff = gap < preferred - 20 && !self.action && !target.grapple;
     const input: ArenaInput = {
-      move: gap > preferred + 12 ? toward : gap < preferred - 20 ? -toward : 0,
+      move: gap > preferred + 12 ? toward : backOff ? -toward : 0,
       run: gap > 340,
       guard: this.guardFor > 0,
     };

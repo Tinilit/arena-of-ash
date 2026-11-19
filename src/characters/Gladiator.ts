@@ -180,6 +180,13 @@ export class Gladiator {
       skeleton.shoulderY,
     );
     const shoulderSkin = new LimbArt(scene, "arm", skin, false, "upper");
+    // Graphics have no getBounds; a hidden envelope gives this standalone pass
+    // real bounds instead of an empty container rectangle at the world origin.
+    frontShoulder.add(
+      scene.add
+        .rectangle(0, skeleton.upperArm / 2, 26, skeleton.upperArm + 26)
+        .setVisible(false),
+    );
     frontShoulder.add(shoulderSkin);
     this.limbs.frontShoulder = shoulderSkin;
     const nearSkin = new LimbArt(scene, "arm", skin, false, "lower");

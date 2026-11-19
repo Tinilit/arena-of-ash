@@ -267,3 +267,20 @@ it("allows a deliberate AI grapple approach inside normal weapon spacing", () =>
   expect(grabbed).toBe(true);
   expect(Math.abs(b.enemy.x - b.player.x)).toBeLessThanOrEqual(105);
 });
+
+it("allows a close grab to commit instead of automatically backpedaling out of every reach", () => {
+  const b = make();
+  b.enemy.x = b.player.x + 94;
+  const ai = new ArenaAI(
+    () => 0.8,
+    () => 1,
+    () => 1,
+    () => 1,
+    { advanced: false },
+  );
+  b.advance(0, [{ grapple: true }, {}]);
+  for (let i = 0; i < 60; i++)
+    b.advance(8, [{}, ai.update(8, b.enemy, b.player)]);
+  expect(b.enemy.grapple?.role).toBe("target");
+  expect(b.player.grapple?.phase).toBe("lift");
+});
