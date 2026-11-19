@@ -20,8 +20,12 @@ import {
 import { throwTiming } from "../../src/characters/throwMotion";
 
 describe("anatomical loadout", () => {
-  it("starts with two visible belt throwables and persists every position", () => {
+  it("starts with an empty belt and persists explicitly equipped positions", () => {
     const p = createPlayer();
+    expect(p.equipment.belt1).toBeUndefined();
+    expect(p.equipment.belt2).toBeUndefined();
+    equip(p, "throwing-knife", "belt1");
+    equip(p, "throwing-axe", "belt2");
     purchase(p, "rust");
     purchase(p, "leather");
     expect(equip(p, "rust", "leftHand")).toBe(true);

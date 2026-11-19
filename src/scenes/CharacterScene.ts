@@ -2,11 +2,7 @@ import { BaseScene } from "./BaseScene";
 import { Gladiator } from "../characters/Gladiator";
 import { label, panel } from "../ui/widgets";
 import { en } from "../ui/strings";
-import {
-  equipmentSlots,
-  slotCategory,
-  type EquipmentSlot,
-} from "../domain/model";
+import { equipmentSlots, type EquipmentSlot } from "../domain/model";
 import {
   equip,
   canEquip,
@@ -15,6 +11,7 @@ import {
   primaryWeapon,
   backpack,
   availableQuantity,
+  equipmentTarget,
 } from "../domain/progression";
 import { item } from "../data/catalog";
 import { drawGear } from "../rendering/characterVisuals";
@@ -112,26 +109,11 @@ export class CharacterScene extends BaseScene {
         ).setOrigin(0.5);
     });
     label(this, 855, 177, "BACKPACK · UNEQUIPPED", 21);
-    label(this, 855, 199, `Target: ${en.equipmentSlots[slot]}`, 14, "#b9aa8d");
+    label(this, 855, 199, `Preferred: ${en.equipmentSlots[slot]}`, 14, "#b9aa8d");
     inventory.slice(page * 8, (page + 1) * 8).forEach((id, i) => {
       const def = item(id)!,
         y = 233 + i * 34;
-      const target =
-        def.hands === 2
-          ? "rightHand"
-          : def.slot === slotCategory[slot]
-            ? slot
-            : def.slot === "helmet"
-              ? "helmet"
-              : def.slot === "chest"
-                ? "body"
-                : def.slot === "utility"
-                  ? !p.equipment.belt1
-                    ? "belt1"
-                    : "belt2"
-                  : !p.equipment.rightHand
-                    ? "rightHand"
-                    : "leftHand";
+      const target = equipmentTarget(p, id, slot);
       const name = label(
         this,
         855,
@@ -187,7 +169,13 @@ export class CharacterScene extends BaseScene {
       16,
     );
     label(this, 430, 571, en.loadoutHint, 16, "#b9aa8d");
-    label(this, 430, 598, "Select a slot to equip items", 16);
+    label(
+      this,
+      430,
+      598,
+      "Empty slots fill first. Select a slot to replace when full.",
+      16,
+    );
     this.back();
   }
   override snapshot() {

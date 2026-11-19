@@ -107,3 +107,9 @@ X starts a paired execution only against a local downed target. `combat/finisher
 ## Crossbow
 
 A normal input on a two-handed crossbow starts a 2600 ms shared shoot/reload action. Release at 20% spawns one bolt from the rendered muzzle, with 1150 units/s horizontal speed and 220 units/s² gravity. A swept bolt/body contact deals the active weapon attack minus armor once. No held-stock melee hit or inventory consumption occurs. Reload time survives pain interruption, preventing a hit from bypassing reload. Bolts are not collectible equipment; Ctrl+rear attack still throws the actual crossbow through the ordinary item-consumption path.
+
+## Disarms and hammer effects
+
+A successful frontal weapon parry gets one 20% disarm roll for the contacting hand, even when simultaneous attacks are deflected. Empty fists do not qualify. A success removes one equipped copy, records consumption and emits a harmless `spent` projectile at the rendered grip. Existing gravity/settling makes it collectible; either fighter can recover it. Scene cursors mirror player losses and collections once, while enemy collections remain battle-local. Enemy pickup commands are limited to nearby grounded weapons with a truly empty compatible hand.
+
+An unblocked nonlethal melee hammer hit rolls separate 10% knockdown and 10% strong-push chances after parry resolution. Rolls occur once per accepted contact, never on a miss, deflection, block or existing floor transfer. The two effects can coincide. Knockdown uses the existing fall/one-second rest/supported get-up; a strong push uses the kick impulse and stagger step without additional damage. Separate seeded streams for disarm, hammer knockdown and hammer push preserve other random decisions.

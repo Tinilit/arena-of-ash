@@ -1,4 +1,10 @@
-import { weaponForHand, twoHandWeapon } from "../domain/progression";
+import {
+  weaponForHand,
+  twoHandWeapon,
+  freeEquipmentSlot,
+} from "../domain/progression";
+import { item } from "../data/catalog";
+import { pickupDistance, type Projectile } from "./projectiles";
 import { weaponHitbox } from "./weaponGeometry";
 import type { Random } from "../utils/random";
 import type { Hand } from "../domain/model";
@@ -16,7 +22,12 @@ export class ArenaAI {
     private throwRandom: Random = Math.random,
     private dodgeRandom: Random = Math.random,
   ) {}
-  update(delta: number, self: ArenaFighter, target: ArenaFighter): ArenaInput {
+  update(
+    delta: number,
+    self: ArenaFighter,
+    target: ArenaFighter,
+    ground: readonly Projectile[] = [],
+  ): ArenaInput {
     this.guardFor -= delta;
     this.jumpCooldown -= delta;
     this.throwCooldown -= delta;
@@ -42,6 +53,7 @@ export class ArenaAI {
     };
     if (
       self.grapple ||
+      self.finisher ||
       self.knockdown ||
       self.stun > 0 ||
       self.reaction ||
@@ -49,6 +61,22 @@ export class ArenaAI {
       self.bodyCooldown > 0
     )
       return input;
+    if (
+      !self.action &&
+      !self.parry &&
+      !self.hop &&
+      self.y === 0 &&
+      self.vy === 0 &&
+      ground.some(
+        (p) =>
+          p.kind !== "bolt" &&
+          p.state === "landed" &&
+          item(p.itemId)?.slot === "weapon" &&
+          freeEquipmentSlot(self.model, p.itemId) &&
+          pickupDistance(p, self.x) <= 85,
+      )
+    )
+      return { pickup: true, move: 0, guard: false };
     if (twoHandWeapon(self.model)?.weaponType === "crossbow") {
       return {
         move: gap > 520 ? toward : gap < 260 ? -toward : 0,

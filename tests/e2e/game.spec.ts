@@ -330,8 +330,11 @@ test("paginated purchases and inventory equip all remaining items and persist th
   expect((await snapshot(page)).player.inventory).toHaveLength(12);
   await click(page, "back");
   await click(page, "character");
+  await click(page, "equip-throwing-knife");
+  await click(page, "equip-throwing-axe");
   await click(page, "slot-body");
   await click(page, "equip-plate");
+  await click(page, "unequip-rightHand");
   await click(page, "slot-rightHand");
   await click(page, "equip-war-spear");
   await click(page, "slot-helmet");
@@ -438,6 +441,10 @@ test("keyboard input, scene shutdown, reset confirmation and viewport scaling", 
   await click(page, "reset");
   await click(page, "resetYes");
   expect((await snapshot(page)).player.gold).toBe(100);
+  expect((await snapshot(page)).player.equipment).toEqual({
+    rightHand: "wood",
+  });
+  expect((await snapshot(page)).rigs![0].belt).toEqual([]);
 });
 test("default renderer starts without errors", async ({ page }) => {
   await page.goto("/");
@@ -521,6 +528,7 @@ test("external JSON adds image-backed equipment and changes live stats after ref
   expect((await snapshot(page)).player.gold).toBe(75);
   await click(page, "back");
   await click(page, "character");
+  await click(page, "unequip-rightHand");
   await click(page, "equip-runtime-spear");
   await click(page, "back");
   await click(page, "battle");
@@ -642,7 +650,9 @@ test("shields are absent and the free front arm stays behind the torso while the
   const jumping = await snapshot(page);
   expect(jumping.rigs![0].near.heel.y).toBeLessThan(equippedFloor - 25);
   expect(jumping.previewBounds!.y).toBeGreaterThan(270);
-  await page.screenshot({ path: "test-results/screenshots/camp-equipped-jump.png" });
+  await page.screenshot({
+    path: "test-results/screenshots/camp-equipped-jump.png",
+  });
   await page.clock.runFor(800);
   expect((await snapshot(page)).rigs![0].animation).toBe("idleRelaxed");
   await page.clock.resume();
@@ -1129,6 +1139,8 @@ test("anatomical slots move weapons between hands and persist two belt attachmen
   await scene(page, "MainMenuScene");
   await click(page, "character");
   for (const [slot, id] of [
+    ["belt1", "throwing-knife"],
+    ["belt2", "throwing-axe"],
     ["leftHand", "war-spear"],
     ["helmet", "viking"],
     ["body", "plate"],
@@ -1401,10 +1413,15 @@ test("backpack lists all unequipped categories, excludes worn items and restores
   await scene(page, "MainMenuScene");
   await click(page, "character");
   let s = await snapshot(page);
-  for (const id of ["rust", "plate", "viking"])
+  for (const id of [
+    "rust",
+    "plate",
+    "viking",
+    "throwing-knife",
+    "throwing-axe",
+  ])
     expect(s.buttons[`equip-${id}`]).toBeTruthy();
-  for (const id of ["wood", "throwing-knife", "throwing-axe"])
-    expect(s.buttons[`equip-${id}`]).toBeUndefined();
+  for (const id of ["wood"]) expect(s.buttons[`equip-${id}`]).toBeUndefined();
   await click(page, "equip-viking");
   expect((await snapshot(page)).buttons["equip-viking"]).toBeUndefined();
   await click(page, "unequip-helmet");
@@ -1807,6 +1824,9 @@ test("victory progress beyond three persists and generates stronger equipped opp
 test("belt knife makes a physical projectile hit, is lost on reload, and can be bought again", async ({
   page,
 }) => {
+  const p = createPlayer();
+  p.equipment.belt1 = "throwing-knife";
+  await savedFixture(page, p);
   await page.clock.install();
   await launch(page);
   await click(page, "battle");
@@ -1859,6 +1879,9 @@ test("belt knife makes a physical projectile hit, is lost on reload, and can be 
 test("belt axe uses an overarm airborne throw while the front hand attacks independently", async ({
   page,
 }) => {
+  const p = createPlayer();
+  p.equipment.belt2 = "throwing-axe";
+  await savedFixture(page, p);
   await page.clock.install();
   await launch(page);
   await click(page, "battle");
@@ -2088,6 +2111,7 @@ test("bulk consumables retain backpack reserves while each belt slot carries one
   await click(page, "back");
   await click(page, "character");
   await click(page, "slot-belt2");
+  await click(page, "equip-throwing-knife");
   await click(page, "equip-throwing-knife");
   s = await snapshot(page);
   expect(s.player.equipment.belt1).toBe("throwing-knife");
@@ -2853,4 +2877,64 @@ test("crossbow is bought and equipped, holds its rear elbow in front and front e
   expect(s.player.equipment.rightHand).toBe("crossbow");
   expect(s.rigs![0].crossbow?.loaded).toBe(true);
   await page.clock.resume();
+});
+
+test("fresh belts stay empty, Equip fills free slots, and closed armor buys and survives reload before reset", async ({
+  page,
+}) => {
+  await page.route("**/content/items.json?_=*", (route) =>
+    route.fulfill({ json: liveItems }),
+  );
+  const p = createPlayer();
+  p.gold = 1000;
+  await savedFixture(page, p);
+  await launch(page);
+  expect((await snapshot(page)).rigs![0].belt).toEqual([]);
+  await click(page, "shop");
+  await click(page, "buy-rust");
+  await click(page, "shop-next");
+  await click(page, "shop-next");
+  await click(page, "buy-closed-helm");
+  await click(page, "buy-cuirass");
+  expect((await snapshot(page)).player.gold).toBe(670);
+  await shot(page, "closed-armor-shop");
+  await click(page, "back");
+  await click(page, "character");
+  await click(page, "equip-rust");
+  expect((await snapshot(page)).player.equipment).toMatchObject({
+    rightHand: "wood",
+    leftHand: "rust",
+  });
+  await click(page, "slot-belt1");
+  await click(page, "equip-throwing-knife");
+  await click(page, "equip-throwing-axe");
+  expect((await snapshot(page)).player.equipment).toMatchObject({
+    belt1: "throwing-knife",
+    belt2: "throwing-axe",
+  });
+  await click(page, "equip-closed-helm");
+  await click(page, "equip-cuirass");
+  await shot(page, "closed-helm-cuirass-character");
+  const equipped = (await snapshot(page)).player;
+  expect(equipped.equipment).toMatchObject({
+    helmet: "closed-helm",
+    body: "cuirass",
+  });
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect((await snapshot(page)).player).toEqual(equipped);
+  await click(page, "battle");
+  await shot(page, "closed-armor-arena");
+  await page.keyboard.press("Escape");
+  await scene(page, "MainMenuScene");
+  await click(page, "reset");
+  await click(page, "resetYes");
+  expect((await snapshot(page)).player.equipment).toEqual({
+    rightHand: "wood",
+  });
+  expect((await snapshot(page)).rigs![0].belt).toEqual([]);
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect((await snapshot(page)).player.equipment.belt1).toBeUndefined();
+  expect((await snapshot(page)).player.equipment.belt2).toBeUndefined();
 });

@@ -68,8 +68,6 @@ export const createPlayer = (): Player => ({
   quantities: {},
   equipment: {
     rightHand: "wood",
-    belt1: "throwing-knife",
-    belt2: "throwing-axe",
   },
   progress: 0,
   rewarded: [],

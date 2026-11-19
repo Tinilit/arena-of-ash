@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "revision": "2026-11-19-crossbow",
+  "revision": "2026-11-19-armor-and-combat",
   "items": [
     {
       "id": "wood",
@@ -149,7 +149,7 @@
       "visual": "war-hammer",
       "weaponType": "hammer",
       "hands": 2,
-      "description": "Both hands. Weighty overhead blows and haft pushes.",
+      "description": "Both hands. Hits: 10% knockdown; 10% strong push.",
       "hitbox": {
         "startY": -147,
         "endY": -113,
@@ -184,6 +184,26 @@
       "weaponType": "crossbow",
       "hands": 2,
       "description": "Both hands. Fires a bolt, then automatically reloads."
+    },
+    {
+      "id": "closed-helm",
+      "name": "Closed Steel Helm",
+      "slot": "helmet",
+      "price": 110,
+      "attack": 0,
+      "armor": 5,
+      "visual": "closed-helm",
+      "description": "Enclosed visor, eye slit and a reinforced steel bevor."
+    },
+    {
+      "id": "cuirass",
+      "name": "Steel Cuirass",
+      "slot": "chest",
+      "price": 180,
+      "attack": 0,
+      "armor": 8,
+      "visual": "cuirass",
+      "description": "Ridged breastplate with a reinforced waist and fauld."
     }
   ]
 }

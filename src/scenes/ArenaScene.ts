@@ -75,6 +75,11 @@ export class ArenaScene extends BaseScene {
       this.services.player,
       opponent(this.services.player, seeded(seed ^ 0x92)),
       seeded(seed ^ 0x4b1d),
+      {
+        disarm: seeded(seed ^ 0x78d3),
+        hammerKnockdown: seeded(seed ^ 0x3fe1),
+        hammerPush: seeded(seed ^ 0x65c2),
+      },
     );
     this.ai = new ArenaAI(
       seeded(seed),
@@ -332,7 +337,9 @@ export class ArenaScene extends BaseScene {
       event.point.x,
       event.point.y,
       event.parried
-        ? "Parry"
+        ? event.disarmed
+          ? "Disarmed"
+          : "Parry"
         : event.kind === "finisher"
           ? "Finisher"
           : event.kind === "shove"
@@ -341,7 +348,7 @@ export class ArenaScene extends BaseScene {
               ? event.knockdown
                 ? "Knockdown"
                 : "Off balance"
-              : `${event.blocked ? en.blocked + " " : ""}−${event.damage}`,
+              : `${event.knockdown ? "Knockdown " : event.pushed ? "Pushed back " : ""}${event.blocked ? en.blocked + " " : ""}−${event.damage}`,
       26,
       event.blocked ? "#9bc6d1" : "#f4e2bc",
     ).setOrigin(0.5);
@@ -473,7 +480,12 @@ export class ArenaScene extends BaseScene {
       const commands = this.inputState();
       this.battle.advance(arenaRules.step, [
         commands,
-        this.ai.update(arenaRules.step, this.battle.enemy, this.battle.player),
+        this.ai.update(
+          arenaRules.step,
+          this.battle.enemy,
+          this.battle.player,
+          this.battle.projectiles,
+        ),
       ]);
       this.pose(arenaRules.step);
       this.battle

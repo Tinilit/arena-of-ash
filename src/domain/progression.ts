@@ -52,6 +52,55 @@ export function canEquip(p: Player, id: string, slot: EquipmentSlot) {
     (i.hands !== 2 || slot === "rightHand"),
   );
 }
+/** Empty compatible slots take priority; a two-handed grip reserves both hands. */
+export function freeEquipmentSlot(
+  p: Player,
+  id: string,
+  preferred?: EquipmentSlot,
+) {
+  const definition = item(id);
+  if (!definition) return undefined;
+  const slots: EquipmentSlot[] =
+    definition.slot === "weapon"
+      ? ["rightHand", "leftHand"]
+      : definition.slot === "utility"
+        ? ["belt1", "belt2"]
+        : definition.slot === "helmet"
+          ? ["helmet"]
+          : definition.slot === "chest"
+            ? ["body"]
+            : [];
+  if (preferred && slots.includes(preferred)) slots.unshift(preferred);
+  return slots.find(
+    (slot) =>
+      !p.equipment[slot] &&
+      (definition.hands !== 2 ||
+        (slot === "rightHand" && !p.equipment.leftHand)) &&
+      (slot !== "leftHand" || !twoHandWeapon(p)),
+  );
+}
+/** Backpack Equip fills a free slot before replacing the selected occupied slot. */
+export function equipmentTarget(
+  p: Player,
+  id: string,
+  preferred: EquipmentSlot,
+): EquipmentSlot {
+  const definition = item(id);
+  return (
+    freeEquipmentSlot(p, id, preferred) ??
+    (definition?.hands === 2
+      ? "rightHand"
+      : definition?.slot === slotCategory[preferred]
+        ? preferred
+        : definition?.slot === "helmet"
+          ? "helmet"
+          : definition?.slot === "chest"
+            ? "body"
+            : definition?.slot === "utility"
+              ? "belt1"
+              : "rightHand")
+  );
+}
 export function equip(p: Player, id: string, slot: EquipmentSlot) {
   const i = item(id);
   if (!i || !canEquip(p, id, slot)) return false;

@@ -18,8 +18,8 @@ const visuals: Record<Slot, readonly string[]> = {
     "battle-axe",
     "crossbow",
   ],
-  helmet: ["cap", "viking"],
-  chest: ["leather", "plate"],
+  helmet: ["cap", "viking", "closed-helm"],
+  chest: ["leather", "plate", "cuirass"],
   shield: ["shield", "tower"],
   utility: ["throwing-knife", "throwing-axe", "healing-potion"],
 };
