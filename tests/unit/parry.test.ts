@@ -19,7 +19,7 @@ function make() {
   const p = createPlayer(),
     e = createPlayer();
   e.id = "enemy";
-  return new RealtimeBattle(p, e, () => 0.5);
+  return new RealtimeBattle(p, e, () => 0.5, { disarm: () => 1 });
 }
 function prepare(b: RealtimeBattle, age = 0) {
   b.advance(0, [{}, { attack: "quick" }]);

@@ -30,6 +30,7 @@ interface RigFrame {
   down: Point;
 }
 interface Rig {
+  alpha: number;
   armor: { helmet?: string; body?: string };
   crossbow: { loaded: boolean; draw: number; supportGrip: Point | null } | null;
   shooting: { kind: number; flash: boolean };
@@ -577,7 +578,7 @@ test("complete battle, animation impact and persisted victory rewards", async ({
   expect((await snapshot(page)).battle!.contacts).toHaveLength(0);
   await shot(page, "attack-missed-at-distance");
   const hit = await hitEnemy(page);
-  expect(hit.damage).toBe(hit.blocked ? 7 : 13);
+  expect(hit.damage).toBe(13);
   expect((await snapshot(page)).battle!.enemy.hp).toBe(100 - hit.damage);
   await finish(page);
   expect((await snapshot(page)).player.gold).toBe(150);
@@ -672,7 +673,7 @@ test("paginated purchases and inventory equip all remaining items and persist th
   ).toBeLessThan(0.01);
   await shot(page, "new-equipment-arena");
   const hit = await hitEnemy(page);
-  expect(hit.damage).toBe(hit.blocked ? 11 : 22);
+  expect(hit.damage).toBe(22);
   await shot(page, "spear-thrust");
   await page.reload();
   await scene(page, "MainMenuScene");
@@ -863,7 +864,7 @@ test("external JSON adds image-backed equipment and changes live stats after ref
   if (!("image" in updated)) throw Error("Missing test artwork");
   updated.image.src = "items/runtime-spear-v2.png";
   const firstHit = await hitEnemy(page);
-  expect(firstHit.damage).toBe(firstHit.blocked ? 12 : 24);
+  expect(firstHit.damage).toBe(24);
   expect((await snapshot(page)).content.revision).toBe("runtime-test-1");
   await page.reload();
   await scene(page, "MainMenuScene");
@@ -879,7 +880,7 @@ test("external JSON adds image-backed equipment and changes live stats after ref
   await click(page, "battle");
   await scene(page, "ArenaScene");
   const secondHit = await hitEnemy(page);
-  expect(secondHit.damage).toBe(secondHit.blocked ? 15 : 30);
+  expect(secondHit.damage).toBe(30);
 });
 
 test("invalid external data and undecodable image files keep the game playable", async ({
@@ -928,7 +929,7 @@ test("invalid external data and undecodable image files keep the game playable",
   await scene(page, "ArenaScene");
   expect((await snapshot(page)).rigs![0].weapons[0].texture).toBeNull();
   const hit = await hitEnemy(page);
-  expect(hit.damage).toBe(hit.blocked ? 7 : 13);
+  expect(hit.damage).toBe(13);
 });
 
 test("shields are absent and the free front arm stays behind the torso while the armed rear arm renders in front", async ({
@@ -3301,6 +3302,8 @@ test("worn armor shatters on real contact, removes overlays and stays destroyed 
   expect(s.player.armorWear).toEqual({});
   expect(s.battle!.projectiles).toEqual([]);
   await shot(page, "armor-shattering-bare-head-and-torso");
+  await page.waitForTimeout(350);
+  expect((await snapshot(page)).rigs![0].alpha).toBe(1);
   await page.reload();
   await scene(page, "MainMenuScene");
   expect((await snapshot(page)).player.inventory).toEqual(["wood"]);

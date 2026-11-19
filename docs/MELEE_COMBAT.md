@@ -21,3 +21,5 @@ A confirmed kick now has a 20% knockdown chance, replacing the normal stagger wi
 Air kicks preserve normal gravity and movement (including the hop launch impulse), retain the rear-leg tuck and solve only the striking leg toward the kick target. Landing restores ground support through the current kick phase. Damage, pushback and knockdown still require a real boot/body contact; jumping adds no automatic hit or invulnerability.
 
 `ArenaMotion` overlays each hand from its own animator and clock. Torso/head deltas are blended together on the same waist frame, while the hand targets, grip, hit capsule and cooldown remain independent. Completed hands blend back to their idle pose while the other hand continues.
+
+Hit feedback uses one opacity tween per rig. A new contact stops the previous flash, starts from full opacity and explicitly restores alpha to 1 on completion or stop, so simultaneous/staggered hits cannot leave a fighter transparent.

@@ -35,6 +35,7 @@ export class Gladiator {
   animator: Animator;
   private joints: Record<string, Phaser.GameObjects.Container> = {};
   private shadow: Phaser.GameObjects.Ellipse;
+  private hitFlash?: Phaser.Tweens.Tween;
   private direction: number;
   private limbs: Record<string, LimbArt> = {};
   private skirt!: Phaser.GameObjects.Container;
@@ -557,6 +558,7 @@ export class Gladiator {
     });
     return {
       physical: true,
+      alpha: this.root.alpha,
       primaryHand: this.primaryHand,
       animation: this.displayedAnimation ?? this.animator.name,
       origin: { x: this.originX, y: this.originY },
@@ -792,12 +794,21 @@ export class Gladiator {
     this.animator.play(name, impact, complete, this.displayedPose);
   }
   flash() {
-    this.scene.tweens.add({
+    // Restart from solid opacity: overlapping yoyo tweens can retain a faded start.
+    this.hitFlash?.stop();
+    this.root.setAlpha(1);
+    const restore = () => {
+      this.root.setAlpha(1);
+      this.hitFlash = undefined;
+    };
+    this.hitFlash = this.scene.tweens.add({
       targets: this.root,
-      alpha: 0.45,
+      alpha: { from: 1, to: 0.45 },
       duration: 70,
       yoyo: true,
       repeat: 1,
+      onComplete: restore,
+      onStop: restore,
     });
   }
 }
