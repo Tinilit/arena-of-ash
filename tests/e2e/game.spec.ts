@@ -3106,6 +3106,7 @@ test("camp, character and active arena expose no demonstration or combat action 
   expect(Object.keys(s.buttons).sort()).toEqual([
     "battle",
     "character",
+    "ladder",
     "reset",
     "shop",
   ]);
