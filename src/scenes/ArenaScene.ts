@@ -49,7 +49,6 @@ export class ArenaScene extends BaseScene {
   private ending = false;
   private controlHints: Phaser.GameObjects.Text[] = [];
   private accumulator = 0;
-  private paused = false;
   private debug?: Phaser.GameObjects.Graphics;
   private projectileViews = new Map<number, Phaser.GameObjects.Container>();
   private projectileMask!: Phaser.Display.Masks.GeometryMask;
@@ -77,7 +76,6 @@ export class ArenaScene extends BaseScene {
     this.ending = false;
     this.accumulator = 0;
     this.queued = {};
-    this.paused = false;
     this.consumptionCursor = this.collectionCursor = this.lootElapsed = 0;
     this.armorBreakCursor = this.armorRevision = 0;
     const query = new URLSearchParams(location.search);
@@ -202,7 +200,6 @@ export class ArenaScene extends BaseScene {
         control: "CTRL",
       }) as typeof this.keys) ?? {};
     this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
-      if (this.paused) return;
       // Physical codes keep combat controls working with Ukrainian and other layouts.
       const key = event.code.startsWith("Key")
         ? event.code.slice(3).toLowerCase()
@@ -212,9 +209,8 @@ export class ArenaScene extends BaseScene {
             ? " "
             : event.key.toLowerCase();
       if (event.repeat) return;
-      if (key !== "b" || event.ctrlKey || event.metaKey || event.altKey)
-        this.takeControl();
       if (event.metaKey || event.altKey) return;
+      if (key !== "b" || event.ctrlKey) this.takeControl();
       if (this.ending) {
         if (this.battle.state === "Victory" && key === "g" && !event.ctrlKey)
           this.queued.pickup = true;
@@ -255,7 +251,7 @@ export class ArenaScene extends BaseScene {
     });
     this.input.keyboard?.addCapture(["J", "K"]);
     const useHand = (pointer: Phaser.Input.Pointer) => {
-      if (this.ending || this.paused) return;
+      if (this.ending) return;
       this.takeControl();
       this.updateAim(pointer);
       const point = pointer.positionToCamera(
@@ -275,25 +271,17 @@ export class ArenaScene extends BaseScene {
     const moveAim = (pointer: Phaser.Input.Pointer) => this.updateAim(pointer);
     this.input.on("pointermove", moveAim);
     this.input.on("pointerdown", useHand);
-    const pause = () => {
-      this.paused = true;
-      this.clearInput();
-      this.accumulator = 0;
-    };
-    const resume = () => {
-      this.paused = false;
-      this.accumulator = 0;
-    };
-    this.game.events.on(Phaser.Core.Events.BLUR, pause);
-    this.game.events.on(Phaser.Core.Events.FOCUS, resume);
+    const releaseInput = () => this.clearInput();
+    this.game.events.on(Phaser.Core.Events.BLUR, releaseInput);
+    this.game.events.on(Phaser.Core.Events.HIDDEN, releaseInput);
     this.events.once("shutdown", () => {
       if (repairArmor(this.services.player)) this.services.save();
       this.input.off("pointerdown", useHand);
       this.input.off("pointermove", moveAim);
       this.game.canvas.style.cursor = "";
       this.game.canvas.removeEventListener("contextmenu", contextMenu);
-      this.game.events.off(Phaser.Core.Events.BLUR, pause);
-      this.game.events.off(Phaser.Core.Events.FOCUS, resume);
+      this.game.events.off(Phaser.Core.Events.BLUR, releaseInput);
+      this.game.events.off(Phaser.Core.Events.HIDDEN, releaseInput);
       this.clearInput();
       this.input.keyboard?.removeCapture(["J", "K"]);
       for (const key of Object.values(this.keys))
@@ -652,7 +640,7 @@ export class ArenaScene extends BaseScene {
     return changed || breaks.length > 0;
   }
   update(_time: number, delta: number) {
-    if (!this.battle || this.paused) return;
+    if (!this.battle) return;
     const elapsed = Math.min(delta, 100);
     if (this.ending) {
       const looting = this.battle.state === "Victory";

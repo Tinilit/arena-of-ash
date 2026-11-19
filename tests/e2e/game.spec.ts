@@ -1333,14 +1333,117 @@ test("keyboard movement, jump and boundaries remain responsive without combat bu
   await page.keyboard.up("a");
   await page.keyboard.up("Shift");
   await page.evaluate(() => window.dispatchEvent(new Event("blur")));
-  const paused = (await snapshot(page)).battle!;
+  const released = (await snapshot(page)).battle!;
   await page.waitForTimeout(400);
-  expect((await snapshot(page)).battle!.player.hp).toBe(paused.player.hp);
-  expect((await snapshot(page)).battle!.player.x).toBe(paused.player.x);
+  expect((await snapshot(page)).battle!.player.x).toBe(released.player.x);
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page.keyboard.press("Escape");
   await scene(page, "MainMenuScene");
   expect((await snapshot(page)).player.rewarded).toHaveLength(0);
+});
+
+test("Alt+Tab preserves Auto Battle and blur releases held movement without pausing", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await launch(page);
+  await click(page, "battle");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  await page.keyboard.press("b");
+  expect((await snapshot(page)).autoBattle).toBe(true);
+  await page.keyboard.down("Alt");
+  await page.keyboard.press("Tab");
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  await page.keyboard.up("Alt");
+  expect((await snapshot(page)).autoBattle).toBe(true);
+  const before = (await snapshot(page)).battle!;
+  await page.clock.runFor(800);
+  const after = (await snapshot(page)).battle!;
+  expect(after).not.toEqual(before);
+  expect((await snapshot(page)).autoBattle).toBe(true);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.keyboard.down("a");
+  await page.clock.runFor(200);
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  const position = (await snapshot(page)).battle!.player.x;
+  await page.clock.runFor(400);
+  expect((await snapshot(page)).autoBattle).toBe(false);
+  expect((await snapshot(page)).battle!.player.x).toBeCloseTo(position, 1);
+  expect((await snapshot(page)).battle!.player.vx).toBe(0);
+  await page.keyboard.up("a");
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+});
+
+test("hidden combat continues without RAF and accounts for throttled timer gaps once", async ({
+  page,
+}) => {
+  await page.route("**/content/items.json?_=*", (r) =>
+    r.fulfill({ json: liveItems }),
+  );
+  const p = createPlayer();
+  p.inventory.push("speed-potion", "cuirass", "closed-helm");
+  p.equipment = {
+    rightHand: "wood",
+    belt1: "speed-potion",
+    body: "cuirass",
+    helmet: "closed-helm",
+  };
+  await savedFixture(page, p);
+  await page.clock.install();
+  await launch(page);
+  await click(page, "battle");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  await page.keyboard.press("q");
+  await page.clock.runFor(1300);
+  const before = (await snapshot(page)).battle!.player.speedRemaining!;
+  expect(before).toBeGreaterThan(9500);
+  await page.evaluate(() => {
+    const raf = window.requestAnimationFrame;
+    let pending: FrameRequestCallback | undefined;
+    window.requestAnimationFrame = (callback) => {
+      pending = callback;
+      return 0;
+    };
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      value: true,
+    });
+    Object.defineProperty(window, "restoreVisibility", {
+      configurable: true,
+      value: () => {
+        Reflect.deleteProperty(document, "hidden");
+        window.requestAnimationFrame = raf;
+        document.dispatchEvent(new Event("visibilitychange"));
+        if (pending) raf(pending);
+      },
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await page.clock.fastForward(900);
+  const throttled = (await snapshot(page)).battle!.player.speedRemaining!;
+  expect(before - throttled).toBeGreaterThan(875);
+  expect(before - throttled).toBeLessThan(925);
+  await page.clock.runFor(1100);
+  const hidden = (await snapshot(page)).battle!.player.speedRemaining!;
+  expect(before - hidden).toBeGreaterThan(1975);
+  expect(before - hidden).toBeLessThan(2025);
+  await page.evaluate(() => {
+    (
+      window as unknown as { restoreVisibility: () => void }
+    ).restoreVisibility();
+    Reflect.deleteProperty(window, "restoreVisibility");
+  });
+  await page.clock.runFor(300);
+  const returned = (await snapshot(page)).battle!.player.speedRemaining!;
+  expect(hidden - returned).toBeGreaterThan(275);
+  expect(hidden - returned).toBeLessThan(325);
+  expect((await snapshot(page)).autoBattle).toBe(false);
+  await page.keyboard.press("Escape");
+  await page.clock.runFor(50);
+  expect((await snapshot(page)).scene).toBe("MainMenuScene");
+  await page.clock.resume();
+  await click(page, "battle");
+  expect((await snapshot(page)).battle!.player.speedRemaining ?? 0).toBe(0);
 });
 
 test("direction plus Space hops without an automatic attack and bots keep ordinary movement", async ({

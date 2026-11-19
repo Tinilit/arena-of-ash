@@ -6,6 +6,7 @@ import { CharacterScene } from "../scenes/CharacterScene";
 import { ShopScene } from "../scenes/ShopScene";
 import { ResultScene } from "../scenes/ResultScene";
 import { LadderScene } from "../scenes/LadderScene";
+import { installBackgroundUpdates } from "./backgroundUpdates";
 export const config: Phaser.Types.Core.GameConfig = {
   type:
     import.meta.env.DEV &&
@@ -18,6 +19,7 @@ export const config: Phaser.Types.Core.GameConfig = {
   backgroundColor: "#211e1c",
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   fps: { target: 60, smoothStep: false },
+  callbacks: { postBoot: installBackgroundUpdates },
   scene: [
     BootScene,
     MainMenuScene,

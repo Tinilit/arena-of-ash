@@ -4,7 +4,7 @@ Arena combat supports walking forward/back, running, jumping, independent light 
 
 ## Simulation and contact
 
-`RealtimeBattle` is Phaser-independent. Scene time is accumulated into 120 Hz steps (8.33 ms). The scene accepts at most 100 ms from a rendered frame and clears backlog on focus loss/resume. At each step:
+`RealtimeBattle` is Phaser-independent. Scene time is accumulated into 120 Hz steps (8.33 ms). The scene accepts at most 100 ms from a rendered frame. Hidden scenes receive monotonic headless updates split into at most 100 ms each; these still run the same 120 Hz collision steps. At each step:
 
 1. Consume player commands and update the AI's movement/action decisions.
 2. Advance action/cooldown/reaction and knockdown ages, horizontal position, ballistic jump height and body separation for both fighters.
@@ -28,7 +28,7 @@ Fighters face the opponent when free and lock facing through an action or direct
 
 A/D or Left/Right move, Shift runs, Space jumps, A/D+Space hops backward/forward relative to facing, LMB/J/1 uses the front hand, RMB/K/2 uses the rear hand, F/3 kicks, and R toggles stance. Escape abandons the fight without a reward. Mouse buttons use their respective hands. All movement and actions use the keyboard/mouse; the arena displays a static legend instead of action buttons. Combat damage and AI stop on outcome. Defeat/draw transition after their short presentation. Victory keeps movement and grounded pickups available until Continue, including settling a lethal projectile onto the floor.
 
-Losing focus pauses simulation, clears queued/held input and discards backlog. Shutdown removes focus, keyboard and pointer listeners. Restarting the scene creates fresh HP/action/contact state. Read-only development snapshots include fighter motion, composed rigs, collision geometry and recent contacts; production exposes no diagnostic API. `?hitboxes=1` draws shapes only in development.
+Losing focus clears queued/held input without pausing simulation, clearing simulation time or changing Auto Battle. Alt/Meta shortcuts do not take manual control. Hidden-tab timer updates share one clock with any remaining RAF callbacks, so background time is counted once. Long timer gaps retain their backlog, draining at most 2000 ms per callback to keep return responsive. Browser suspension or tab unloading can prevent JavaScript from running; a live suspended tab catches up when callbacks resume. Shutdown removes focus, keyboard and pointer listeners, and game destruction removes the background timer and visibility listener. Restarting the scene creates fresh HP/action/contact state. Read-only development snapshots include fighter motion, composed rigs, collision geometry and recent contacts; production exposes no diagnostic API. `?hitboxes=1` draws shapes only in development.
 
 Custom weapon art can declare a capsule in catalog JSON; see [runtime content](RUNTIME_CONTENT.md). Future dual-wield, shield blocking or new poses need explicit geometry and action rules rather than a distance-only damage shortcut.
 
@@ -56,7 +56,7 @@ See [independent hand collision, pain/stun and kicking](MELEE_COMBAT.md) for act
 
 After confirmed boot/body contact, a separate injected random stream gives a 20% chance of knockdown. The threshold is strictly below 0.2. Misses and repeated contact frames do not roll. A 550 ms fall waits for actual ground contact if needed, then a 1000 ms grounded hold precedes an 1800 ms get-up. Movement, actions, guard, stance changes and jumping are locked throughout. Further contacts still deal damage without resetting the transfer. Floor support includes head, torso, skirt, palms, knees and boots; the rendered rig also keeps rotated helmets above the floor and bodies inside arena edges. See [floor transfer animation](KNOCKDOWN_ANIMATION.md).
 
-Combat key commands use physical `KeyboardEvent.code`, with a symbol fallback for older/synthetic events. F works on the Ukrainian layout even when `event.key` is Cyrillic а. Ctrl+hand attack throws that hand weapon. Other Ctrl shortcuts, Alt/Meta shortcuts, repeats and paused input do not queue actions.
+Combat key commands use physical `KeyboardEvent.code`, with a symbol fallback for older/synthetic events. F works on the Ukrainian layout even when `event.key` is Cyrillic а. Ctrl+hand attack throws that hand weapon. Other Ctrl shortcuts, Alt/Meta shortcuts, and repeats do not queue actions.
 
 ## Concurrent hands and random opponents
 
