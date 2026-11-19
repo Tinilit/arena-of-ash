@@ -25,7 +25,7 @@ function capsule(a: Point, b: Point, start: number, end: number): Point[] {
   return points;
 }
 
-/** Draw both segments together so the skin covers all interior joint outlines. */
+/** Share continuous limb envelopes, with optional separate shoulder/forearm passes. */
 export class LimbArt extends Phaser.GameObjects.Graphics {
   private bend = NaN;
   private boneAngle = NaN;
@@ -35,6 +35,7 @@ export class LimbArt extends Phaser.GameObjects.Graphics {
     private kind: "arm" | "leg",
     private skin: number,
     far = false,
+    private segment: "whole" | "upper" | "lower" = "whole",
   ) {
     super(scene);
     scene.add.existing(this);
@@ -67,14 +68,20 @@ export class LimbArt extends Phaser.GameObjects.Graphics {
     });
     const tip = local(0, lower);
     const radii = arm ? [11.5, 8, 5.5] : [14.5, 10.5, 8.5];
+    const upperVisible = this.segment !== "lower",
+      lowerVisible = this.segment !== "upper";
     const envelopes = [
-      { a: root, b: joint, start: radii[0], end: radii[1] },
-      ...(arm
-        ? [
-            { a: joint, b: local(0, lower * 0.28), start: radii[1], end: 9 },
-            { a: local(0, lower * 0.28), b: tip, start: 9, end: radii[2] },
-          ]
-        : [{ a: joint, b: tip, start: radii[1], end: radii[2] }]),
+      ...(upperVisible
+        ? [{ a: root, b: joint, start: radii[0], end: radii[1] }]
+        : []),
+      ...(lowerVisible
+        ? arm
+          ? [
+              { a: joint, b: local(0, lower * 0.28), start: radii[1], end: 9 },
+              { a: local(0, lower * 0.28), b: tip, start: 9, end: radii[2] },
+            ]
+          : [{ a: joint, b: tip, start: radii[1], end: radii[2] }]
+        : []),
     ];
     const paint = (points: Point[], color: number, alpha = 1) => {
       this.fillStyle(color, alpha);
@@ -87,7 +94,7 @@ export class LimbArt extends Phaser.GameObjects.Graphics {
       for (const { a, b, start, end } of envelopes)
         paint(capsule(a, b, start + outline, end + outline), color);
     }
-    if (arm) {
+    if (arm && upperVisible) {
       // The humeral head sits inside the deltoid. Remove the circular socket
       // seam and outline only the exposed outer shoulder, in torso space.
       this.fillStyle(this.skin);
@@ -98,16 +105,24 @@ export class LimbArt extends Phaser.GameObjects.Graphics {
       this.arc(0, 0, radii[0] + 0.9, outer - 0.9, outer + 0.9);
       this.strokePath();
     }
-    paint(
-      capsule(
-        { x: -radii[0] * 0.45, y: 2 },
-        { x: -radii[1] * 0.45, y: upper - 2 },
-        radii[0] * 0.3,
-        radii[1] * 0.3,
-      ),
-      shade,
-      0.28,
-    );
+    if (upperVisible) {
+      paint(
+        capsule(
+          { x: -radii[0] * 0.45, y: 2 },
+          { x: -radii[1] * 0.45, y: upper - 2 },
+          radii[0] * 0.3,
+          radii[1] * 0.3,
+        ),
+        shade,
+        0.28,
+      );
+    }
+    const highlightUpper = () =>
+      paint(capsule({ x: 3, y: 4 }, { x: 2, y: upper - 6 }, 3, 2), light, 0.25);
+    if (!lowerVisible) {
+      highlightUpper();
+      return;
+    }
     paint(
       capsule(
         local(-radii[1] * 0.45, 2),
@@ -118,7 +133,7 @@ export class LimbArt extends Phaser.GameObjects.Graphics {
       shade,
       0.28,
     );
-    paint(capsule({ x: 3, y: 4 }, { x: 2, y: upper - 6 }, 3, 2), light, 0.25);
+    if (upperVisible) highlightUpper();
     // A short fold suggests the hinge without drawing a ring around the joint.
     this.lineStyle(1.1, shade, Math.min(0.45, Math.abs(bend) * 0.18));
     const fold = local(-3, 2);

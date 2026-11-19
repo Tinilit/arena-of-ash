@@ -171,7 +171,18 @@ export class Gladiator {
       skeleton.nearShoulderX,
       skeleton.shoulderY,
     );
-    const nearSkin = new LimbArt(scene, "arm", skin);
+    // Only the front forearm changes depth for a strike, throw or grab.
+    // Its shoulder and upper arm remain occluded by the torso in every pose.
+    const frontShoulder = joint(
+      "frontShoulder",
+      backTorso,
+      skeleton.nearShoulderX,
+      skeleton.shoulderY,
+    );
+    const shoulderSkin = new LimbArt(scene, "arm", skin, false, "upper");
+    frontShoulder.add(shoulderSkin);
+    this.limbs.frontShoulder = shoulderSkin;
+    const nearSkin = new LimbArt(scene, "arm", skin, false, "lower");
     nearArm.add(nearSkin);
     this.limbs.nearArm = nearSkin;
     const nearElbow = joint("nearElbow", nearArm, 0, skeleton.upperArm);
@@ -471,6 +482,7 @@ export class Gladiator {
       : this.joints.backTorso;
     if (this.joints.nearArm.parentContainer !== nearParent)
       nearParent.addAt(this.joints.nearArm, 0);
+    this.joints.backTorso.sendToBack(this.joints.frontShoulder);
     const rearParent = this.joints.frontTorso;
     if (this.joints.farArm.parentContainer !== rearParent)
       rearParent.addAt(this.joints.farArm, 0);
@@ -496,6 +508,8 @@ export class Gladiator {
       this.limbs[`${side}Leg`].pose(leg.bend);
       this.limbs[`${side}Arm`].pose(arm.bend, arm.angle);
     }
+    this.joints.frontShoulder.rotation = solved.nearArm.angle;
+    this.limbs.frontShoulder.pose(solved.nearArm.bend, solved.nearArm.angle);
     this.joints.farHand.setPosition(0, skeleton.forearm);
     this.root.x =
       this.originX + solved.root.x * this.bodyScale * this.direction;
@@ -563,12 +577,19 @@ export class Gladiator {
       animation: this.displayedAnimation ?? this.animator.name,
       origin: { x: this.originX, y: this.originY },
       body: {
+        frontShoulder: {
+          plane: this.joints.frontShoulder.parentContainer?.name,
+          frame: frame("frontShoulder"),
+          forearmFrame: frame("nearArm"),
+        },
         rearHandPlane: this.joints.farHand.parentContainer?.name,
         layers: this.joints.pelvis.list.map((part) => part.name),
         arms: [...this.joints.backTorso.list, ...this.joints.frontTorso.list]
           .filter((part) => part.name.endsWith("Arm"))
           .map((part) => part.name),
-        backArms: this.joints.backTorso.list.map((part) => part.name),
+        backArms: this.joints.backTorso.list
+          .filter((part) => part.name.endsWith("Arm"))
+          .map((part) => part.name),
         frontArms: this.joints.frontTorso.list
           .filter((part) => part.name.endsWith("Arm"))
           .map((part) => part.name),
