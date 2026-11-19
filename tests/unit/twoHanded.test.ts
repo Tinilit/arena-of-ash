@@ -1,3 +1,4 @@
+import { projectileFloorRadius } from "../../src/combat/projectiles";
 import { beforeEach, describe, expect, it } from "vitest";
 import live from "../../public/content/items.json";
 import { installCatalog, item } from "../../src/data/catalog";
@@ -240,3 +241,14 @@ for (const situation of [
       expect(b.player.model.equipment.leftHand).toBeUndefined();
     }
   });
+
+it.each([
+  ["greatsword", 27],
+  ["war-hammer", 34],
+  ["battle-axe", 34],
+] as const)(
+  "keeps the complete %s artwork above the floor after a throw",
+  (id, radius) => {
+    expect(projectileFloorRadius(item(id)!)).toBe(radius);
+  },
+);

@@ -39,7 +39,11 @@ export function projectileFloorRadius(item: Item) {
       ? 39
       : item.visual === "throwing-knife"
         ? 10
-        : 22;
+        : item.visual === "greatsword"
+          ? 27
+          : ["war-hammer", "battle-axe"].includes(item.visual)
+            ? 34
+            : 22;
 }
 export function projectileShape(p: Projectile, previous = false): Capsule {
   const pose = previous ? p.previous : p,
