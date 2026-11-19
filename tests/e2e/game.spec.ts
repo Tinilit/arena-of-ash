@@ -2583,11 +2583,25 @@ test("shop offers all three two-handed weapons and equipping one releases the of
   await click(page, "slot-leftHand");
   await click(page, "equip-wood");
   await click(page, "equip-greatsword");
+  await expect
+    .poll(async () => {
+      const r = (await snapshot(page)).rigs![0];
+      return (r.near.hand.y - r.near.shoulder.y) / r.scale;
+    })
+    .toBeCloseTo(69, 2);
   let s = await snapshot(page);
   expect(s.player.equipment.rightHand).toBe("greatsword");
   expect(s.player.equipment.leftHand).toBeUndefined();
   expect(s.player.inventory).toContain("wood");
-  sharedGrip(s.rigs![0]);
+  const resting = s.rigs![0];
+  expect(resting.twoHanded.shoulderCarry).toBe(true);
+  expect(resting.body.frontArms).toContain("farArm");
+  expect(resting.body.backArms).toContain("nearArm");
+  expect(resting.near.hand.y - resting.near.shoulder.y).toBeCloseTo(
+    69 * resting.scale,
+    2,
+  );
+  anatomy(resting, false);
   await page.screenshot({
     path: "test-results/screenshots/two-handed-inventory.png",
   });
