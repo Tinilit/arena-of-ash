@@ -14,6 +14,7 @@ import { grappleRules } from "../../src/combat/grapples";
 import { parryPose } from "../../src/characters/parryMotion";
 import { parryRules } from "../../src/combat/parry";
 import { combatRest } from "../../src/characters/locomotion";
+import { grapplePose } from "../../src/characters/grappleMotion";
 const make = () => {
   const enemy = createPlayer();
   enemy.id = "enemy";
@@ -88,6 +89,51 @@ describe("reactive enemy backsteps", () => {
   });
 });
 describe("coupled overhead lift and throw", () => {
+  it("eases into the crouched reach and returns both hands to idle after throwing", () => {
+    const initial = grapplePose(combatRest, {
+      role: "lifter",
+      phase: "reach",
+      elapsed: 0,
+    });
+    const final = grapplePose(combatRest, {
+      role: "lifter",
+      phase: "throw",
+      elapsed: grappleRules.throwDuration,
+    });
+    for (const key of [
+      "farHandX",
+      "farHandY",
+      "nearHandX",
+      "nearHandY",
+      "rootY",
+      "torso",
+      "head",
+    ])
+      for (const pose of [initial, final])
+        expect(pose[key] ?? 0).toBeCloseTo(combatRest[key] ?? 0, 7);
+    for (const [phase, duration] of [
+      ["reach", grappleRules.anticipation],
+      ["lift", grappleRules.lift],
+      ["throw", grappleRules.throwDuration],
+    ] as const) {
+      let previous = groundedPose(
+        grapplePose(combatRest, { role: "lifter", phase, elapsed: 0 }),
+      );
+      for (let t = 4; t <= duration; t += 4) {
+        const next = groundedPose(
+          grapplePose(combatRest, { role: "lifter", phase, elapsed: t }),
+        );
+        for (const side of ["nearArm", "farArm"] as const)
+          expect(
+            Math.hypot(
+              next[side].hand.x - previous[side].hand.x,
+              next[side].hand.y - previous[side].hand.y,
+            ),
+          ).toBeLessThan(6);
+        previous = next;
+      }
+    }
+  });
   it("holds until commanded, locks both actors, throws without HP damage and uses heavy floor recovery", () => {
     const b = make(),
       saved = JSON.stringify(b.player.model),

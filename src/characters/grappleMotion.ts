@@ -51,14 +51,26 @@ export function grapplePose(base: Pose, state: GrapplePoseState): Pose {
       );
   const high = ease(Math.max(0, t - 0.5) * 2),
     low = ease(Math.min(1, t * 2));
-  p.farHandX = blend(blend(60, 50, low), -12, high);
-  p.farHandY = blend(blend(18, -35, low), -66, high);
-  p.nearHandX = blend(blend(50, 45, low), -8, high);
-  p.nearHandY = blend(blend(25, -40, low), -70, high);
-  p.farWrist = p.nearWrist = 0.1;
-  p.torso = -0.025;
-  p.head = 0.06;
-  p.rootY = (base.rootY ?? 0) + 18 * (1 - t);
+  // Ease into the reach and out of the follow-through instead of snapping
+  // from idle into a crouch or leaving the hands low at the final frame.
+  const weight =
+    state.phase === "reach"
+      ? ease(state.elapsed / grappleRules.anticipation)
+      : state.phase === "throw"
+        ? 1 - ease((state.elapsed - 300) / (grappleRules.throwDuration - 300))
+        : 1;
+  for (const [key, target] of [
+    ["farHandX", blend(blend(60, 50, low), -12, high)],
+    ["farHandY", blend(blend(18, -35, low), -66, high)],
+    ["nearHandX", blend(blend(50, 45, low), -8, high)],
+    ["nearHandY", blend(blend(25, -40, low), -70, high)],
+    ["farWrist", 0.1],
+    ["nearWrist", 0.1],
+    ["torso", -0.025],
+    ["head", 0.06],
+  ] as const)
+    p[key] = blend(base[key] ?? 0, target, weight);
+  p.rootY = (base.rootY ?? 0) + 18 * (1 - t) * weight;
   p.plant = 1;
   return p;
 }
