@@ -150,7 +150,12 @@ export class GrappleController {
       a.grapple = { role: "lifter", phase: h.phase, elapsed: h.elapsed };
     if (h.phase !== "reach" && !h.released) {
       const t = h.phase === "lift" ? ease(h.elapsed / grappleRules.lift) : 1;
-      b.x = h.startX + (a.x + a.facing * 112 - h.startX) * t;
+      // A carry near a wall must not release from outside the arena and snap
+      // back to its bounds on the first flight step.
+      b.x = Math.max(
+        minX,
+        Math.min(maxX, h.startX + (a.x + a.facing * 112 - h.startX) * t),
+      );
       b.y = h.startY + (-285 - h.startY) * t;
       b.facing = a.facing;
       b.vx = b.vy = 0;

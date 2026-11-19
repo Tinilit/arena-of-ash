@@ -89,6 +89,27 @@ describe("reactive enemy backsteps", () => {
   });
 });
 describe("coupled overhead lift and throw", () => {
+  it.each([1, -1] as const)(
+    "keeps a wall-side carry and release continuous facing %s",
+    (facing) => {
+      const b = make();
+      b.player.x = facing === 1 ? arenaRules.maxX - 64 : arenaRules.minX + 64;
+      b.enemy.x = facing === 1 ? arenaRules.maxX : arenaRules.minX;
+      b.advance(0, [{ grapple: true }, {}]);
+      let previous = b.enemy.x;
+      for (let i = 0; i < 200; i++) {
+        advance(b, 8);
+        expect(b.enemy.x).toBeGreaterThanOrEqual(arenaRules.minX);
+        expect(b.enemy.x).toBeLessThanOrEqual(arenaRules.maxX);
+        expect(Math.abs(b.enemy.x - previous)).toBeLessThan(4);
+        previous = b.enemy.x;
+      }
+      b.advance(0, [{ grapple: true }, {}]);
+      advance(b, 200);
+      expect(b.enemy.x).toBe(previous);
+      expect(b.enemy.grapple?.phase).toBe("air");
+    },
+  );
   it("eases into the crouched reach and returns both hands to idle after throwing", () => {
     const initial = grapplePose(combatRest, {
       role: "lifter",
