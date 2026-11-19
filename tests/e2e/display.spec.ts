@@ -1,6 +1,8 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect as baseExpect, type Page } from "@playwright/test";
 import bundled from "../fixtures/catalog.json" with { type: "json" };
 import type { displayFor } from "../../src/app/display";
+// Software WebGL at high DPI needs time to rebuild scene text and textures.
+const expect = baseExpect.configure({ timeout: 15000 });
 type DisplayInfo = ReturnType<ReturnType<typeof displayFor>["snapshot"]>;
 interface State {
   scene: string;
@@ -98,6 +100,7 @@ for (const profile of [
     test("renders at physical resolution and preserves UI/input through scene changes", async ({
       page,
     }) => {
+      if (profile.name === "1440p-webgl") test.setTimeout(180000);
       const errors: string[] = [];
       page.on("pageerror", (e) => errors.push(e.message));
       page.on("console", (m) => {
@@ -106,7 +109,9 @@ for (const profile of [
       await page.route("**/content/items.json?_=*", (route) =>
         route.fulfill({ json: bundled }),
       );
-      await page.goto(`/?seed=42${profile.canvas ? "&renderer=canvas" : ""}`);
+      await page.goto(
+        `/?seed=42&manual=1${profile.canvas ? "&renderer=canvas" : ""}`,
+      );
       await page.waitForFunction(
         () =>
           (
