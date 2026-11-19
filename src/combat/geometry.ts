@@ -10,6 +10,7 @@ export interface Capsule {
 }
 export interface CombatGeometry {
   blade: Capsule | null;
+  parries?: Capsule[];
   shove?: Capsule;
   grips?: Record<Hand, Point>;
   muzzles?: Partial<Record<Hand, Point>>;

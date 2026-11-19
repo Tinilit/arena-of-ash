@@ -1,3 +1,4 @@
+import { aimedVelocity } from "./aim";
 import type { Player, Hand, EquipmentSlot } from "../domain/model";
 import { item } from "../data/catalog";
 import { handSlots } from "../domain/model";
@@ -14,6 +15,7 @@ import { GrappleController, type GrapplePoseState } from "./grapples";
 import {
   advanceProjectile,
   settleProjectile,
+  deflectBolt,
   projectileProfile,
   projectileFloorRadius,
   projectileShape,
@@ -62,6 +64,7 @@ export interface CombatProcRandom {
   hammerKnockdown?: () => number;
   hammerPush?: () => number;
   drop?: () => number;
+  deflect?: () => number;
 }
 import { twoHandDuration } from "../characters/twoHandMotion";
 export const attackTimings = {
@@ -79,6 +82,7 @@ export type Attack = "quick" | "heavy" | "kick" | "throw" | "shove" | "finish";
 export type ArenaAction = Attack | "recover" | "drink" | "shoot";
 export type ArenaState = "Fighting" | "Victory" | "Defeat" | "Draw";
 export interface ArenaInput {
+  aim?: Point;
   move?: number;
   run?: boolean;
   jump?: boolean;
@@ -108,6 +112,7 @@ export interface Swing {
   throwAttack?: number;
 }
 export interface ArenaFighter extends Fighter {
+  aim?: Point;
   speedRemaining?: number;
   timeScale?: number;
   animationDelta?: number;
@@ -159,6 +164,7 @@ export interface ContactEvent {
   damage: number;
   blocked: boolean;
   parried?: boolean;
+  deflected?: boolean;
   disarmed?: boolean;
   pushed?: boolean;
   knockdown: boolean;
@@ -167,6 +173,14 @@ export interface ContactEvent {
   point: Point;
   blade: Capsule;
   body: Capsule;
+}
+function parrySurfaces(g: CombatGeometry): Capsule[] {
+  return [
+    ...(g.parries ?? []),
+    ...Object.values(g.blades ?? {}),
+    ...(g.blade ? [g.blade] : []),
+    ...(g.shove ? [g.shove] : []),
+  ].filter((c): c is Capsule => Boolean(c));
 }
 function actor(model: Player, x: number, facing: 1 | -1): ArenaFighter {
   return {
@@ -570,6 +584,13 @@ export class RealtimeBattle {
     );
     const before = this.fighters.map((f) => f.x);
     this.fighters.forEach((f, i) => {
+      const command = input[i];
+      if (
+        command.aim &&
+        Number.isFinite(command.aim.x) &&
+        Number.isFinite(command.aim.y)
+      )
+        f.aim = { ...command.aim };
       const actorDelta = delta + Math.min(delta, f.speedRemaining ?? 0);
       f.timeScale = delta > 0 ? actorDelta / delta : fighterSpeed(f);
       f.animationDelta = actorDelta;
@@ -670,6 +691,9 @@ export class RealtimeBattle {
       if (f.grapple?.role === "target" || f.finisher?.role === "target") return;
       const carrying =
         f.grapple?.role === "lifter" && f.grapple.phase === "hold";
+      const carryMargin =
+        130 * (this.fighters[1 - i].model.combatProfile?.size ?? 1) -
+        18 * (f.model.combatProfile?.size ?? 1);
       const c =
         f.finisher ||
         f.knockdown ||
@@ -693,6 +717,15 @@ export class RealtimeBattle {
       }
       if (!f.grapple && !f.action && !f.hop && !f.reaction && !f.knockdown)
         f.facing = this.fighters[1 - i].x >= f.x ? 1 : -1;
+      if (
+        f.aim &&
+        twoHandWeapon(f.model)?.weaponType === "crossbow" &&
+        !f.grapple &&
+        !f.finisher &&
+        !f.knockdown &&
+        f.stun === 0
+      )
+        f.facing = f.aim.x >= f.x ? 1 : -1;
       for (const hand of new Set([
         ...(c.throws ?? []),
         ...(c.attack === "throw" ? [c.hand ?? primaryHand(f.model)] : []),
@@ -716,11 +749,12 @@ export class RealtimeBattle {
           hand,
           elapsed: 0,
           duration:
-            weaponForHand(f.model, hand)?.weaponType === "crossbow"
+            (weaponForHand(f.model, hand)?.weaponType === "crossbow"
               ? attackTimings.shoot.duration
               : twoHandWeapon(f.model)
                 ? twoHandDuration(twoHandWeapon(f.model)!)
-                : attackTimings.quick.duration,
+                : attackTimings.quick.duration) /
+            (f.model.combatProfile?.attackSpeed ?? 1),
           hit: false,
         };
         f.relaxed = false;
@@ -793,6 +827,7 @@ export class RealtimeBattle {
       f.vx =
         movement *
         (carrying ? 80 : running ? arenaRules.run : arenaRules.walk) *
+        (f.model.combatProfile?.movement ?? 1) *
         (f.guard ? 0.5 : (f.action && !flyingKick) || f.parry ? 0.7 : 1);
       if (f.hop)
         f.vx =
@@ -812,9 +847,13 @@ export class RealtimeBattle {
         Math.sign(f.pushVx) *
         Math.max(0, Math.abs(f.pushVx) - arenaRules.pushFriction * dt);
       f.x = Math.max(
-        carrying ? Math.min(f.x, arenaRules.minX + 112) : arenaRules.minX,
+        carrying
+          ? Math.min(f.x, arenaRules.minX + carryMargin)
+          : arenaRules.minX,
         Math.min(
-          carrying ? Math.max(f.x, arenaRules.maxX - 112) : arenaRules.maxX,
+          carrying
+            ? Math.max(f.x, arenaRules.maxX - carryMargin)
+            : arenaRules.maxX,
           f.x + f.vx * dt,
         ),
       );
@@ -834,6 +873,9 @@ export class RealtimeBattle {
       }
     });
     const [a, b] = this.fighters;
+    const separation =
+      32 *
+      ((a.model.combatProfile?.size ?? 1) + (b.model.combatProfile?.size ?? 1));
     this.finishers.update(delta, (f) => f.timeScale ?? 1);
     this.grapples.update(
       delta,
@@ -848,15 +890,15 @@ export class RealtimeBattle {
       !a.knockdown &&
       !b.knockdown &&
       Math.abs(a.y - b.y) < 180 &&
-      Math.abs(a.x - b.x) < 64
+      Math.abs(a.x - b.x) < separation
     ) {
       const sign = a.x <= b.x ? -1 : 1;
       const middle = Math.max(
-        arenaRules.minX + 32,
-        Math.min(arenaRules.maxX - 32, (a.x + b.x) / 2),
+        arenaRules.minX + separation / 2,
+        Math.min(arenaRules.maxX - separation / 2, (a.x + b.x) / 2),
       );
-      a.x = middle + sign * 32;
-      b.x = middle - sign * 32;
+      a.x = middle + (sign * separation) / 2;
+      b.x = middle - (sign * separation) / 2;
     }
     if (dt > 0)
       this.fighters.forEach((f, i) => {
@@ -897,10 +939,11 @@ export class RealtimeBattle {
             origin
           ) {
             swing.released = true;
-            f.rangedCooldown = 2080;
-            const vx = f.facing * 1150,
-              vy = -20,
-              angle = Math.atan2(vy, vx) + Math.PI / 2;
+            f.rangedCooldown = 2080 / (f.model.combatProfile?.attackSpeed ?? 1);
+            const { vx, vy } = f.aim
+              ? aimedVelocity(origin, f.aim)
+              : { vx: f.facing * 1150, vy: -20 };
+            const angle = Math.atan2(vy, vx) + Math.PI / 2;
             this.projectiles.push({
               id: swing.id,
               kind: "bolt",
@@ -1062,6 +1105,52 @@ export class RealtimeBattle {
       if (p.state !== "flying") continue;
       const target = this.fighters.findIndex((f) => f.model.id !== p.ownerId),
         defender = this.fighters[target];
+      if (
+        p.kind === "bolt" &&
+        defender.parry &&
+        defender.parry.elapsed < parryRules.window &&
+        p.vx * defender.facing < 0
+      ) {
+        const guard = geometry[target];
+        const surfaces = parrySurfaces(guard);
+        const previousSurfaces =
+          this.previousFacing[target] === defender.facing && this.previous
+            ? parrySurfaces(this.previous[target])
+            : surfaces;
+        const collision = surfaces
+          .map((surface, index) =>
+            sweptContact(
+              projectileShape(p, true),
+              projectileShape(p),
+              previousSurfaces[index] ?? surface,
+              surface,
+            ),
+          )
+          .find(Boolean);
+        if (collision) {
+          const attackerId = p.ownerId;
+          deflectBolt(
+            p,
+            collision.point,
+            defender.model.id,
+            this.procRandom.deflect ?? Math.random,
+          );
+          events.push({
+            id: p.id,
+            attackerId,
+            defenderId: defender.model.id,
+            hand: p.hand,
+            kind: "projectile",
+            damage: 0,
+            blocked: true,
+            parried: true,
+            deflected: true,
+            knockdown: false,
+            ...collision,
+          });
+          continue;
+        }
+      }
       for (let part = 0; part < geometry[target].body.length; part++) {
         const body = geometry[target].body[part];
         const collision = sweptContact(

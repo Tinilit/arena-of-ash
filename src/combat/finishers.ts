@@ -63,7 +63,10 @@ export class FinisherController {
     const point =
       center && Math.abs(center.x - b.x) < 300 && center.y > 400
         ? center
-        : { x: b.x - b.facing * 130, y: 506 };
+        : {
+            x: b.x - b.facing * 130 * (b.model.combatProfile?.size ?? 1),
+            y: 551 - 45 * (b.model.combatProfile?.size ?? 1),
+          };
     return Math.abs(point.x - a.x) <= finishRules.reach ? point : null;
   }
   start(
@@ -86,15 +89,19 @@ export class FinisherController {
       endY: -15,
       radius: 5,
     };
+    const size = a.model.combatProfile?.size ?? 1;
     const localY = Math.max(
       profile.startY + profile.radius,
       Math.min(
         profile.endY - profile.radius,
-        (point.y - 551 - arm.hand.y) / (Math.cos(angle) || -1),
+        ((point.y - 551) / size - arm.hand.y) / (Math.cos(angle) || -1),
       ),
     );
     const contactX = arm.hand.x - Math.sin(angle) * localY;
-    const anchor = Math.max(90, Math.min(1190, point.x - facing * contactX));
+    const anchor = Math.max(
+      90,
+      Math.min(1190, point.x - facing * contactX * size),
+    );
     this.binding = {
       actor: a,
       target: b,

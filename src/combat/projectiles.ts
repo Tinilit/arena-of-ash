@@ -22,6 +22,25 @@ export interface Projectile {
   age: number;
   state: "flying" | "spent" | "landed" | "expired" | "pickedUp";
 }
+export function deflectBolt(
+  p: Projectile,
+  point: Point,
+  ownerId: string,
+  random: () => number,
+) {
+  const angle = random() * Math.PI * 2;
+  const speed = Math.hypot(p.vx, p.vy);
+  const dx = Math.cos(angle),
+    dy = Math.sin(angle);
+  p.ownerId = ownerId;
+  p.vx = dx * speed;
+  p.vy = dy * speed;
+  p.x = point.x + dx * 40;
+  p.y = point.y + dy * 40;
+  p.angle = angle + Math.PI / 2;
+  p.previous = { x: p.x, y: p.y, angle: p.angle };
+  p.spin = 0;
+}
 export function projectileProfile(item: Item) {
   if (item.weaponType === "crossbow")
     return { startY: -100, endY: 25, radius: 12 };

@@ -6,6 +6,7 @@ import Phaser from "phaser";
 import { item } from "../data/catalog";
 import { CampMovement } from "../characters/CampMovement";
 import { opponentName } from "../domain/progression";
+import { ladderLength } from "../domain/ladder";
 export class MainMenuScene extends BaseScene {
   private rig!: Gladiator;
   private movement!: CampMovement;
@@ -19,7 +20,7 @@ export class MainMenuScene extends BaseScene {
     label(this, 640, 169, en.subtitle, 17, "#e8bd72").setOrigin(0.5);
     label(this, 640, 230, en.title, 70).setOrigin(0.5);
     label(this, 350, 288, en.startCopy, 18).setOrigin(0.5);
-    panel(this, 350, 441, 440, 245);
+    panel(this, 350, 465, 440, 295);
     this.button("battle", 350, 366, 350, en.battle, () =>
       this.scene.start("ArenaScene"),
     );
@@ -30,6 +31,15 @@ export class MainMenuScene extends BaseScene {
       this.scene.start("ShopScene"),
     );
     this.button("reset", 350, 501, 350, en.reset, () => this.confirmReset());
+    this.button(
+      "ladder",
+      350,
+      565,
+      350,
+      "View ladder",
+      () => this.scene.start("LadderScene"),
+      44,
+    );
     this.modalOpen = false;
     const equipped = this.services.player.equipment;
     const large =
@@ -95,15 +105,15 @@ export class MainMenuScene extends BaseScene {
       this,
       640,
       694,
-      `${en.next}: ${opponentName(this.services.player.progress)} · Victories: ${this.services.player.progress}`,
-      21,
+      `${this.services.player.progress >= ladderLength ? "Ladder complete · Exhibition" : `Round ${this.services.player.progress + 1} / ${ladderLength}`} · ${en.next}: ${opponentName(this.services.player.progress)}`,
+      19,
     ).setOrigin(0.5);
     label(
       this,
       960,
       650,
-      "Arena: B toggles Auto Battle",
-      14,
+      "Arena: Auto Battle starts on · Any key/button: manual · B: resume",
+      12,
       "#b9aa8d",
     ).setOrigin(0.5);
   }

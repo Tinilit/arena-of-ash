@@ -21,7 +21,7 @@ export function stats(p: Player, hand?: Hand) {
   const weapon = hand ? weaponForHand(p, hand) : primaryWeapon(p);
   const gear = [weapon, ...armor];
   return {
-    hp: 100,
+    hp: p.combatProfile?.maxHealth ?? 100,
     attack: weapon
       ? 12 + gear.reduce((sum, entry) => sum + (entry?.attack ?? 0), 0)
       : 1,

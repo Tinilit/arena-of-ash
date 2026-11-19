@@ -71,6 +71,16 @@ Two-handed Greatsword (140 gold), War Hammer (165 gold) and Battle Axe (155 gold
 
 Closed Steel Helm (110 gold, +5 armor) and Steel Cuirass (180 gold, +8 armor) are on shop page 3. An unblocked nonlethal melee hammer hit has independent 10% chances to knock down and to push with kick-strength stagger; both effects can occur together.
 
-**B** toggles Auto Battle during the fight. The full AI controls actual movement, independent hand attacks, parries, kicks, hops, jumps, belt uses, ranged weapons, weapon throws, two-handed shoves, opponent lifts/throws, pickups and ground executions. Equipped consumables and thrown gear follow normal ownership rules. B restores manual control; Continue remains manual after victory.
+Auto Battle starts enabled in every fight. Any key or mouse button immediately takes manual control and performs its normal action; moving the mouse only aims. **B** resumes Auto Battle (or stops it when active). The full AI controls actual movement, independent hand attacks, parries, kicks, hops, jumps, belt uses, ranged weapons, weapon throws, two-handed shoves, opponent lifts/throws, pickups and ground executions. Equipped consumables and thrown gear follow normal ownership rules. Continue remains manual after victory.
 
 Shop page 3 also has Riveted Chainmail (95 gold, 4 armor), Roman Legionary Helm (155 gold, 6 armor), Two-handed War Trident (175 gold, +15 attack) and Potion of Haste (55 gold). The trident has three real tines, a long shaft, a wide two-hand grip and a dedicated thrust/withdrawal animation. Haste doubles movement and action/animation speed for ten real active-combat seconds after the sip, including cooldowns and reload, without speeding up the opponent or its own countdown. A visible timer tracks the effect; drinking another dose while already hasted is disabled.
+
+The camp’s **View ladder** opens all 18 encounters: five challengers followed by a boss, repeated across three stages. Only victories advance the ladder. Defeat retries the same fight; completing all three stages unlocks elite exhibition matches.
+
+| Round | Boss             | Fixed equipment                                                                      | Specialty                                                   |
+| ----- | ---------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| 6     | Cassian the Red  | Iron Sword, Rusty Sword, Riveted Chainmail, Closed Steel Helm, knife, healing potion | 120% size, 125 HP, 25% faster weapon attacks                |
+| 12    | Brakka Stonefist | War Hammer, Steel Cuirass, Viking Helm, axe, healing potion                          | 130% size, 160 HP, heavy armor, 10% slower movement/attacks |
+| 18    | Vesper Ashwind   | Steel Crossbow, Riveted Chainmail, Roman Legionary Helm, haste potion, knife         | 125% size, 140 HP, 30% faster movement, 10% faster attacks  |
+
+Move the mouse to aim a held crossbow, including down toward fallen opponents. Either hand attack fires the two-handed crossbow; the bolt starts at its rendered muzzle with gravity compensation. **C** can physically deflect a bolt with the weapon during the normal 140 ms window, sending it in a random direction. A reflected bolt can hurt its original shooter. It grants no remote stun or counter-shove; thrown knives and axes retain their normal behavior.

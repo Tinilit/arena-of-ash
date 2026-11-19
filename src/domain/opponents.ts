@@ -6,10 +6,14 @@ import {
   type EquipmentSlot,
 } from "./model";
 import type { Random } from "../utils/random";
+import { bossAt, createBoss } from "./ladder";
 export const opponentTier = (wins: number) => Math.min(2, Math.floor(wins / 3));
-export const opponentName = (wins: number) => enemies[opponentTier(wins)].name;
+export const opponentName = (wins: number) =>
+  bossAt(wins)?.name ?? enemies[opponentTier(wins)].name;
 /** Equipment quality rises with victories; randomness has its own injected stream. */
 export function opponent(player: Player, random: Random = Math.random): Player {
+  const boss = bossAt(player.progress);
+  if (boss) return createBoss(boss, player.progress);
   const tier = opponentTier(player.progress);
   const pick = (pool: Item[]) =>
     pool.length

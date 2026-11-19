@@ -1,3 +1,4 @@
+import { rangedPitch } from "../combat/aim";
 import { Animator, type Pose } from "./animation";
 import { equipmentMotion } from "./equipmentMotion";
 import { movementSpeeds } from "./locomotion";
@@ -117,7 +118,8 @@ export class ArenaMotion {
       this.falling = false;
       this.movementName = "";
     }
-    const locomotionVx = f.vx / (f.timeScale ?? 1);
+    const locomotionVx =
+      f.vx / ((f.timeScale ?? 1) * (f.model.combatProfile?.size ?? 1));
     const running = Math.abs(locomotionVx) > 115,
       backwards = f.vx * f.facing < 0;
     const name =
@@ -211,7 +213,9 @@ export class ArenaMotion {
       const clockRate =
         action.name === "throw"
           ? overhandThrowTiming.duration / action.duration
-          : 1;
+          : action.name === "quick" || action.name === "shoot"
+            ? (f.model.combatProfile?.attackSpeed ?? 1)
+            : 1;
       const starting = this.swings[hand] !== action.id;
       if (starting) {
         this.carryStarts[hand] = {
@@ -367,6 +371,7 @@ export class ArenaMotion {
             ? shared.elapsed / shared.duration
             : undefined,
           (f.rangedCooldown ?? 0) === 0,
+          rangedPitch(f),
         ),
       );
       if (shared?.name === "shoot") this.name = "shoot";

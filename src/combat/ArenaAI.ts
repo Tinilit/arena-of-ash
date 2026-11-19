@@ -1,3 +1,5 @@
+import { stats } from "../domain/progression";
+import { aimAtFighter } from "./aim";
 import {
   weaponForHand,
   twoHandWeapon,
@@ -119,6 +121,32 @@ export class ArenaAI {
       !self.parry &&
       self.parryCooldown === 0 &&
       self.y === 0 &&
+      !self.hop
+    ) {
+      const bolt = ground.find(
+        (p) =>
+          p.kind === "bolt" &&
+          p.state === "flying" &&
+          p.ownerId !== self.model.id &&
+          p.vx * self.facing < 0 &&
+          Math.abs(p.x - self.x) < 170 &&
+          Math.abs(
+            p.y - (551 + self.y - 170 * (self.model.combatProfile?.size ?? 1)),
+          ) < 100 &&
+          !this.noticed.has(-p.id),
+      );
+      if (bolt) {
+        this.noticed.add(-bolt.id);
+        if (this.tacticsRandom() < (self.model.combatProfile ? 0.45 : 0.28))
+          return { parry: true, move: 0 };
+      }
+    }
+    if (
+      armed &&
+      !self.action &&
+      !self.parry &&
+      self.parryCooldown === 0 &&
+      self.y === 0 &&
       !self.hop &&
       gap < 235
     ) {
@@ -150,18 +178,26 @@ export class ArenaAI {
       }
     }
     if (!this.ready(self) || this.tacticalCooldown > 0) return undefined;
-    this.tacticalCooldown = 700 + this.tacticsRandom() * 800;
+    this.tacticalCooldown = self.model.combatProfile
+      ? 450 + this.tacticsRandom() * 450
+      : 700 + this.tacticsRandom() * 800;
     if (target.knockdown?.phase === "down" && armed && gap < 260) {
       this.lastDecision = "finish";
       return { attack: "finish", move: toward };
     }
-    for (const belt of ["belt1", "belt2"] as const) {
+    const belts: ("belt1" | "belt2")[] = ["belt1", "belt2"];
+    belts.sort(
+      (a, b) =>
+        Number(item(self.model.equipment[b] ?? "")?.use === "drink") -
+        Number(item(self.model.equipment[a] ?? "")?.use === "drink"),
+    );
+    for (const belt of belts) {
       const def = item(self.model.equipment[belt] ?? "");
       if (
         this.drinkCooldown === 0 &&
         def?.use === "drink" &&
         ((def.effect === "haste" && !(self.speedRemaining ?? 0)) ||
-          (def.heal && self.hp < 65))
+          (def.heal && self.hp < stats(self.model).hp * 0.65))
       ) {
         this.drinkCooldown = 6000;
         this.lastDecision = "drink";
@@ -169,9 +205,9 @@ export class ArenaAI {
       }
       if (
         def?.use === "throw" &&
-        gap > 160 &&
-        gap < 600 &&
-        this.tacticsRandom() < 0.5
+        gap > (self.model.combatProfile ? 110 : 160) &&
+        gap < (self.model.combatProfile ? 720 : 600) &&
+        this.tacticsRandom() < (self.model.combatProfile ? 0.8 : 0.5)
       ) {
         this.lastDecision = "belt-throw";
         return { belt, move: 0 };
@@ -212,6 +248,17 @@ export class ArenaAI {
     return undefined;
   }
   update(
+    delta: number,
+    self: ArenaFighter,
+    target: ArenaFighter,
+    ground: readonly Projectile[] = [],
+  ): ArenaInput {
+    const input = this.decide(delta, self, target, ground);
+    return twoHandWeapon(self.model)?.weaponType === "crossbow"
+      ? { ...input, aim: aimAtFighter(target) }
+      : input;
+  }
+  private decide(
     delta: number,
     self: ArenaFighter,
     target: ArenaFighter,

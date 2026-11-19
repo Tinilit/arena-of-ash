@@ -62,6 +62,13 @@ export interface Player {
   equipment: Partial<Record<EquipmentSlot, string>>;
   progress: number;
   rewarded: string[];
+  combatProfile?: {
+    bossId: string;
+    size: number;
+    movement: number;
+    attackSpeed: number;
+    maxHealth: number;
+  };
 }
 export const createPlayer = (): Player => ({
   id: "wanderer",

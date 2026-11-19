@@ -69,6 +69,13 @@ interface Rig {
   far: Limb;
 }
 interface Snapshot {
+  aim?: Point;
+  ladder?: {
+    index: number;
+    name: string;
+    state: string;
+    boss?: { name: string };
+  }[];
   autoBattle?: boolean;
   scene: string;
   style: "ash";
@@ -214,7 +221,7 @@ test("haste drinks at full health, starts a ten-second timer and doubles movemen
   expect((await snapshot(page)).player.inventory).not.toContain("speed-potion");
 });
 
-test("B toggles full Auto Battle and both fighters act without manual attack input", async ({
+test("Auto Battle starts enabled, input takes control and B resumes full tactics", async ({
   page,
 }) => {
   await page.route("**/content/items.json?_=*", (r) =>
@@ -241,12 +248,25 @@ test("B toggles full Auto Battle and both fighters act without manual attack inp
   await click(page, "battle");
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
   await page.clock.runFor(100);
+  expect((await snapshot(page)).autoBattle).toBe(true);
+  await page.mouse.move(600, 350);
+  await page.clock.runFor(32);
+  expect((await snapshot(page)).autoBattle).toBe(true);
+  await page.keyboard.press("z");
+  await page.clock.runFor(32);
   expect((await snapshot(page)).autoBattle).toBe(false);
   await page.keyboard.press("b");
   await page.clock.runFor(32);
   expect((await snapshot(page)).autoBattle).toBe(true);
+  const before = (await snapshot(page)).battle!.player.x;
+  await page.keyboard.down("d");
   await page.clock.runFor(100);
+  await page.keyboard.up("d");
+  expect((await snapshot(page)).autoBattle).toBe(false);
+  expect((await snapshot(page)).battle!.player.x).toBeGreaterThan(before);
   await page.keyboard.press("b");
+  await page.clock.runFor(32);
+  await page.mouse.click(600, 350, { button: "middle" });
   await page.clock.runFor(32);
   expect((await snapshot(page)).autoBattle).toBe(false);
   await page.keyboard.press("b");
@@ -300,6 +320,101 @@ test("B toggles full Auto Battle and both fighters act without manual attack inp
   });
   await page.clock.resume();
 });
+for (const boss of [
+  { wins: 5, name: "Cassian the Red", size: 1.2, hp: 125 },
+  { wins: 11, name: "Brakka Stonefist", size: 1.3, hp: 160 },
+  { wins: 17, name: "Vesper Ashwind", size: 1.25, hp: 140 },
+])
+  test(`ladder encounter: ${boss.name} has a fixed loadout and a correctly scaled rig`, async ({
+    page,
+  }) => {
+    await page.route("**/content/items.json?_=*", (r) =>
+      r.fulfill({ json: liveItems }),
+    );
+    const p = createPlayer();
+    p.progress = boss.wins;
+    await savedFixture(page, p);
+    await page.clock.install();
+    await launch(page);
+    if (boss.wins === 5) {
+      await click(page, "ladder");
+      const entries = (await snapshot(page)).ladder!;
+      expect(entries).toHaveLength(18);
+      expect(entries.filter((e) => e.boss).map((e) => e.name)).toEqual([
+        "Cassian the Red",
+        "Brakka Stonefist",
+        "Vesper Ashwind",
+      ]);
+      expect(entries.filter((e) => e.state === "defeated")).toHaveLength(5);
+      expect(entries.find((e) => e.state === "current")?.index).toBe(5);
+      await shot(page, "arena-ladder");
+      await click(page, "back");
+    }
+    await click(page, "battle");
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
+    const state = await snapshot(page);
+    expect(state.battle!.enemy.model.name).toBe(boss.name);
+    expect(state.battle!.enemy.hp).toBe(boss.hp);
+    expect(state.rigs![1].scale).toBeCloseTo(boss.size);
+    expect(state.battle!.enemy.model.equipment.belt1).toBeTruthy();
+    expect(state.battle!.enemy.model.equipment.belt2).toBeTruthy();
+    anatomy(state.rigs![1], false);
+    await page.screenshot({
+      path: `test-results/screenshots/boss-${boss.wins + 1}.png`,
+    });
+    await page.clock.resume();
+  });
+
+test("mouse aiming rotates the held crossbow and launches a bolt toward the low cursor", async ({
+  page,
+}) => {
+  await page.route("**/content/items.json?_=*", (r) =>
+    r.fulfill({ json: liveItems }),
+  );
+  const p = createPlayer();
+  p.inventory.push("crossbow", "cuirass");
+  p.equipment = { rightHand: "crossbow", body: "cuirass" };
+  await savedFixture(page, p);
+  await page.clock.install();
+  await launch(page);
+  await click(page, "battle");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
+  await page.clock.runFor(100);
+  await page.mouse.move(170, 490);
+  await page.clock.runFor(50);
+  expect((await snapshot(page)).battle!.player.facing).toBe(-1);
+  const target = { x: 850, y: 515 };
+  await page.mouse.move(target.x, target.y);
+  await page.clock.runFor(50);
+  expect((await snapshot(page)).battle!.player.facing).toBe(1);
+  await page.mouse.click(target.x, target.y, { button: "right" });
+  let state = await snapshot(page);
+  for (
+    let i = 0;
+    i < 24 && !state.battle!.projectiles.some((p) => p.kind === "bolt");
+    i++
+  ) {
+    await page.clock.runFor(50);
+    state = await snapshot(page);
+  }
+  expect(state.aim).toEqual(target);
+  const bolt = state.battle!.projectiles.find((p) => p.kind === "bolt")!;
+  expect(bolt).toBeTruthy();
+  expect(bolt.vx).toBeGreaterThan(0);
+  expect(bolt.vy).toBeGreaterThan(0);
+  expect(state.autoBattle).toBe(false);
+  const rig = state.rigs![0],
+    support = rig.crossbow!.supportGrip!;
+  expect(
+    Math.hypot(support.x - rig.near.hand.x, support.y - rig.near.hand.y),
+  ).toBeLessThan(0.1);
+  anatomy(rig, false);
+  await page.screenshot({
+    path: "test-results/screenshots/crossbow-mouse-aim-down.png",
+  });
+  await page.clock.resume();
+});
+
 test.afterEach(async ({ page }) => expect(errors.get(page)).toEqual([]));
 const snapshot = (page: Page) =>
   page.evaluate(() =>
@@ -341,7 +456,7 @@ async function click(page: Page, id: string) {
   await frames(page);
 }
 async function launch(page: Page) {
-  await page.goto("/?seed=42&renderer=canvas&ai=training");
+  await page.goto("/?seed=42&renderer=canvas&ai=training&manual=1");
   await scene(page, "MainMenuScene");
 }
 async function steer(page: Page, state: Snapshot) {
@@ -1736,7 +1851,7 @@ test("physical F kicks with a Ukrainian layout and ignores modified shortcuts", 
 test("a seeded kick knocks down on contact, holds one second and rises through a supported get-up", async ({
   page,
 }) => {
-  await page.goto("/?seed=5&renderer=canvas");
+  await page.goto("/?seed=5&renderer=canvas&manual=1");
   await scene(page, "MainMenuScene");
   await click(page, "battle");
   await scene(page, "ArenaScene");
@@ -2493,7 +2608,7 @@ test("a rare enemy throw leaves a recoverable weapon that becomes permanent play
   p.equipment.helmet = "cap";
   await savedFixture(page, p);
   await page.clock.install();
-  await page.goto("/?seed=2&renderer=canvas&ai=training");
+  await page.goto("/?seed=2&renderer=canvas&ai=training&manual=1");
   await scene(page, "MainMenuScene");
   await click(page, "battle");
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 500));
@@ -2601,7 +2716,7 @@ test("enemy reacts to an approaching swing with a real backward hop", async ({
   page,
 }) => {
   await page.clock.install();
-  await page.goto("/?seed=0&renderer=canvas");
+  await page.goto("/?seed=0&renderer=canvas&manual=1");
   await scene(page, "MainMenuScene");
   await click(page, "battle");
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));

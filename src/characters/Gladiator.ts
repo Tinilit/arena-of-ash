@@ -677,9 +677,16 @@ export class Gladiator {
       );
     }
     const blades: Partial<Record<Hand, Capsule>> = {};
+    const parries: Capsule[] = [];
     for (const hand of ["rear", "front"] as const) {
       const profile = this.bladeProfiles[hand],
         weapon = this.handWeapons[hand];
+      if (weapon?.visible) {
+        const matrix = weapon.getWorldTransformMatrix();
+        const a = matrix.transformPoint(0, profile?.startY ?? -100);
+        const b = matrix.transformPoint(0, 18);
+        parries.push(capsule(a, b, profile ? Math.min(6, profile.radius) : 8));
+      }
       if (profile && weapon && weapon.visible) {
         const matrix = weapon.getWorldTransformMatrix(),
           radius = Math.min(
@@ -693,6 +700,7 @@ export class Gladiator {
     }
     return {
       blade: blades[this.primaryHand] ?? null,
+      parries,
       shove:
         (this.displayedPose.twoHanded ?? 0) > 0.5 ||
         (this.displayedPose.rangedHold ?? 0) > 0.5

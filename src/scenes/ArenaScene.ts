@@ -1,3 +1,5 @@
+import { bossAt, ladderLength } from "../domain/ladder";
+import { twoHandWeapon } from "../domain/progression";
 import { drawBolt } from "../rendering/crossbow";
 import Phaser from "phaser";
 import { BaseScene } from "./BaseScene";
@@ -32,7 +34,10 @@ export class ArenaScene extends BaseScene {
   private motions!: [ArenaMotion, ArenaMotion];
   private ai!: ArenaAI;
   private playerAI!: ArenaAI;
-  private autoBattle = false;
+  private autoBattle = true;
+  private aimActive = false;
+  private aimPoint?: { x: number; y: number };
+  private aimReticle?: Phaser.GameObjects.Graphics;
   private trainingAI = false;
   private speedLabels: Phaser.GameObjects.Text[] = [];
   private bars!: ProgressBar[];
@@ -72,7 +77,10 @@ export class ArenaScene extends BaseScene {
     this.paused = false;
     this.consumptionCursor = this.collectionCursor = this.lootElapsed = 0;
     const query = new URLSearchParams(location.search);
-    this.autoBattle = false;
+    this.autoBattle = !(import.meta.env.DEV && query.get("manual") === "1");
+    this.aimActive = false;
+    this.aimPoint = undefined;
+    this.aimReticle = this.add.graphics().setDepth(80);
     this.trainingAI = import.meta.env.DEV && query.get("ai") === "training";
     const seed =
       import.meta.env.DEV && query.has("seed")
@@ -87,6 +95,7 @@ export class ArenaScene extends BaseScene {
         hammerKnockdown: seeded(seed ^ 0x3fe1),
         hammerPush: seeded(seed ^ 0x65c2),
         drop: seeded(seed ^ 0x5e17),
+        deflect: seeded(seed ^ 0xd3f1),
       },
     );
     this.ai = new ArenaAI(
@@ -94,7 +103,10 @@ export class ArenaScene extends BaseScene {
       seeded(seed ^ 0x92ab),
       seeded(seed ^ 0x9170),
       seeded(seed ^ 0x711c),
-      { advanced: !this.trainingAI },
+      {
+        advanced:
+          !this.trainingAI || Boolean(this.battle.enemy.model.combatProfile),
+      },
     );
     this.playerAI = new ArenaAI(
       seeded(seed ^ 0xa710),
@@ -117,7 +129,7 @@ export class ArenaScene extends BaseScene {
         arenaRules.floor,
         this.battle.enemy.model,
         true,
-        1,
+        this.battle.enemy.model.combatProfile?.size ?? 1,
       ),
     ];
     this.motions = [
@@ -136,20 +148,31 @@ export class ArenaScene extends BaseScene {
       label(this, 44, 132, "", 14, "#73e4dc"),
       label(this, 1235, 132, "", 14, "#73e4dc").setOrigin(1, 0.5),
     ];
-    this.status = label(this, 640, 92, en.fight, 23, "#e8bd72").setOrigin(0.5);
+    this.status = label(this, 640, 92, en.fight, 20, "#e8bd72").setOrigin(0.5);
+    const boss = bossAt(this.services.player.progress);
+    label(
+      this,
+      640,
+      160,
+      this.services.player.progress < ladderLength
+        ? `Round ${this.services.player.progress + 1} / ${ladderLength}${boss ? ` · BOSS · ${boss.title}` : ""}`
+        : "Exhibition match · Ladder complete",
+      16,
+      "#e8bd72",
+    ).setOrigin(0.5);
     this.controlHints = [
       label(
         this,
         640,
         611,
-        "A/D: walk · Shift: run · Space: jump · A/D+Space: hop · R: stance · B: Auto Battle",
+        "A/D: walk · Shift: run · Space: jump · A/D+Space: hop · R: stance · B: resume Auto Battle",
         16,
       ),
       label(
         this,
         640,
         641,
-        "LMB/J: front hand · RMB/K: rear hand · Ctrl+attack: throw · Q/E: belt",
+        "Mouse: aim · LMB/J: front hand · RMB/K: rear hand · Ctrl+attack: throw · Q/E: belt",
         16,
       ),
       label(
@@ -175,7 +198,7 @@ export class ArenaScene extends BaseScene {
         control: "CTRL",
       }) as typeof this.keys) ?? {};
     this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
-      if (event.repeat || this.paused || event.metaKey || event.altKey) return;
+      if (this.paused) return;
       // Physical codes keep combat controls working with Ukrainian and other layouts.
       const key = event.code.startsWith("Key")
         ? event.code.slice(3).toLowerCase()
@@ -184,6 +207,10 @@ export class ArenaScene extends BaseScene {
           : event.code === "Space"
             ? " "
             : event.key.toLowerCase();
+      if (event.repeat) return;
+      if (key !== "b" || event.ctrlKey || event.metaKey || event.altKey)
+        this.takeControl();
+      if (event.metaKey || event.altKey) return;
       if (this.ending) {
         if (this.battle.state === "Victory" && key === "g" && !event.ctrlKey)
           this.queued.pickup = true;
@@ -191,7 +218,11 @@ export class ArenaScene extends BaseScene {
       }
       if (key === "b" && !event.ctrlKey) {
         this.autoBattle = !this.autoBattle;
-        this.ai.setAdvanced(this.autoBattle || !this.trainingAI);
+        this.ai.setAdvanced(
+          this.autoBattle ||
+            !this.trainingAI ||
+            Boolean(this.battle.enemy.model.combatProfile),
+        );
         this.clearInput();
         return;
       }
@@ -220,6 +251,8 @@ export class ArenaScene extends BaseScene {
     this.input.keyboard?.addCapture(["J", "K"]);
     const useHand = (pointer: Phaser.Input.Pointer) => {
       if (this.ending || this.paused) return;
+      this.takeControl();
+      this.updateAim(pointer);
       const point = pointer.positionToCamera(
         this.cameras.main,
       ) as Phaser.Math.Vector2;
@@ -234,6 +267,8 @@ export class ArenaScene extends BaseScene {
     };
     const contextMenu = (event: Event) => event.preventDefault();
     this.game.canvas.addEventListener("contextmenu", contextMenu);
+    const moveAim = (pointer: Phaser.Input.Pointer) => this.updateAim(pointer);
+    this.input.on("pointermove", moveAim);
     this.input.on("pointerdown", useHand);
     const pause = () => {
       this.paused = true;
@@ -248,6 +283,8 @@ export class ArenaScene extends BaseScene {
     this.game.events.on(Phaser.Core.Events.FOCUS, resume);
     this.events.once("shutdown", () => {
       this.input.off("pointerdown", useHand);
+      this.input.off("pointermove", moveAim);
+      this.game.canvas.style.cursor = "";
       this.game.canvas.removeEventListener("contextmenu", contextMenu);
       this.game.events.off(Phaser.Core.Events.BLUR, pause);
       this.game.events.off(Phaser.Core.Events.FOCUS, resume);
@@ -262,6 +299,24 @@ export class ArenaScene extends BaseScene {
     this.pose(0);
     this.refresh();
   }
+  private takeControl() {
+    if (!this.autoBattle) return;
+    this.autoBattle = false;
+    this.queued = {};
+    this.updateAim(this.input.activePointer);
+    this.ai.setAdvanced(
+      !this.trainingAI || Boolean(this.battle.enemy.model.combatProfile),
+    );
+  }
+  private updateAim(pointer: Phaser.Input.Pointer) {
+    const point = pointer.positionToCamera(
+      this.cameras.main,
+    ) as Phaser.Math.Vector2;
+    if (Number.isFinite(point.x) && Number.isFinite(point.y)) {
+      this.aimActive = true;
+      this.aimPoint = { x: point.x, y: point.y };
+    }
+  }
   private queueHand(hand: "front" | "rear", modified = false) {
     const field = modified || this.down("control") ? "throws" : "attacks";
     this.queued[field] = [...new Set([...(this.queued[field] ?? []), hand])];
@@ -273,6 +328,7 @@ export class ArenaScene extends BaseScene {
   private inputState(): ArenaInput {
     const input: ArenaInput = {
       ...this.queued,
+      ...(this.aimActive && this.aimPoint ? { aim: this.aimPoint } : {}),
       move: this.direction(),
       run: this.down("run"),
     };
@@ -322,8 +378,34 @@ export class ArenaScene extends BaseScene {
   private refresh() {
     if (!this.ending)
       this.status.setText(
-        this.autoBattle ? "Auto Battle · B: manual" : en.fight,
+        this.autoBattle
+          ? "Auto Battle · Any key: manual"
+          : "Manual control · B: Auto Battle",
       );
+    const aiming =
+      !this.autoBattle &&
+      this.aimActive &&
+      this.aimPoint &&
+      twoHandWeapon(this.battle.player.model)?.weaponType === "crossbow" &&
+      this.battle.state === "Fighting";
+    this.aimReticle?.clear();
+    this.game.canvas.style.cursor = aiming ? "crosshair" : "";
+    if (aiming) {
+      const { x, y } = this.aimPoint!;
+      this.aimReticle!.lineStyle(1.5, 0xf3d493).strokeCircle(x, y, 7);
+      this.aimReticle!.lineBetween(x - 12, y, x - 3, y).lineBetween(
+        x + 3,
+        y,
+        x + 12,
+        y,
+      );
+      this.aimReticle!.lineBetween(x, y - 12, x, y - 3).lineBetween(
+        x,
+        y + 3,
+        x,
+        y + 12,
+      );
+    }
     const pickup = this.battle.nearbyPickup(this.battle.player);
     this.pickupHint.setText(
       pickup
@@ -370,26 +452,31 @@ export class ArenaScene extends BaseScene {
   private present(event: ContactEvent) {
     const defender = this.battle.fighters.findIndex(
       (f) =>
-        f.model.id === (event.parried ? event.attackerId : event.defenderId),
+        f.model.id ===
+        (event.parried && !event.deflected
+          ? event.attackerId
+          : event.defenderId),
     );
     this.rigs[defender].flash();
     const text = label(
       this,
       event.point.x,
       event.point.y,
-      event.parried
-        ? event.disarmed
-          ? "Disarmed"
-          : "Parry"
-        : event.kind === "finisher"
-          ? "Finisher"
-          : event.kind === "shove"
-            ? "Pushed back"
-            : event.kind === "kick"
-              ? event.knockdown
-                ? "Knockdown"
-                : "Off balance"
-              : `${event.knockdown ? "Knockdown " : event.pushed ? "Pushed back " : ""}${event.blocked ? en.blocked + " " : ""}−${event.damage}`,
+      event.deflected
+        ? "Deflected"
+        : event.parried
+          ? event.disarmed
+            ? "Disarmed"
+            : "Parry"
+          : event.kind === "finisher"
+            ? "Finisher"
+            : event.kind === "shove"
+              ? "Pushed back"
+              : event.kind === "kick"
+                ? event.knockdown
+                  ? "Knockdown"
+                  : "Off balance"
+                : `${event.knockdown ? "Knockdown " : event.pushed ? "Pushed back " : ""}${event.blocked ? en.blocked + " " : ""}−${event.damage}`,
       26,
       event.blocked ? "#9bc6d1" : "#f4e2bc",
     ).setOrigin(0.5);
@@ -572,6 +659,7 @@ export class ArenaScene extends BaseScene {
     return {
       ...super.snapshot(),
       autoBattle: this.autoBattle,
+      aim: this.aimPoint,
       ai: {
         player: this.playerAI.lastDecision,
         enemy: this.ai.lastDecision,

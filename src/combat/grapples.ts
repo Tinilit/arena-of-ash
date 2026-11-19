@@ -158,9 +158,19 @@ export class GrappleController {
       // back to its bounds on the first flight step.
       b.x = Math.max(
         minX,
-        Math.min(maxX, h.startX + (a.x + a.facing * 112 - h.startX) * t),
+        Math.min(
+          maxX,
+          h.startX +
+            (a.x +
+              a.facing *
+                (130 * (b.model.combatProfile?.size ?? 1) -
+                  18 * (a.model.combatProfile?.size ?? 1)) -
+              h.startX) *
+              t,
+        ),
       );
-      b.y = h.startY + (-285 - h.startY) * t;
+      b.y =
+        h.startY + (-285 * (a.model.combatProfile?.size ?? 1) - h.startY) * t;
       b.facing = a.facing;
       b.vx = b.vy = 0;
       b.grapple = { role: "target", phase: h.phase, elapsed: h.elapsed };
