@@ -145,6 +145,40 @@ it.each([
 
 describe("mouse-directed crossbow shots", () => {
   it.each([
+    [1, -1],
+    [1, 1],
+    [-1, -1],
+    [-1, 1],
+  ] as const)(
+    "preserves a world hop when aiming reverses facing (%s, %s)",
+    (facing, direction) => {
+      const p = createPlayer();
+      p.inventory.push("crossbow");
+      p.equipment = { rightHand: "crossbow" };
+      const e = createPlayer();
+      e.id = "enemy";
+      const b = new RealtimeBattle(p, e);
+      b.player.x = 600;
+      b.player.facing = facing;
+      b.enemy.x = 1100;
+      b.advance(0, [
+        {
+          aim: { x: 600 - facing * 300, y: 400 },
+          hop: (direction * facing) as -1 | 1,
+          worldHop: direction,
+        },
+        {},
+      ]);
+      expect(b.player.facing).toBe(-facing);
+      expect(b.player.hop?.direction).toBe(direction);
+      expect(b.player.hop?.kind).toBe(
+        direction === b.player.facing ? "forwardHop" : "backstep",
+      );
+      b.advance(350, [{}, {}]);
+      expect((b.player.x - 600) * direction).toBeGreaterThan(0);
+    },
+  );
+  it.each([
     [900, 500],
     [200, 500],
     [600, 200],

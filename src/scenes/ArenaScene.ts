@@ -348,9 +348,11 @@ export class ArenaScene extends BaseScene {
     const direction = this.direction();
     delete this.queued.jump;
     delete this.queued.hop;
-    if (direction)
+    delete this.queued.worldHop;
+    if (direction) {
       this.queued.hop = (direction * this.battle.player.facing) as -1 | 1;
-    else this.queued.jump = true;
+      this.queued.worldHop = direction as -1 | 1;
+    } else this.queued.jump = true;
   }
   private pose(delta: number) {
     this.battle.fighters.forEach((f, i) => {

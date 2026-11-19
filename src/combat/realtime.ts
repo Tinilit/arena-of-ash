@@ -87,6 +87,8 @@ export interface ArenaInput {
   run?: boolean;
   jump?: boolean;
   hop?: -1 | 1;
+  /** Absolute key intent, resolved after mouse aiming changes the facing. */
+  worldHop?: -1 | 1;
   attack?: Attack;
   hand?: Hand;
   attacks?: Hand[];
@@ -787,13 +789,14 @@ export class RealtimeBattle {
         f.relaxed = false;
         f.reaction = null;
       }
-      if (c.hop && this.canHop(f, c.hop)) {
-        const kind = hopKind(c.hop);
+      const hop = c.worldHop ? ((c.worldHop * f.facing) as -1 | 1) : c.hop;
+      if (hop && this.canHop(f, hop)) {
+        const kind = hopKind(hop);
         f.hop = {
           kind,
           phase: "anticipation",
           elapsed: 0,
-          direction: (c.hop * f.facing) as 1 | -1,
+          direction: c.worldHop ?? ((hop * f.facing) as 1 | -1),
         };
       }
       f.guard = Boolean(
