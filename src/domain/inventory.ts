@@ -40,6 +40,8 @@ export function consumeItem(p: Player, id: string, source?: EquipmentSlot) {
     );
   if (source && p.equipment[source] !== id) return false;
   if (slot) delete p.equipment[slot];
+  if (p.armorWear && (slot === "helmet" || slot === "body" || owned === 1))
+    delete p.armorWear[id];
   if (owned === 1) {
     p.inventory = p.inventory.filter((entry) => entry !== id);
     if (p.quantities) delete p.quantities[id];

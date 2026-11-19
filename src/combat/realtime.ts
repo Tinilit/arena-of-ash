@@ -1,3 +1,4 @@
+import { wearArmor, type ArmorSlot } from "./armor";
 import { aimedVelocity } from "./aim";
 import type { Player, Hand, EquipmentSlot } from "../domain/model";
 import { item } from "../data/catalog";
@@ -27,7 +28,7 @@ import {
   weaponForHand,
   twoHandWeapon,
 } from "../domain/progression";
-import { actions, damage, fighter, type Fighter } from "./engine";
+import { damage, damageAfterArmor, fighter, type Fighter } from "./engine";
 import { hopDefinitions, hopKind, type Hop } from "./hops";
 import {
   sweptContact,
@@ -164,13 +165,14 @@ export interface ContactEvent {
   attackerId: string;
   defenderId: string;
   damage: number;
+  rawDamage?: number;
   blocked: boolean;
   parried?: boolean;
   deflected?: boolean;
   disarmed?: boolean;
   pushed?: boolean;
   knockdown: boolean;
-  kind: "weapon" | "punch" | "kick" | "projectile" | "shove" | "finisher";
+  kind: "weapon" | "kick" | "projectile" | "shove" | "finisher";
   hand: Hand;
   point: Point;
   blade: Capsule;
@@ -246,6 +248,14 @@ export class RealtimeBattle {
   state: ArenaState = "Fighting";
   readonly fighters: [ArenaFighter, ArenaFighter];
   readonly contacts: ContactEvent[] = [];
+  readonly armorBreaks: {
+    id: number;
+    ownerId: string;
+    itemId: string;
+    slot: ArmorSlot;
+    point: Point;
+  }[] = [];
+  armorRevision = 0;
   readonly projectiles: Projectile[] = [];
   readonly consumedItems: {
     ownerId: string;
@@ -316,6 +326,7 @@ export class RealtimeBattle {
       this.state === "Fighting" &&
       f.hp > 0 &&
       name !== "heavy" &&
+      (name !== "quick" || Boolean(weaponForHand(f.model, hand))) &&
       (!(
         weaponForHand(f.model, hand)?.weaponType === "crossbow" &&
         (name === "quick" || name === "shoot")
@@ -549,10 +560,7 @@ export class RealtimeBattle {
       duration: f.y < 0 || f.vy < 0 ? 650 : attackTimings.throw.duration,
       hit: false,
       released: false,
-      throwAttack:
-        stats(f.model, hand).attack -
-        (weaponForHand(f.model, hand)?.attack ?? 0) +
-        definition.attack,
+      throwAttack: definition.attack,
     };
     f.relaxed = false;
     f.reaction = null;
@@ -1016,7 +1024,7 @@ export class RealtimeBattle {
                 floorRadius:
                   geometry[i].launch?.[swing.hand]?.floorRadius ??
                   projectileFloorRadius(definition),
-                attack: swing.throwAttack ?? 12,
+                attack: swing.throwAttack ?? definition.attack,
                 profile:
                   geometry[i].launch?.[swing.hand]?.profile ??
                   projectileProfile(definition),
@@ -1030,6 +1038,7 @@ export class RealtimeBattle {
         if (swing.name === "recover" || swing.name === "finish" || swing.hit)
           continue;
         const weapon = weaponForHand(f.model, swing.hand);
+        if (swing.name === "quick" && !weapon) continue;
         const shape = (g: CombatGeometry) =>
           swing.name === "shove"
             ? g.shove
@@ -1079,22 +1088,16 @@ export class RealtimeBattle {
                 ? "shove"
                 : swing.name === "kick"
                   ? "kick"
-                  : weapon
-                    ? "weapon"
-                    : "punch",
+                  : "weapon",
             hand: swing.hand,
             damage:
               swing.name === "kick" || swing.name === "shove"
                 ? 0
-                : damage(
-                    f.model,
-                    defender.model,
-                    actions[swing.name].multiplier,
-                    false,
-                    defender.guard,
-                    swing.hand,
-                  ),
-            blocked: defender.guard,
+                : damage(f.model, defender.model, swing.hand),
+            rawDamage: swing.name === "quick" ? (weapon?.attack ?? 0) : 0,
+            blocked:
+              swing.name === "quick" &&
+              damage(f.model, defender.model, swing.hand) === 0,
             knockdown:
               swing.name === "kick" &&
               !defender.knockdown &&
@@ -1175,14 +1178,9 @@ export class RealtimeBattle {
           defenderId: defender.model.id,
           hand: p.hand,
           kind: "projectile",
-          damage: Math.max(
-            1,
-            Math.round(
-              Math.max(1, p.attack - stats(defender.model).armor) *
-                (defender.guard ? 0.5 : 1),
-            ),
-          ),
-          blocked: defender.guard,
+          damage: damageAfterArmor(p.attack, defender.model),
+          rawDamage: p.attack,
+          blocked: damageAfterArmor(p.attack, defender.model) === 0,
           knockdown: false,
           ...collision,
         });
@@ -1195,7 +1193,7 @@ export class RealtimeBattle {
       const defender = this.fighters.find((f) => f.model.id === e.defenderId)!;
       const attacker = this.fighters.find((f) => f.model.id === e.attackerId)!;
       if (
-        (e.kind === "weapon" || e.kind === "punch") &&
+        e.kind === "weapon" &&
         defender.parry &&
         defender.parry.elapsed < parryRules.window &&
         (attacker.x - defender.x) * defender.facing >= 0
@@ -1250,6 +1248,38 @@ export class RealtimeBattle {
         continue;
       }
       const defender = this.fighters.find((f) => f.model.id === e.defenderId)!;
+      if (
+        (e.kind === "weapon" || e.kind === "projectile") &&
+        (e.rawDamage ?? 0) > 0
+      ) {
+        const hadArmor = Boolean(
+          defender.model.equipment.helmet || defender.model.equipment.body,
+        );
+        const broken = wearArmor(defender.model, e.rawDamage!);
+        if (hadArmor) this.armorRevision++;
+        for (const piece of broken) {
+          const id = ++this.sequence;
+          const shape =
+            geometry[this.fighters.indexOf(defender)].body[
+              piece.slot === "helmet" ? 0 : 1
+            ];
+          const point = shape
+            ? { x: (shape.a.x + shape.b.x) / 2, y: (shape.a.y + shape.b.y) / 2 }
+            : e.point;
+          this.armorBreaks.push({
+            id,
+            ownerId: defender.model.id,
+            ...piece,
+            point,
+          });
+          this.consumedItems.push({
+            ownerId: defender.model.id,
+            itemId: piece.itemId,
+            sourceSlot: piece.slot,
+            actionId: id,
+          });
+        }
+      }
       defender.hp = Math.max(0, defender.hp - e.damage);
       const attacker = this.fighters.find((f) => f.model.id === e.attackerId)!;
       const direction: 1 | -1 = attacker.x <= defender.x ? 1 : -1;

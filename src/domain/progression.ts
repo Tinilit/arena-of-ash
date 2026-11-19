@@ -19,14 +19,29 @@ export function stats(p: Player, hand?: Hand) {
     item(id ?? ""),
   );
   const weapon = hand ? weaponForHand(p, hand) : primaryWeapon(p);
-  const gear = [weapon, ...armor];
   return {
     hp: p.combatProfile?.maxHealth ?? 100,
-    attack: weapon
-      ? 12 + gear.reduce((sum, entry) => sum + (entry?.attack ?? 0), 0)
-      : 1,
-    armor: gear.reduce((n, i) => n + (i?.armor ?? 0), 0),
+    attack: weapon?.attack ?? 0,
+    armor: armor.reduce((n, i) => n + (i?.armor ?? 0), 0),
   };
+}
+export const salePrice = (id: string) => Math.floor((item(id)?.price ?? 0) / 2);
+/** Sell a single backpack copy, never a worn copy or a reserved support grip. */
+export function sell(p: Player, id: string) {
+  if (
+    !item(id) ||
+    availableQuantity(p, id) < 1 ||
+    !Number.isSafeInteger(p.gold + salePrice(id))
+  )
+    return false;
+  const owned = quantity(p, id);
+  if (owned === 1) {
+    p.inventory = p.inventory.filter((entry) => entry !== id);
+    if (p.quantities) delete p.quantities[id];
+    if (p.armorWear) delete p.armorWear[id];
+  } else (p.quantities ??= {})[id] = owned - 1;
+  p.gold += salePrice(id);
+  return true;
 }
 export function purchase(p: Player, id: string, amount = 1) {
   const i = item(id);

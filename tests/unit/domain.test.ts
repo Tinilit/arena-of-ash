@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createPlayer } from "../../src/domain/model";
 import { stats, purchase, equip, reward } from "../../src/domain/progression";
-import { damage } from "../../src/combat/engine";
+import { damage, damageAfterArmor } from "../../src/combat/engine";
 import { serialize, deserialize, SaveStore } from "../../src/persistence/save";
 import { seeded } from "../../src/utils/random";
 import { Animator } from "../../src/characters/animation";
@@ -57,23 +57,23 @@ describe("character and equipment", () => {
   });
 });
 describe("combat damage calculation", () => {
-  it("damage never becomes negative", () => {
+  it("subtracts only total worn armor from fixed weapon damage", () => {
     const p = createPlayer(),
       e = createPlayer();
+    p.equipment.rightHand = "spear";
     e.equipment = { body: "plate", helmet: "cap" };
-    expect(damage(p, e, 0.01, false, false)).toBe(1);
+    expect(damage(p, e)).toBe(12);
+    expect(damage(p, e)).toBe(12);
   });
-  it("guard halves incoming damage", () => {
-    const p = createPlayer();
-    expect(damage(p, p, 1, false, true)).toBe(
-      Math.round(damage(p, p, 1, false, false) / 2),
-    );
+  it("fully absorbs a weak weapon without negative damage", () => {
+    const e = createPlayer();
+    e.equipment = { body: "plate", helmet: "cap" };
+    expect(damageAfterArmor(5, e)).toBe(0);
+    expect(damageAfterArmor(0, e)).toBe(0);
   });
-  it("supports an explicit critical modifier without choosing whether contact occurred", () => {
+  it("does not substitute a weapon for an empty hand", () => {
     const p = createPlayer();
-    expect(damage(p, p, 1, true, false)).toBeGreaterThan(
-      damage(p, p, 1, false, false),
-    );
+    expect(damage(p, p, "front")).toBe(0);
   });
   it("seeded AI randomness is repeatable", () => {
     const a = seeded(13),

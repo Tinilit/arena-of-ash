@@ -7,12 +7,16 @@ const make = () => {
   const p = createPlayer(),
     e = createPlayer();
   e.id = "enemy";
+  p.inventory.push("rust");
+  e.inventory.push("rust");
+  p.equipment.leftHand = "rust";
+  e.equipment.leftHand = "rust";
   return new RealtimeBattle(p, e, () => 0.5);
 };
 const cap = { a: { x: 0, y: 0 }, b: { x: 0, y: 20 }, radius: 4 };
 const g: CombatGeometry = {
   blade: cap,
-  blades: { rear: cap },
+  blades: { rear: cap, front: cap },
   hands: { front: cap, rear: cap },
   feet: { front: cap, rear: cap },
   body: [cap, cap],
@@ -29,7 +33,7 @@ describe("independent hand actions", () => {
     b.advance(550, [{}, {}]);
     const hits = b.resolve([g, g]);
     expect(hits.map((h) => h.hand).sort()).toEqual(["front", "rear"]);
-    expect(b.enemy.hp).toBe(86);
+    expect(b.enemy.hp).toBe(71);
     expect(b.resolve([g, g])).toEqual([]);
   });
   it("starts the second hand during the first wind-up and keeps cooldowns independent", () => {
@@ -82,8 +86,8 @@ describe("independent hand actions", () => {
     b.advance(550, [{}, {}]);
     const hits = b.resolve([g, g]);
     expect(hits).toHaveLength(4);
-    expect(b.player.hp).toBe(86);
-    expect(b.enemy.hp).toBe(86);
+    expect(b.player.hp).toBe(71);
+    expect(b.enemy.hp).toBe(71);
     for (const f of b.fighters) {
       expect(f.handActions.front).toBeNull();
       expect(f.handActions.rear).toBeNull();

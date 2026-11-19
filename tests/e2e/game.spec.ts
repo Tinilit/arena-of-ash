@@ -30,6 +30,7 @@ interface RigFrame {
   down: Point;
 }
 interface Rig {
+  armor: { helmet?: string; body?: string };
   crossbow: { loaded: boolean; draw: number; supportGrip: Point | null } | null;
   shooting: { kind: number; flash: boolean };
   twoHanded: {
@@ -96,6 +97,7 @@ interface Snapshot {
     state: ArenaState;
     player: ArenaFighter;
     enemy: ArenaFighter;
+    armorBreaks: { ownerId: string; itemId: string; slot: string }[];
     contacts: ContactEvent[];
     projectiles: Projectile[];
   };
@@ -1614,7 +1616,7 @@ test("attacks and hops work without energy, defense or recovery controls", async
   for (const pose of poses) expect(pose).not.toHaveProperty("stamina");
 });
 
-test("mouse buttons select exact front/rear hands, empty fists work, and heavy attacks stay disabled", async ({
+test("mouse buttons select exact hands, empty hands are disabled, and heavy attacks stay disabled", async ({
   page,
 }) => {
   await launch(page);
@@ -1628,21 +1630,11 @@ test("mouse buttons select exact front/rear hands, empty fists work, and heavy a
   };
   expect((await snapshot(page)).buttons.heavy).toBeUndefined();
   await field("left");
-  await expect
-    .poll(async () => (await snapshot(page)).battle!.player.action?.hand)
-    .toBe("front");
-  await expect
-    .poll(async () => (await snapshot(page)).rigs![0].animation)
-    .toBe("punch");
+  await page.waitForTimeout(300);
   const front = await snapshot(page);
+  expect(front.battle!.player.action).toBeNull();
   expect(front.geometry![0].hands!.front).toBeTruthy();
   expect(front.geometry![0].blades!.front).toBeUndefined();
-  await expect
-    .poll(async () => {
-      const p = (await snapshot(page)).battle!.player;
-      return !p.action && p.attackCooldown === 0;
-    })
-    .toBe(true);
   await page.setViewportSize({ width: 1920, height: 1080 });
   await field("right");
   await expect
@@ -1756,51 +1748,29 @@ test("backpack lists all unequipped categories, excludes worn items and restores
   await shot(page, "backpack-all-unequipped-items");
 });
 
-test("a bare front fist deals contact damage while the rear weapon stays idle", async ({
+test("empty-hand mouse and keyboard attacks remain disabled without blocking the armed hand", async ({
   page,
 }) => {
   await launch(page);
   await click(page, "battle");
   await scene(page, "ArenaScene");
-  let hit: ContactEvent | undefined;
-  for (let i = 0; i < 90 && !hit; i++) {
-    const s = await snapshot(page);
-    if (s.scene !== "ArenaScene") break;
-    hit = s.battle!.contacts.find((e) => e.attackerId === "wanderer");
-    if (hit) break;
-    const { player, enemy } = s.battle!,
-      gap = Math.abs(enemy.x - player.x),
-      toward = enemy.x > player.x ? 1 : -1;
-    for (const [key, dir] of [
-      ["a", -1],
-      ["d", 1],
-    ] as const) {
-      if (gap > 95 && dir === toward) await page.keyboard.down(key);
-      else await page.keyboard.up(key);
-    }
-    if (
-      gap < 120 &&
-      !player.action &&
-      player.stun === 0 &&
-      player.attackCooldown === 0
-    ) {
-      const box = await page.locator("canvas").boundingBox();
-      await page.mouse.click(
-        box!.x + box!.width * 0.5,
-        box!.y + box!.height * 0.56,
-        { button: "left" },
-      );
-    }
+  for (const key of ["j", "1"]) {
+    await page.keyboard.press(key);
     await page.waitForTimeout(100);
+    expect((await snapshot(page)).battle!.player.handActions.front).toBeNull();
   }
-  await page.keyboard.up("a");
-  await page.keyboard.up("d");
-  expect(hit).toBeTruthy();
-  expect(hit!.hand).toBe("front");
-  expect(hit!.kind).toBe("punch");
-  expect(hit!.damage).toBe(1);
-  expect(contact(hit!.blade, hit!.body)).not.toBeNull();
-  await shot(page, "front-fist-physical-contact");
+  expect(
+    (await snapshot(page)).battle!.contacts.filter(
+      (e) => e.attackerId === "wanderer",
+    ),
+  ).toEqual([]);
+  await page.keyboard.press("k");
+  await expect
+    .poll(
+      async () => (await snapshot(page)).battle!.player.handActions.rear?.hand,
+    )
+    .toBe("rear");
+  await shot(page, "empty-front-hand-disabled");
 });
 
 test("physical F kicks with a Ukrainian layout and ignores modified shortcuts", async ({
@@ -3266,4 +3236,75 @@ test("fresh belts stay empty, Equip fills free slots, and closed armor buys and 
   await scene(page, "MainMenuScene");
   expect((await snapshot(page)).player.equipment.belt1).toBeUndefined();
   expect((await snapshot(page)).player.equipment.belt2).toBeUndefined();
+});
+
+test("backpack sales remove only spare copies and persist gold and equipped gear", async ({
+  page,
+}) => {
+  const p = createPlayer();
+  p.gold = 100;
+  p.inventory.push("throwing-knife", "rust", "cap", "leather");
+  p.quantities = { "throwing-knife": 3 };
+  p.equipment.belt1 = "throwing-knife";
+  await savedFixture(page, p);
+  await launch(page);
+  await click(page, "character");
+  expect((await snapshot(page)).buttons["sell-wood"]).toBeUndefined();
+  await shot(page, "inventory-sale-controls");
+  await click(page, "sell-throwing-knife");
+  expect(ownedCopies((await snapshot(page)).player, "throwing-knife")).toBe(2);
+  await click(page, "sell-throwing-knife");
+  let s = await snapshot(page);
+  expect(s.player.equipment.belt1).toBe("throwing-knife");
+  expect(s.buttons["sell-throwing-knife"]).toBeUndefined();
+  for (const id of ["rust", "cap", "leather"]) await click(page, `sell-${id}`);
+  s = await snapshot(page);
+  expect(s.player.gold).toBe(183);
+  expect(s.player.inventory).toEqual(["wood", "throwing-knife"]);
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect((await snapshot(page)).player).toEqual(s.player);
+});
+
+test("worn armor shatters on real contact, removes overlays and stays destroyed after reload", async ({
+  page,
+}) => {
+  await page.route("**/content/items.json?_=*", (r) =>
+    r.fulfill({ json: liveItems }),
+  );
+  const p = createPlayer();
+  p.inventory.push("closed-helm", "cuirass");
+  p.equipment.helmet = "closed-helm";
+  p.equipment.body = "cuirass";
+  p.armorWear = { "closed-helm": 69, cuirass: 141 };
+  await savedFixture(page, p);
+  await launch(page);
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  expect((await snapshot(page)).rigs![0].armor).toEqual({
+    helmet: "closed-helm",
+    body: "cuirass",
+  });
+  await expect
+    .poll(
+      async () =>
+        (await snapshot(page)).battle?.armorBreaks.filter(
+          (e) => e.ownerId === "wanderer",
+        ).length,
+      { timeout: 20000 },
+    )
+    .toBe(2);
+  const s = await snapshot(page);
+  expect(s.rigs![0].armor).toEqual({});
+  expect(s.player.equipment).toEqual({ rightHand: "wood" });
+  expect(s.player.inventory).toEqual(["wood"]);
+  expect(s.player.armorWear).toEqual({});
+  expect(s.battle!.projectiles).toEqual([]);
+  await shot(page, "armor-shattering-bare-head-and-torso");
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect((await snapshot(page)).player.inventory).toEqual(["wood"]);
+  expect((await snapshot(page)).player.equipment).toEqual({
+    rightHand: "wood",
+  });
 });

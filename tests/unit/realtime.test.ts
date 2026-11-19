@@ -142,13 +142,13 @@ describe("real-time arena rules", () => {
     b.resolve([geometry(), geometry()]);
     expect(b.enemy.hp).toBeLessThan(100);
   });
-  it("reduces contact damage while AI guarding", () => {
+  it("keeps fixed contact damage despite legacy AI guarding", () => {
     const b = make();
     begin(b);
     b.advance(550, [{}, { guard: true }]);
     const [event] = b.resolve([geometry(), geometry()]);
-    expect(event.blocked).toBe(true);
-    expect(event.damage).toBe(7);
+    expect(event.blocked).toBe(false);
+    expect(event.damage).toBe(13);
   });
   it("resolves simultaneous lethal contacts as a draw, then ignores further hits", () => {
     const b = make();

@@ -45,7 +45,7 @@ Supply your own `frost-spear.png`, or omit `image` to use the existing war-spear
 
 ## Fields
 
-The top level contains `version: 1`, a nonempty `revision` up to 64 characters, and `items` (6–1000 definitions). Array order determines shop order.
+The top level contains `version: 2`, a nonempty `revision` up to 64 characters, and `items` (6–1000 definitions). Array order determines shop order.
 
 | Field             | Contract                                                                                                                     |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -53,7 +53,7 @@ The top level contains `version: 1`, a nonempty `revision` up to 64 characters, 
 | `name`            | English display name, 1–36 characters                                                                                        |
 | `slot`            | `weapon`, `helmet`, `chest`, `utility` or `shield`                                                                           |
 | `price`           | Integer, 0–1,000,000 gold                                                                                                    |
-| `attack`, `armor` | Integer bonuses, 0–10,000 each                                                                                               |
+| `attack`, `armor` | Complete raw weapon/throwable damage and worn protection, 0–10,000 each                                                      |
 | `visual`          | Procedural fallback from the slot's list below; required even with a custom image                                            |
 | `weaponType`      | Weapon animation: `sword` (default) or `spear`; spears must use a spear fallback                                             |
 | `description`     | Optional English text, 1–64 characters                                                                                       |
@@ -113,10 +113,12 @@ Coordinates are logical pixels relative to the image grip before the rig's rotat
 
 If omitted, included drawings use their authored blade/head dimensions. Runtime images use a conservative estimated blade/head region; supply `hitbox` to align unusual artwork. If an image fails to decode, both the visual and collision profile use the procedural fallback, while live stats remain active. Existing session definitions stay stable until refresh. See [real-time combat](REALTIME_COMBAT.md).
 
-Utility records with `use: "throw"` launch from a belt with Q/E; `attack` supplies the throwable bonus. Optional `hitbox` also applies to throwables. `use: "drink"` requires a positive `heal` (1–100). The built-in potion uses `visual: "healing-potion"`, `heal: 35` and price 30. Carried utility stats do not stack into other actions. Each use consumes one copy at release/sip; thrown copies can be recovered from the ground with G, while used potions remain consumed. Consumables support repeat/bulk purchases and one copy per battle slot; prices, healing and artwork can be edited in JSON.
+Utility records with `use: "throw"` launch from a belt with Q/E; `attack` supplies the complete throwable damage. Optional `hitbox` also applies to throwables. `use: "drink"` requires a positive `heal` (1–100). The built-in potion uses `visual: "healing-potion"`, `heal: 35` and price 30. Carried utility stats do not stack into other actions. Each use consumes one copy at release/sip; thrown copies can be recovered from the ground with G, while used potions remain consumed. Consumables support repeat/bulk purchases and one copy per battle slot; prices, healing and artwork can be edited in JSON.
 
 `hands` is an optional weapon-only integer (1 or 2). Two-handed items reserve both hand slots but store one ID in `rightHand`. New fallback visuals are `greatsword`, `war-hammer` and `battle-axe`; all require `hands: 2`. Their matching weapon types are `sword`, `hammer` and `axe`. Hammer/axe types require the matching heavy fallback. Default hitboxes damage only the blade or heavy head; the shaft is reserved for the separate zero-damage shove. Valid custom definitions can use these existing animation/visual families without rebuilding.
 
-The `crossbow` fallback uses `weaponType: "crossbow"` and `hands: 2`. Its `attack` bonus applies to each bolt, not held-stock melee. The built-in renderer animates string tension and the loaded bolt. Bolts are runtime projectiles rather than catalog ownership records.
+The `crossbow` fallback uses `weaponType: "crossbow"` and `hands: 2`. Its `attack` damage applies to each bolt, not held-stock melee. The built-in renderer animates string tension and the loaded bolt. Bolts are runtime projectiles rather than catalog ownership records.
 
 Additional procedural visuals are `chainmail` (chest), `legionary-helm` (helmet), `trident` (weapon, `hands: 2`, `weaponType: "spear"`) and `speed-potion` (utility). The haste consumable uses `use: "drink"`, `effect: "haste"`, `durationMs: 10000`, `speedMultiplier: 2` and no heal field. Its displayed default duration and multiplier are validated together. The trident head hitbox is -195 to -144 with radius 17; its shaft cannot award damage.
+
+Version 2 stores complete raw damage in `attack`: no combat base bonus is added. For example, an 18-damage spear hitting 11 total worn armor removes 7 HP. Legacy version 1 catalogs are accepted and their weapon/throwable attack bonuses are normalized by +12 once at loading; new catalogs should use version 2. Armor fatigue thresholds derive internally from armor value and slot; they do not require new content fields or expose durability in the UI.

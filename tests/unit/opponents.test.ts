@@ -38,7 +38,7 @@ describe("random progressive enemy equipment", () => {
       for (let seed = 0; seed < 30; seed++) {
         const e = opponent(p, seeded(seed));
         expect(item(e.equipment.rightHand!)!.attack).toBeGreaterThanOrEqual(
-          [1, 4, 9][tier],
+          [13, 16, 21][tier],
         );
         if (tier > 0) {
           expect(item(e.equipment.body!)!.armor).toBe([0, 2, 5][tier]);

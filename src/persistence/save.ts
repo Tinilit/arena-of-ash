@@ -46,6 +46,18 @@ export function deserialize(raw: string | null): Player {
               n >= 1 &&
               n <= 1000000,
           ))) ||
+      (p.armorWear !== undefined &&
+        (!p.armorWear ||
+          Array.isArray(p.armorWear) ||
+          typeof p.armorWear !== "object" ||
+          !Object.entries(p.armorWear).every(
+            ([id, wear]) =>
+              p.inventory.includes(id) &&
+              ["helmet", "chest"].includes(item(id)?.slot ?? "") &&
+              Number.isFinite(wear) &&
+              wear >= 0 &&
+              wear <= 1000000000,
+          ))) ||
       (item(p.equipment.rightHand ?? "")?.hands === 2 &&
         Boolean(p.equipment.leftHand)) ||
       item(p.equipment.leftHand ?? "")?.hands === 2 ||
@@ -67,6 +79,7 @@ export function deserialize(raw: string | null): Player {
       gold: p.gold,
       inventory: p.inventory,
       quantities: p.quantities ?? {},
+      ...(p.armorWear ? { armorWear: p.armorWear } : {}),
       equipment: p.equipment,
       progress: p.progress,
       rewarded: p.rewarded,

@@ -85,7 +85,7 @@ describe("runtime content contract", () => {
     ],
     [
       "unsupported version",
-      (raw: ReturnType<typeof candidate>) => (raw.version = 2),
+      (raw: ReturnType<typeof candidate>) => (raw.version = 99),
     ],
   ])("rejects %s without changing the active catalog", (_name, mutate) => {
     const raw = candidate(),
@@ -158,7 +158,7 @@ describe("runtime content contract", () => {
     expect(p.gold).toBe(80);
     expect(stats(p).attack).toBe(29);
     expect(deserialize(serialize(p)).equipment.rightHand).toBe("test-spear");
-    expect(item("test-spear")?.attack).toBe(17);
+    expect(item("test-spear")?.attack).toBe(29);
   });
 });
 
@@ -260,4 +260,15 @@ it("drops retired belt items without losing coins or other equipment", () => {
   expect(loaded.inventory).not.toContain("flask");
   expect(loaded.equipment.belt1).toBeUndefined();
   expect(loaded.equipment.belt2).toBeUndefined();
+});
+
+it("normalizes legacy bonuses once while version 2 keeps complete damage", () => {
+  const legacy = candidate();
+  legacy.items.find((i) => i.id === "wood")!.attack = 6;
+  const normalized = parseCatalog(legacy);
+  expect(normalized.version).toBe(2);
+  expect(normalized.items.find((i) => i.id === "wood")!.attack).toBe(18);
+  expect(
+    parseCatalog(normalized).items.find((i) => i.id === "wood")!.attack,
+  ).toBe(18);
 });

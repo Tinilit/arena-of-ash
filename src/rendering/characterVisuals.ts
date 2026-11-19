@@ -148,16 +148,6 @@ export function drawPart(
     g.lineBetween(-22, 28, -4, 31);
     g.lineBetween(4, 31, 24, 28);
     g.lineBetween(0, 35, 0, 49);
-    g.fillStyle(p.cloth);
-    g.fillPoints(
-      [
-        { x: -29, y: 1 },
-        { x: -21, y: 0 },
-        { x: 30, y: 47 },
-        { x: 25, y: 56 },
-      ],
-      true,
-    );
     g.fillStyle(p.ink);
     g.fillRoundedRect(-27, 56, 54, 14, 3);
     g.fillStyle(p.metal);

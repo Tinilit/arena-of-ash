@@ -1,16 +1,6 @@
 import type { Player, Hand } from "../domain/model";
 import { stats, weaponForHand, primaryHand } from "../domain/progression";
 
-export const actions = {
-  quick: { multiplier: 1 },
-  shove: { multiplier: 0 },
-  finish: { multiplier: 1 },
-  kick: { multiplier: 0 },
-  heavy: { multiplier: 1.6 },
-  defend: { multiplier: 0 },
-  recover: { multiplier: 0 },
-};
-export type Action = keyof typeof actions;
 export interface Fighter {
   model: Player;
   hp: number;
@@ -21,21 +11,9 @@ export const fighter = (model: Player): Fighter => ({
   hp: stats(model).hp,
   guard: false,
 });
-export function damage(
-  a: Player,
-  d: Player,
-  multiplier: number,
-  critical: boolean,
-  guard: boolean,
-  hand?: Hand,
-) {
-  if (!weaponForHand(a, hand ?? primaryHand(a))) return 1;
-  const raw = Math.max(
-    1,
-    Math.round(stats(a, hand).attack * multiplier - stats(d).armor),
-  );
-  return Math.max(
-    1,
-    Math.round(raw * (critical ? 1.5 : 1) * (guard ? 0.5 : 1)),
-  );
+export function damageAfterArmor(raw: number, defender: Player) {
+  return Math.max(0, raw - stats(defender).armor);
+}
+export function damage(a: Player, d: Player, hand: Hand = primaryHand(a)) {
+  return damageAfterArmor(weaponForHand(a, hand)?.attack ?? 0, d);
 }

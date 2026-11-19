@@ -59,6 +59,7 @@ export interface Player {
   gold: number;
   inventory: string[];
   quantities?: Record<string, number>;
+  armorWear?: Record<string, number>;
   equipment: Partial<Record<EquipmentSlot, string>>;
   progress: number;
   rewarded: string[];

@@ -274,7 +274,9 @@ describe("physical hammer effects", () => {
     miss.resolve([empty, empty]);
     expect(roll).not.toHaveBeenCalled();
     const blocked = battle("war-hammer", random);
-    blocked.advance(0, [{ attack: "quick" }, { guard: true }]);
+    item("plate")!.armor = 30;
+    blocked.enemy.model.equipment.body = "plate";
+    blocked.advance(0, [{ attack: "quick" }, {}]);
     blocked.advance(700, [{}, { guard: true }]);
     blocked.resolve([geometry, geometry]);
     expect(roll).not.toHaveBeenCalled();

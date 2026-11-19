@@ -63,15 +63,15 @@ describe("two-handed ownership and contact rules", () => {
       expect(p.inventory).toContain(id);
     },
   );
-  it("keeps either unarmed fist at exactly one damage, including guard, armor and critical modifiers", () => {
+  it("disables both empty hands instead of substituting the other weapon", () => {
     const p = createPlayer(),
       e = createPlayer();
-    e.inventory.push("plate");
-    e.equipment.body = "plate";
-    for (const guard of [false, true])
-      expect(damage(p, e, 1.6, true, guard, "front")).toBe(1);
+    expect(damage(p, e, "front")).toBe(0);
     delete p.equipment.rightHand;
-    expect(damage(p, e, 1, true, false, "rear")).toBe(1);
+    expect(damage(p, e, "rear")).toBe(0);
+    const b = new RealtimeBattle(p, e);
+    expect(b.canAttack(b.player, "quick", "front")).toBe(false);
+    expect(b.canAttack(b.player, "quick", "rear")).toBe(false);
   });
   it("merges shared swing inputs and locks the supporting hand until recovery ends", () => {
     const b = make();

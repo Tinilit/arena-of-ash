@@ -1,7 +1,7 @@
 import type { Item, ItemImage, Slot } from "../domain/model";
 
 export interface Catalog {
-  version: 1;
+  version: 2;
   revision: string;
   items: Item[];
 }
@@ -88,7 +88,7 @@ export function parseCatalog(
 ): Catalog {
   const root = record(value);
   if (
-    root.version !== 1 ||
+    (root.version !== 1 && root.version !== 2) ||
     !Array.isArray(root.items) ||
     root.items.length < 6 ||
     root.items.length > 1000
@@ -188,7 +188,11 @@ export function parseCatalog(
       name: text(v.name, 36),
       slot,
       price: number(v.price, 0, 1000000, true),
-      attack: number(v.attack, 0, 10000, true),
+      attack:
+        number(v.attack, 0, 10000, true) +
+        (root.version === 1 && (slot === "weapon" || v.use === "throw")
+          ? 12
+          : 0),
       armor: number(v.armor, 0, 10000, true),
       visual: String(v.visual),
       ...(v.hands === undefined ? {} : { hands: v.hands as 1 | 2 }),
@@ -212,5 +216,5 @@ export function parseCatalog(
   for (const [id, slot] of Object.entries(required))
     if (!items.some((i) => i.id === id && i.slot === slot))
       throw Error(`Missing required item: ${id}`);
-  return { version: 1, revision, items };
+  return { version: 2, revision, items };
 }

@@ -12,6 +12,8 @@ import {
   backpack,
   availableQuantity,
   equipmentTarget,
+  sell,
+  salePrice,
 } from "../domain/progression";
 import { item } from "../data/catalog";
 import { drawGear } from "../rendering/characterVisuals";
@@ -109,24 +111,30 @@ export class CharacterScene extends BaseScene {
         ).setOrigin(0.5);
     });
     label(this, 855, 177, "BACKPACK · UNEQUIPPED", 21);
-    label(this, 855, 199, `Preferred: ${en.equipmentSlots[slot]}`, 14, "#b9aa8d");
+    label(
+      this,
+      855,
+      199,
+      `Preferred: ${en.equipmentSlots[slot]}`,
+      14,
+      "#b9aa8d",
+    );
     inventory.slice(page * 8, (page + 1) * 8).forEach((id, i) => {
       const def = item(id)!,
         y = 233 + i * 34;
       const target = equipmentTarget(p, id, slot);
-      const name = label(
+      label(
         this,
         855,
         y,
         `${def.name} ×${availableQuantity(p, id)}`,
-        16,
-      );
-      if (name.width > 225) name.setFontSize((16 * 225) / name.width);
+        14,
+      ).setWordWrapWidth(164, true);
       this.button(
         `equip-${id}`,
-        1168,
+        1067,
         y,
-        87,
+        75,
         en.equip,
         () => {
           if (equip(p, id, target)) {
@@ -136,6 +144,20 @@ export class CharacterScene extends BaseScene {
         },
         29,
       ).setEnabled(canEquip(p, id, target));
+      this.button(
+        `sell-${id}`,
+        1165,
+        y,
+        100,
+        `Sell ${salePrice(id)} ◈`,
+        () => {
+          if (sell(p, id)) {
+            this.services.save();
+            restart();
+          }
+        },
+        29,
+      );
     });
     if (!inventory.length)
       label(this, 855, 230, "All owned items are equipped", 17, "#b9aa8d");
@@ -161,13 +183,7 @@ export class CharacterScene extends BaseScene {
       30,
     ).setEnabled(page + 1 < pages);
     const st = stats(p);
-    label(
-      this,
-      65,
-      515,
-      `HP ${st.hp} • ATK ${st.attack} • ARM ${st.armor}`,
-      16,
-    );
+    label(this, 65, 515, `Health ${st.hp}`, 16);
     label(this, 430, 571, en.loadoutHint, 16, "#b9aa8d");
     label(
       this,

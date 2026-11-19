@@ -130,7 +130,7 @@ describe("throw preparation", () => {
   });
 });
 
-it("preserves live bonuses on active armor/weapon and ignores carried gear", () => {
+it("uses only selected weapon damage and worn armor, ignoring cross-category bonuses", () => {
   const p = createPlayer();
   p.gold = 1000;
   purchase(p, "rust");
@@ -142,8 +142,8 @@ it("preserves live bonuses on active armor/weapon and ignores carried gear", () 
   item("rust")!.attack = 999;
   item("throwing-axe")!.attack = 999;
   item("throwing-knife")!.armor = 999;
-  expect(stats(p).attack).toBe(16);
-  expect(stats(p).armor).toBe(4);
+  expect(stats(p).attack).toBe(13);
+  expect(stats(p).armor).toBe(2);
 });
 
 it("starts a second throw with a held prop and no stale release state", () => {

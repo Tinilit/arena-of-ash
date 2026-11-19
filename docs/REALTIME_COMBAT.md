@@ -16,7 +16,7 @@ Head/torso/limb capsules approximate their drawn silhouettes. They are geometric
 
 Light attacks are active during 45–67% of a 1000 ms action, followed by 280 ms cooldown. Each hand can start and recover independently; both may contact in the same step. The front kick deals zero HP damage and is active during 36–56% of 1050 ms with a 350 ms cooldown. Heavy attacks are disabled. Idle weapons, anticipation and recovery never deal damage. The sweep starts fresh when a contact window opens or either fighter flips facing, preventing phantom hits along an inactive/teleported path. Motion sampling uses endpoint travel and the smaller capsule radius; a coarse swept bounds test only rejects clearly separated pairs. It never directly awards damage.
 
-The resolver records the blade and body shape at the actual swept contact sample. Browser tests validate that they intersect and every HP decrement equals new contact events. No random hit/critical roll is used. A miss deals no damage. A confirmed contact always damages; fixed movement speeds do not depend on character attributes. Both lethal contacts in the same step produce a draw; further combat is frozen and rewards are granted once.
+The resolver records the blade and body shape at the actual swept contact sample. Browser tests validate that they intersect and every HP decrement equals new contact events. No random hit/critical roll is used. A miss deals no damage. A confirmed contact applies fixed weapon damage minus total worn helmet/chest armor, floored at zero; fixed movement speeds do not depend on character attributes. Both lethal contacts in the same step produce a draw; further combat is frozen and rewards are granted once.
 
 ## Movement and animation
 
@@ -48,7 +48,7 @@ References consulted: [Godot CharacterBody2D platformer example](https://docs.go
 
 Every fighter has 100 health and base unarmed attack 12. Equipment supplies attack and armor bonuses. There are no attributes, levels, XP or energy/stamina resource. Attack, hop and jump eligibility depends on physical state, stun and cooldowns. Player Defense/Recover controls remain absent; the AI can guard without energy costs.
 
-Each input explicitly selects the front/left or rear/right hand. An empty selected hand punches. The same selected weapon supplies animation, stats and the damaging capsule. The selected hand alone contributes the weapon bonus/contact; other equipped weapons never add an automatic second hit. Belt throwables use their own attack bonus; Q/E starts the rear-hand belt action. Potions heal once at the sip, without a projectile. Carried belt items do not add passive melee bonuses. See [equipment](EQUIPMENT.md).
+Each input explicitly selects the front/left or rear/right hand. An empty selected hand cannot attack. The same selected weapon supplies animation, stats and the damaging capsule. The selected hand alone contributes the weapon damage/contact; other equipped weapons never add an automatic second hit. Belt throwables use their own fixed damage; Q/E starts the rear-hand belt action. Potions heal once at the sip, without a projectile. Carried belt items do not add passive melee bonuses. See [equipment](EQUIPMENT.md).
 
 See [independent hand collision, pain/stun and kicking](MELEE_COMBAT.md) for action interrupts, recovery locks and the displacement-driven backwards stagger.
 
@@ -76,7 +76,7 @@ Drinking occupies the rear-hand track for 2100 ms, consumes/heals at 55% and cla
 
 C creates a separate parry state, requiring a held weapon and no active action/stun/knockdown. Its 140 ms window is active immediately; the pose raises the selected weapon, then recovers through the 450 ms action. A further 750 ms cooldown prevents repeat spam. Input repeats cannot restart the timer. An interruption retains the remaining cooldown.
 
-The resolver first gathers the same actual swept melee contacts used for damage. A frontal weapon/fist contact inside the window is marked `parried`, deals zero damage, and cancels both attacker hand tracks before applying 1000 ms stun. A confirmed success automatically extends the other open hand; 150 ms later it applies one 500 units/s shove with normal 600 units/s² friction. The 420 ms counter motion finishes before recovery. The shove adds no HP damage or knockdown and cannot reroll on repeated contact frames. Simultaneous hands are deflected together. Misses, late contacts, rear contacts, kicks and thrown equipment are not parried. A flying crossbow bolt has a separate physical weapon-interception path during the same window. Other hits cannot shorten the existing parry stun. No continuous player guard or energy resource is added.
+The resolver first gathers the same actual swept melee contacts used for damage. A frontal weapon contact inside the window is marked `parried`, deals zero damage, and cancels both attacker hand tracks before applying 1000 ms stun. A confirmed success automatically extends the other open hand; 150 ms later it applies one 500 units/s shove with normal 600 units/s² friction. The 420 ms counter motion finishes before recovery. The shove adds no HP damage or knockdown and cannot reroll on repeated contact frames. Simultaneous hands are deflected together. Misses, late contacts, rear contacts, kicks and thrown equipment are not parried. A flying crossbow bolt has a separate physical weapon-interception path during the same window. Other hits cannot shorten the existing parry stun. No continuous player guard or energy resource is added.
 
 ## Counts, collection and aftermath
 
@@ -96,7 +96,7 @@ Enemy backsteps use their own injected RNG. A grounded idle enemy notices each q
 
 ## Two-handed swings, shoves and finishers
 
-Bare fists deal exactly 1 HP independently of armor, guard and critical modifiers. Two-handed ownership uses one right-hand item and reserves the left hand. Either attack input starts one rear swing, with 1150/1350/1250 ms durations for sword/hammer/axe and 400 ms shared hand recovery. Existing one-handed tracks remain independent.
+Empty-hand light attacks are rejected for all fighters; punch animation clips remain available for future use. Two-handed ownership uses one right-hand item and reserves the left hand. Either attack input starts one rear swing, with 1150/1350/1250 ms durations for sword/hammer/axe and 400 ms shared hand recovery. Existing one-handed tracks remain independent.
 
 V starts an 800 ms grounded shaft push, active at 35–55%. The renderer supplies a capsule between both grip points; only physical capsule/body contact produces one zero-damage shove. It applies the existing 500 units/s impulse, 350 ms stun and 850 ms backward stagger without a knockdown roll.
 
@@ -131,3 +131,11 @@ Mouse targets are transformed through the logical gameplay camera. Crossbow IK p
 Inside the 140 ms parry window, an incoming frontal bolt must sweep into a real weapon surface to deflect. A separate RNG chooses a direction over the full circle. Reflection preserves speed/damage, transfers ownership to the defender and resets the previous sweep after clearing the contact surface. The bolt remains flying and can hit the original shooter. Deflection does not consume inventory, restart the parry window, roll melee disarm, stun the shooter or trigger the melee counter-shove. Late/missed interceptions hit normally; bolts remain ineligible for pickup.
 
 Fixed boss profiles scale the whole rendered rig and its body/weapon capsules together. HP comes from the profile; movement and quick-shot duration/reload modifiers remain independent of the temporary haste clock. Carry and execution coordinates account for actor scale without changing bone lengths or ownership. The ladder is based on persisted victory count and does not advance on defeat or an abandoned fight.
+
+## Fixed damage, fatigue and sales
+
+Catalog version 2 `attack` is the complete raw damage for melee, thrown items and bolts. `damageAfterArmor` subtracts only worn helmet and chest armor. Neither passive guard, critical rolls nor armor attack fields change it. Kicks, shoves and opponent throws remain nonlethal; paired executions consume remaining HP. Damage popups do not expose armor calculations.
+
+Each accepted, non-parried weapon/projectile hit fatigues both worn pieces by raw damage, including fully absorbed hits. Internal break thresholds are `max(30, 20 + armor * 10)` for helmets and `max(50, 30 + armor * 14)` for chest armor. Protection applies to the breaking hit; subsequent contacts use the remaining equipment. Same-step trades use a shared pre-break snapshot. Each destroyed copy is consumed once, leaves no pickup and produces visual debris. Spare copies never auto-equip. `armorWear` survives saves, matches and re-equipping; losing the final copy clears its wear.
+
+Character sells one available backpack copy for `floor(price / 2)` and saves immediately. Worn copies cannot be sold. AI uses its longest held weapon reach, approaches/retreats into a distance band, and closes inside grab range only for intentional grapples or weapon recovery.

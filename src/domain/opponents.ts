@@ -27,8 +27,8 @@ export function opponent(player: Player, random: Random = Math.random): Player {
   const weapons = items
     .filter((i) => i.slot === "weapon")
     .sort((a, b) => a.attack - b.attack || a.id.localeCompare(b.id));
-  const minimum = [0, 4, 9][tier],
-    maximum = [4, 9, Infinity][tier];
+  const minimum = [0, 16, 21][tier],
+    maximum = [16, 21, Infinity][tier];
   let pool = weapons.filter((i) => i.attack >= minimum && i.attack <= maximum);
   if (!pool.length) {
     const affordable = weapons.filter((i) => i.attack <= maximum);

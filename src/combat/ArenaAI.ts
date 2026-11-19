@@ -17,6 +17,7 @@ export class ArenaAI {
   private recoveryGoal?: number;
   private tacticalCooldown = 300;
   private drinkCooldown = 0;
+  private grappleApproach = 0;
   private parryPlans = new Map<
     number,
     { at: number; attempt: boolean; done: boolean }
@@ -177,6 +178,10 @@ export class ArenaAI {
         }
       }
     }
+    if (this.grappleApproach > 0 && !target.knockdown && this.ready(self)) {
+      this.lastDecision = "grapple";
+      return { grapple: gap <= 105, move: gap <= 105 ? 0 : toward, run: true };
+    }
     if (!this.ready(self) || this.tacticalCooldown > 0) return undefined;
     this.tacticalCooldown = self.model.combatProfile
       ? 450 + this.tacticsRandom() * 450
@@ -215,16 +220,17 @@ export class ArenaAI {
     }
     const choice = this.tacticsRandom();
     if (
-      gap < 100 &&
+      gap < 230 &&
       target.y === 0 &&
       !target.knockdown &&
       (self.grappleCooldown ?? 0) === 0 &&
       choice < 0.18
     ) {
       this.lastDecision = "grapple";
-      return { grapple: true };
+      this.grappleApproach = 1000;
+      return { grapple: gap <= 105, move: gap <= 105 ? 0 : toward, run: true };
     }
-    if (gap < 130 && choice < 0.45) {
+    if (gap < 130 && (choice < 0.45 || !armed)) {
       this.lastDecision = choice < 0.1 ? "jump-kick" : "kick";
       return { attack: "kick", jump: choice < 0.1 };
     }
@@ -236,7 +242,7 @@ export class ArenaAI {
       this.lastDecision = "forward-hop";
       return { hop: 1, move: 0 };
     }
-    if (gap < 185 && choice > 0.8) {
+    if (armed && gap < 185 && choice > 0.8) {
       this.lastDecision = "jump-attack";
       return {
         jump: true,
@@ -264,6 +270,7 @@ export class ArenaAI {
     target: ArenaFighter,
     ground: readonly Projectile[] = [],
   ): ArenaInput {
+    this.grappleApproach = Math.max(0, this.grappleApproach - delta);
     this.drinkCooldown = Math.max(0, this.drinkCooldown - delta);
     this.guardFor -= delta;
     this.jumpCooldown -= delta;
@@ -274,21 +281,21 @@ export class ArenaAI {
     const hands: Hand[] = (["rear", "front"] as Hand[]).filter((hand) =>
       weaponForHand(self.model, hand),
     );
-    if (!hands.length) hands.push("rear");
-    if (this.options.advanced !== false && !twoHandWeapon(self.model))
-      for (const hand of ["front", "rear"] as const)
-        if (!hands.includes(hand)) hands.push(hand);
+
     const reachFor = (hand: Hand) =>
       Math.max(
         85,
         Math.abs(weaponHitbox(weaponForHand(self.model, hand))?.startY ?? -60) +
           35,
       );
-    const reach = Math.min(...hands.map(reachFor));
+    const reach = hands.length
+      ? Math.max(...hands.map(reachFor)) * (self.model.combatProfile?.size ?? 1)
+      : 115;
+    const preferred = reach;
     const gap = Math.abs(target.x - self.x),
       toward = Math.sign(target.x - self.x);
     const input: ArenaInput = {
-      move: gap > reach ? toward : gap < 75 ? -toward : 0,
+      move: gap > preferred + 12 ? toward : gap < preferred - 20 ? -toward : 0,
       run: gap > 340,
       guard: this.guardFor > 0,
     };
@@ -413,8 +420,19 @@ export class ArenaAI {
       )
         continue;
       this.thinking[hand] = 250 + this.rng() * 350;
-      if (gap > reachFor(hand) + 20) continue;
-      if (!self.action && !input.attack && target.action && this.rng() < 0.16) {
+      if (
+        gap >
+        reachFor(hand) * (self.model.combatProfile?.size ?? 1) +
+          12 * (target.model.combatProfile?.size ?? 1)
+      )
+        continue;
+      if (
+        !self.action &&
+        !input.attack &&
+        target.action &&
+        this.rng() < 0.16 &&
+        this.options.advanced === false
+      ) {
         this.guardFor = 650;
         input.guard = true;
         return input;

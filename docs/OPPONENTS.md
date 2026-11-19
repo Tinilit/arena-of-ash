@@ -4,9 +4,9 @@ The player's `progress` is the number of victories and no longer stops at two. S
 
 | Victories | Rank              | Main/offhand weapon attack pool | Body / helmet                       |
 | --------- | ----------------- | ------------------------------- | ----------------------------------- |
-| 0–2       | Arena Novice      | 1–4                             | None                                |
-| 3–5       | Iron Pit Fighter  | 4–9                             | Weakest available body and helmet   |
-| 6+        | Veteran Gladiator | 9+                              | Strongest available body and helmet |
+| 0–2       | Arena Novice      | 13–16                           | None                                |
+| 3–5       | Iron Pit Fighter  | 16–21                           | Weakest available body and helmet   |
+| 6+        | Veteran Gladiator | 21+                             | Strongest available body and helmet |
 
 Pools come from the installed runtime catalog. If a band is empty, use the strongest available weapons within that tier’s upper budget. Offhand chance is `min(0.75, 0.2 + tier × 0.2 + victories × 0.01)`; the second weapon must have a different ID and compatible category. Its fallback uses the strongest other available weapon within the same upper budget when only one qualifies for the main-hand pool. Generated ownership contains exactly the equipped IDs. No shield or utility item is treated as a weapon.
 
@@ -23,3 +23,5 @@ AI waits at least six actor seconds between drink attempts, including interrupte
 The ladder places Cassian the Red at progress 5 (round 6), Brakka Stonefist at 11 (round 12) and Vesper Ashwind at 17 (round 18). Their immutable definitions live in `src/domain/ladder.ts`, including names, HP, scale, independent movement/attack multipliers and all equipped slots. Creation clones the definition and gives the enemy exactly the worn quantities, so consumptions/disarms never mutate the next retry. Custom catalogs fall back to compatible available gear. Defeat preserves progress; after 18 wins, all ladder entries remain defeated and ordinary elite exhibition matches continue uncapped.
 
 Boss AI makes tactical decisions every 450–900 actor milliseconds, prioritizes useful belt drinks and has an 80% eligible offensive belt-throw decision. Each belt slot contains one owned copy, consumed only at its normal release/sip. Healing thresholds use the fighter’s maximum HP. Vesper’s ranged policy continuously aims at the target torso or downed body; projectile travel remains physical. Timed AI bolt interceptions have a separate per-projectile attempt (45% for bosses, 28% otherwise) and require actual weapon contact.
+
+AI maintains a deadband around the longest equipped weapon reach instead of closing to an empty offhand. It retreats when crowded and deliberately approaches grab range for a chosen grapple. Empty hands never request light attacks.

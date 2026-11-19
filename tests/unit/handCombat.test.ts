@@ -26,15 +26,13 @@ const geometry = (front: number, rear: number, body = 0): CombatGeometry => ({
 });
 const active = (b: RealtimeBattle) => b.advance(550, [{}, {}]);
 describe("explicit hand attacks", () => {
-  it("uses the empty front hand's real fist and ignores the rear blade", () => {
+  it("rejects an empty front hand even when the rear blade touches", () => {
     const b = make();
     b.advance(0, [{ attack: "quick", hand: "front" }, {}]);
     active(b);
-    expect(b.resolve([geometry(100, 0), geometry(0, 0)])).toEqual([]);
-    const [hit] = b.resolve([geometry(0, 100), geometry(0, 0)]);
-    expect(hit.kind).toBe("punch");
-    expect(hit.hand).toBe("front");
-    expect(hit.damage).toBe(1);
+    expect(b.player.action).toBeNull();
+    expect(b.resolve([geometry(0, 0), geometry(0, 0)])).toEqual([]);
+    expect(b.enemy.hp).toBe(100);
   });
   it("uses the chosen second weapon's capsule and stats without a primary fallback", () => {
     const b = make();
@@ -47,14 +45,19 @@ describe("explicit hand attacks", () => {
     expect(hit.damage).toBe(22);
   });
   it.each(["front", "rear"] as Hand[])(
-    "can punch with an empty %s hand",
+    "rejects an empty %s hand for either fighter",
     (hand) => {
       const b = make();
       b.player.model.equipment = {};
-      b.advance(0, [{ attack: "quick", hand }, {}]);
-      expect(b.player.action?.hand).toBe(hand);
+      b.enemy.model.equipment = {};
+      b.advance(0, [
+        { attack: "quick", hand },
+        { attack: "quick", hand },
+      ]);
       active(b);
-      expect(b.resolve([geometry(0, 0), geometry(0, 0)])[0].kind).toBe("punch");
+      expect(b.player.action).toBeNull();
+      expect(b.enemy.action).toBeNull();
+      expect(b.resolve([geometry(0, 0), geometry(0, 0)])).toEqual([]);
     },
   );
   it("disables heavy attacks at the rules layer and enforces wind-up plus cooldown", () => {
@@ -250,7 +253,7 @@ it("a guarded front kick causes no damage and still forces balance recovery", ()
   b.advance(0, [{ attack: "kick" }, {}]);
   b.advance(420, [{}, { guard: true }]);
   const [hit] = b.resolve([geometry(0, 0), geometry(0, 0)]);
-  expect(hit.blocked).toBe(true);
+  expect(hit.blocked).toBe(false);
   expect(hit.damage).toBe(0);
   expect(b.enemy.reaction?.kind).toBe("stagger");
   expect(b.enemy.pushVx).toBe(500);

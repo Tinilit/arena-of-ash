@@ -54,6 +54,8 @@ export class ArenaScene extends BaseScene {
   private projectileMask!: Phaser.Display.Masks.GeometryMask;
   private geometry?: [CombatGeometry, CombatGeometry];
   private consumptionCursor = 0;
+  private armorBreakCursor = 0;
+  private armorRevision = 0;
   private collectionCursor = 0;
   private lootElapsed = 0;
   private pickupHint!: Phaser.GameObjects.Text;
@@ -76,6 +78,7 @@ export class ArenaScene extends BaseScene {
     this.queued = {};
     this.paused = false;
     this.consumptionCursor = this.collectionCursor = this.lootElapsed = 0;
+    this.armorBreakCursor = this.armorRevision = 0;
     const query = new URLSearchParams(location.search);
     this.autoBattle = !(import.meta.env.DEV && query.get("manual") === "1");
     this.aimActive = false;
@@ -478,7 +481,13 @@ export class ArenaScene extends BaseScene {
                 ? event.knockdown
                   ? "Knockdown"
                   : "Off balance"
-                : `${event.knockdown ? "Knockdown " : event.pushed ? "Pushed back " : ""}${event.blocked ? en.blocked + " " : ""}−${event.damage}`,
+                : event.knockdown
+                  ? "Knockdown"
+                  : event.pushed
+                    ? "Pushed back"
+                    : event.blocked
+                      ? "Armor hit"
+                      : "Hit",
       26,
       event.blocked ? "#9bc6d1" : "#f4e2bc",
     ).setOrigin(0.5);
@@ -527,8 +536,75 @@ export class ArenaScene extends BaseScene {
         this.scene.start("ResultScene", result),
       );
   }
+  private scatterArmor(entry: RealtimeBattle["armorBreaks"][number]) {
+    const index = this.battle.fighters.findIndex(
+      (f) => f.model.id === entry.ownerId,
+    );
+    const attachment = this.rigs[index].armorAttachment(entry.slot);
+    const art = drawGear(this, entry.itemId);
+    const bounds = art.getBounds();
+    const crack = this.add.graphics().lineStyle(2.5, 0xe1d6bc);
+    crack
+      .beginPath()
+      .moveTo(bounds.centerX - 16, bounds.centerY - 17)
+      .lineTo(bounds.centerX + 2, bounds.centerY - 4)
+      .lineTo(bounds.centerX - 6, bounds.centerY + 5)
+      .lineTo(bounds.centerX + 15, bounds.centerY + 19)
+      .strokePath();
+    art.add(crack).setDepth(30);
+    art
+      .setPosition(
+        attachment?.x ?? entry.point.x,
+        attachment?.y ?? entry.point.y,
+      )
+      .setScale(attachment?.scaleX ?? 1, attachment?.scaleY ?? 1)
+      .setRotation(attachment?.rotation ?? 0);
+    const direction = Math.random() < 0.5 ? -1 : 1;
+    const travel = direction * (90 + Math.random() * 70);
+    this.tweens.add({
+      targets: art,
+      x: art.x + travel * 0.5,
+      y: art.y - 65,
+      rotation: art.rotation + direction * 1.6,
+      duration: 230,
+      ease: "Sine.Out",
+      onComplete: () => {
+        this.tweens.add({
+          targets: art,
+          x: art.x + travel * 0.5,
+          y: arenaRules.floor + 80,
+          rotation: art.rotation + direction * 3,
+          alpha: 0,
+          duration: 650,
+          ease: "Quad.In",
+          onComplete: () => art.destroy(),
+        });
+      },
+    });
+    const labelText = label(
+      this,
+      entry.point.x,
+      entry.point.y - 35,
+      entry.slot === "helmet" ? "Helmet shattered" : "Armor shattered",
+      20,
+      "#e8bd72",
+    )
+      .setOrigin(0.5)
+      .setDepth(40);
+    this.tweens.add({
+      targets: labelText,
+      y: labelText.y - 45,
+      alpha: 0,
+      duration: 900,
+      onComplete: () => labelText.destroy(),
+    });
+    this.cameras.main.shake(90, 0.002);
+  }
   private persistItems() {
     let changed = false;
+    const breaks = this.battle.armorBreaks.slice(this.armorBreakCursor);
+    breaks.forEach((entry) => this.scatterArmor(entry));
+    this.armorBreakCursor = this.battle.armorBreaks.length;
     for (const entry of this.battle.consumedItems.slice(this.consumptionCursor))
       if (entry.ownerId === this.services.player.id)
         changed =
@@ -562,10 +638,21 @@ export class ArenaScene extends BaseScene {
         });
         changed = true;
       }
+    if (this.armorRevision !== this.battle.armorRevision) {
+      const wear = this.battle.player.model.armorWear ?? {};
+      if (
+        JSON.stringify(wear) !==
+        JSON.stringify(this.services.player.armorWear ?? {})
+      ) {
+        this.services.player.armorWear = { ...wear };
+        changed = true;
+      }
+      this.armorRevision = this.battle.armorRevision;
+    }
     this.consumptionCursor = this.battle.consumedItems.length;
     this.collectionCursor = this.battle.collectedItems.length;
     if (changed) this.services.save();
-    return changed;
+    return changed || breaks.length > 0;
   }
   update(_time: number, delta: number) {
     if (!this.battle || this.paused) return;
@@ -675,6 +762,7 @@ export class ArenaScene extends BaseScene {
         player: this.battle.player,
         enemy: this.battle.enemy,
         contacts: this.battle.contacts,
+        armorBreaks: this.battle.armorBreaks,
         projectiles: this.battle.projectiles,
         collectedItems: this.battle.collectedItems,
       }),

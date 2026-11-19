@@ -51,6 +51,10 @@ export class Gladiator {
   private beltItems: Phaser.GameObjects.Container[] = [];
   private throwProp!: Phaser.GameObjects.Graphics;
   private loadoutKey = "";
+  private armorArt: Partial<
+    Record<"helmet" | "body", Phaser.GameObjects.Container>
+  > = {};
+  private armorIds: Partial<Record<"helmet" | "body", string>> = {};
   private actionProps: Partial<
     Record<
       Hand,
@@ -126,15 +130,23 @@ export class Gladiator {
     const backTorso = joint("backTorso", pelvis, 0, 0);
     const torso = joint("torso", pelvis, 0, 0);
     torso.add(drawPart(scene, "torso", skin).setY(skeleton.torsoArtY));
-    if (model.equipment.body)
-      torso.add(
-        drawGear(scene, item(model.equipment.body) ?? "leather").setY(
-          skeleton.torsoArtY,
-        ),
-      );
+    if (model.equipment.body) {
+      this.armorArt.body = drawGear(
+        scene,
+        item(model.equipment.body) ?? "leather",
+      ).setY(skeleton.torsoArtY);
+      torso.add(this.armorArt.body);
+      this.armorIds.body = model.equipment.body;
+    }
     const head = joint("head", torso, 0, skeleton.headY, "head");
-    if (model.equipment.helmet)
-      head.add(drawGear(scene, item(model.equipment.helmet) ?? "cap"));
+    if (model.equipment.helmet) {
+      this.armorArt.helmet = drawGear(
+        scene,
+        item(model.equipment.helmet) ?? "cap",
+      );
+      head.add(this.armorArt.helmet);
+      this.armorIds.helmet = model.equipment.helmet;
+    }
     this.skirt = drawPart(scene, "pelvis", 0x3e5c61).setName("skirt");
     pelvis.add(this.skirt);
     // Front/rear describe direction toward the opponent, not camera depth.
@@ -236,6 +248,21 @@ export class Gladiator {
       : definition;
   }
   syncArena(f: ArenaFighter) {
+    for (const slot of ["helmet", "body"] as const) {
+      const id = f.model.equipment[slot];
+      if (id === this.armorIds[slot]) continue;
+      this.armorArt[slot]?.destroy();
+      delete this.armorArt[slot];
+      this.armorIds[slot] = id;
+      const definition = item(id ?? "");
+      if (definition) {
+        const art = drawGear(this.scene, definition).setY(
+          slot === "body" ? skeleton.torsoArtY : 0,
+        );
+        this.joints[slot === "body" ? "torso" : "head"].addAt(art, 1);
+        this.armorArt[slot] = art;
+      }
+    }
     this.equippedWeapon = primaryWeapon(f.model);
     this.primaryHand = primaryHand(f.model);
     const key = JSON.stringify(f.model.equipment);
@@ -615,6 +642,7 @@ export class Gladiator {
           ...vial.getWorldTransformMatrix().transformPoint(0, 15),
         },
       },
+      armor: { ...this.armorIds },
       scale: Math.abs(this.root.scaleY),
       near: {
         hip: point("nearThigh"),
@@ -636,6 +664,19 @@ export class Gladiator {
         heel: point("farFoot", -12, skeleton.soleY),
         toe: point("farFoot", 26, skeleton.soleY),
       },
+    };
+  }
+  armorAttachment(slot: "helmet" | "body") {
+    const art = this.armorArt[slot];
+    if (!art) return undefined;
+    const matrix = art.getWorldTransformMatrix();
+    const scaleX = this.bodyScale * this.direction;
+    return {
+      x: matrix.tx,
+      y: matrix.ty,
+      rotation: Math.atan2(matrix.b / scaleX, matrix.a / scaleX),
+      scaleX,
+      scaleY: this.bodyScale,
     };
   }
   setStance(stance: Stance) {
