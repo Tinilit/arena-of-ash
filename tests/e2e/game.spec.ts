@@ -603,6 +603,7 @@ test("invalid external data and undecodable image files keep the game playable",
 test("shields are absent and the free front arm stays behind the torso while the armed rear arm renders in front", async ({
   page,
 }) => {
+  await page.clock.install();
   await launch(page);
   await click(page, "shop");
   expect((await snapshot(page)).buttons["buy-shield"]).toBeUndefined();
@@ -630,16 +631,17 @@ test("shields are absent and the free front arm stays behind the torso while the
   await page.reload();
   await scene(page, "MainMenuScene");
   await frames(page);
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
   const equippedFloor = (await snapshot(page)).rigs![0].near.heel.y;
   await page.keyboard.press("Space");
-  await expect
-    .poll(async () => (await snapshot(page)).rigs![0].near.heel.y)
-    .toBeLessThan(equippedFloor - 25);
-  expect((await snapshot(page)).previewBounds!.y).toBeGreaterThan(270);
-  await shot(page, "camp-equipped-jump");
-  await expect
-    .poll(async () => (await snapshot(page)).rigs![0].animation)
-    .toBe("idleRelaxed");
+  await page.clock.runFor(500);
+  const jumping = await snapshot(page);
+  expect(jumping.rigs![0].near.heel.y).toBeLessThan(equippedFloor - 25);
+  expect(jumping.previewBounds!.y).toBeGreaterThan(270);
+  await page.screenshot({ path: "test-results/screenshots/camp-equipped-jump.png" });
+  await page.clock.runFor(800);
+  expect((await snapshot(page)).rigs![0].animation).toBe("idleRelaxed");
+  await page.clock.resume();
   await click(page, "character");
   await scene(page, "CharacterScene");
   await shot(page, "rig-armored-character");
