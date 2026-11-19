@@ -1,3 +1,4 @@
+import { twoHandPose } from "./twoHandMotion";
 import Phaser from "phaser";
 import type { ArenaFighter } from "../combat/realtime";
 import { item } from "../data/catalog";
@@ -27,7 +28,7 @@ export interface RigOptions {
 }
 export class Gladiator {
   readonly handMounts: Record<WeaponHand, Phaser.GameObjects.Container>;
-  readonly primaryHand: WeaponHand;
+  primaryHand: WeaponHand;
   root: Phaser.GameObjects.Container;
   animator: Animator;
   private joints: Record<string, Phaser.GameObjects.Container> = {};
@@ -60,6 +61,7 @@ export class Gladiator {
   > = {};
   private potion!: Phaser.GameObjects.Container;
   private guns!: ReturnType<typeof rangedPreview>[];
+  private equippedWeapon?: Item;
   private openPalm!: Phaser.GameObjects.Container;
   constructor(
     private scene: Phaser.Scene,
@@ -71,6 +73,7 @@ export class Gladiator {
     options: RigOptions = {},
   ) {
     const weapon = primaryWeapon(model);
+    this.equippedWeapon = weapon;
     this.primaryHand = options.weaponHand ?? primaryHand(model);
     this.animator = new Animator(equipmentMotion(weapon, this.primaryHand));
     this.animator.setIdle(
@@ -231,6 +234,8 @@ export class Gladiator {
       : definition;
   }
   syncArena(f: ArenaFighter) {
+    this.equippedWeapon = primaryWeapon(f.model);
+    this.primaryHand = primaryHand(f.model);
     const key = JSON.stringify(f.model.equipment);
     if (key !== this.loadoutKey) {
       this.loadoutKey = key;
@@ -317,6 +322,28 @@ export class Gladiator {
       );
   }
   applyPose(p: Pose, animation?: string) {
+    const sharedWeapon = this.equippedWeapon;
+    if (
+      sharedWeapon?.hands === 2 &&
+      (p.twoHanded ?? 0) < 0.99999 &&
+      !p.grappling &&
+      !p.shootPreview &&
+      !p.throwPreview &&
+      !p.drinkPreview &&
+      !p.farThrow &&
+      !p.nearThrow &&
+      ![
+        "pain",
+        "hit",
+        "parry",
+        "knockdown",
+        "down",
+        "getUp",
+        "carried",
+        "death",
+      ].includes(animation ?? this.animator.name)
+    )
+      p = twoHandPose(p, sharedWeapon);
     this.displayedPose = { ...p };
     this.displayedAnimation = animation;
     const solved = groundedPose(p);
@@ -333,11 +360,14 @@ export class Gladiator {
       const runtimeThrow = (p[`${prefix}Throw`] ?? 0) > 0.5,
         runtimeReleased = (p[`${prefix}Released`] ?? 0) > 0.5;
       const shoving = (p[`${prefix}Shove`] ?? 0) > 0.5;
+      const arm = hand === "rear" ? solved.farArm : solved.nearArm;
       weapon?.setRotation(
-        p[`${prefix}WeaponGrip`] ??
-          (hand === this.primaryHand
-            ? (p.weaponGrip ?? Math.PI / 2)
-            : (3 * Math.PI) / 4),
+        (p[`${prefix}WeaponAim`] ?? 0) > 0.5
+          ? p[`${prefix}WeaponAngle`]! - arm.angle - arm.bend - arm.wrist
+          : (p[`${prefix}WeaponGrip`] ??
+              (hand === this.primaryHand
+                ? (p.weaponGrip ?? Math.PI / 2)
+                : (3 * Math.PI) / 4)),
       );
       weapon?.setVisible(
         !grappling &&
@@ -365,6 +395,7 @@ export class Gladiator {
       }
       const closed =
         shooting ||
+        (p.twoHanded ?? 0) > 0.5 ||
         Boolean(weapon) ||
         (p[`${prefix}Fist`] ?? 0) > 0.5 ||
         (hand === "rear" && throwing && !released) ||
@@ -390,6 +421,7 @@ export class Gladiator {
     const frontThrow =
       grappling ||
       shooting ||
+      (p.nearStrike ?? 0) > 0.5 ||
       (p.nearThrow ?? 0) > 0.5 ||
       (p.nearShove ?? 0) > 0.5;
     const nearParent = frontThrow
@@ -510,6 +542,17 @@ export class Gladiator {
         headFront: this.joints.head.parentContainer === this.joints.frontTorso,
       },
       drinking: (this.displayedPose.drinkPreview ?? 0) > 0.5,
+      twoHanded: {
+        active: (this.displayedPose.twoHanded ?? 0) > 0.5,
+        supportGrip:
+          this.equippedWeapon?.hands === 2 && this.handWeapons.rear?.visible
+            ? {
+                ...this.handWeapons.rear
+                  .getWorldTransformMatrix()
+                  .transformPoint(0, -24),
+              }
+            : null,
+      },
       shooting: {
         kind: Math.round(this.displayedPose.shootPreview ?? 0),
         flash: (this.displayedPose.shotFlash ?? 0) > 0,
@@ -602,6 +645,10 @@ export class Gladiator {
     }
     return {
       blade: blades[this.primaryHand] ?? null,
+      shove:
+        (this.displayedPose.twoHanded ?? 0) > 0.5
+          ? capsule(point("farHand"), point("nearHand"), 12)
+          : undefined,
       grips: { front: point("nearHand"), rear: point("farHand") },
       launch: Object.fromEntries(
         Object.entries(this.actionProps)

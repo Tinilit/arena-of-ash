@@ -1,8 +1,10 @@
 import type { Player, Hand } from "../domain/model";
-import { stats } from "../domain/progression";
+import { stats, weaponForHand, primaryHand } from "../domain/progression";
 
 export const actions = {
   quick: { multiplier: 1 },
+  shove: { multiplier: 0 },
+  finish: { multiplier: 1 },
   kick: { multiplier: 0 },
   heavy: { multiplier: 1.6 },
   defend: { multiplier: 0 },
@@ -27,6 +29,7 @@ export function damage(
   guard: boolean,
   hand?: Hand,
 ) {
+  if (!weaponForHand(a, hand ?? primaryHand(a))) return 1;
   const raw = Math.max(
     1,
     Math.round(stats(a, hand).attack * multiplier - stats(d).armor),

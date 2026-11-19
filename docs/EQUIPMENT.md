@@ -22,3 +22,9 @@ A potion uses a 2100 ms rear-hand drinking action: raise, touch the open vial to
 Shop pages show eight definitions. The second page contains Viking Warhelm, both throwables and the potion. Runtime JSON/art updates remain file-based; supported `use` values are `throw` and `drink`. See [runtime content](RUNTIME_CONTENT.md), [throwing](THROW_ANIMATION.md) and [combat](REALTIME_COMBAT.md).
 
 Ownership uses unique definition IDs plus optional total `quantities`. Missing counts mean one for old saves. Save validation requires enough copies for every occupied slot; two identical weapons/consumables require two owned copies. Neither quantity nor the other hand stacks extra passive bonuses into an action.
+
+## Two-handed weapons
+
+The default catalog has 15 definitions. Greatsword, War Hammer and Battle Axe have `hands: 2` and live on shop page 2. Equip them in Right hand; Left hand displays Supporting grip and cannot carry another item. The item is owned once. Explicitly equipping a one-handed item into Left hand returns the two-handed weapon to the backpack; no ownership is deleted. Ground pickups preserve occupied hands and go into the backpack if both hands are not free.
+
+Either ordinary hand-attack input starts the shared rear-hand swing. The support hand is not an empty fist; Ctrl+front attack cannot throw it. Ctrl+rear attack can release the actual weapon. V pushes with the shaft; X performs a physical-contact finisher against a downed target. New weapon attack bonuses are 13/18/16, with 1150/1350/1250 ms swings and 400 ms shared recovery.

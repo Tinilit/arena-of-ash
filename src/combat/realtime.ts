@@ -13,7 +13,11 @@ import {
   pickupDistance,
   type Projectile,
 } from "./projectiles";
-import { primaryHand, weaponForHand } from "../domain/progression";
+import {
+  primaryHand,
+  weaponForHand,
+  twoHandWeapon,
+} from "../domain/progression";
 import { actions, damage, fighter, type Fighter } from "./engine";
 import { hopDefinitions, hopKind, type Hop } from "./hops";
 import {
@@ -45,15 +49,18 @@ export const knockdownTiming = {
   getUp: 1800,
   chance: 0.2,
 } as const;
+import { twoHandDuration } from "../characters/twoHandMotion";
 export const attackTimings = {
   quick: { duration: 1000, from: 0.45, to: 0.67 },
+  shove: { duration: 800, from: 0.35, to: 0.55 },
+  finish: { duration: 1000, from: 0.55, to: 0.8 },
   kick: { duration: 1050, from: 0.36, to: 0.56 },
   heavy: { duration: 1100, from: 0.46, to: 0.8 },
   throw: { duration: 850, from: 0.6, to: 0.6 },
   drink: { duration: 2100, from: 0.55, to: 0.55 },
   recover: { duration: 750, from: 1, to: 1 },
 } as const;
-export type Attack = "quick" | "heavy" | "kick" | "throw";
+export type Attack = "quick" | "heavy" | "kick" | "throw" | "shove" | "finish";
 export type ArenaAction = Attack | "recover" | "drink";
 export type ArenaState = "Fighting" | "Victory" | "Defeat" | "Draw";
 export interface ArenaInput {
@@ -132,7 +139,7 @@ export interface ContactEvent {
   blocked: boolean;
   parried?: boolean;
   knockdown: boolean;
-  kind: "weapon" | "punch" | "kick" | "projectile";
+  kind: "weapon" | "punch" | "kick" | "projectile" | "shove" | "finisher";
   hand: Hand;
   point: Point;
   blade: Capsule;
@@ -240,6 +247,24 @@ export class RealtimeBattle {
       this.state === "Fighting" &&
       f.hp > 0 &&
       name !== "heavy" &&
+      (name !== "shove" ||
+        (Boolean(twoHandWeapon(f.model)) &&
+          f.y === 0 &&
+          f.vy === 0 &&
+          !f.hop)) &&
+      (name !== "finish" ||
+        (Boolean(weaponForHand(f.model, hand)) &&
+          f.y === 0 &&
+          f.vy === 0 &&
+          !f.hop &&
+          this.fighters.find((t) => t !== f)?.knockdown?.phase === "down" &&
+          Math.abs(f.x - this.fighters.find((t) => t !== f)!.x) <= 260)) &&
+      (!twoHandWeapon(f.model) ||
+        ((hand === "rear" || name === "kick") &&
+          !f.handActions.front &&
+          !f.handActions.rear &&
+          f.handCooldowns.front === 0 &&
+          f.handCooldowns.rear === 0)) &&
       !f.knockdown &&
       !f.parry &&
       !f.grapple &&
@@ -310,7 +335,13 @@ export class RealtimeBattle {
         ? ["rightHand", "leftHand"]
         : ["belt1", "belt2"];
     if (slots.includes(p.sourceSlot)) slots.unshift(p.sourceSlot);
-    const slot = slots.find((s) => !f.model.equipment[s]);
+    const slot = slots.find(
+      (s) =>
+        !f.model.equipment[s] &&
+        (definition.hands !== 2 ||
+          (s === "rightHand" && !f.model.equipment.leftHand)) &&
+        (s !== "leftHand" || !twoHandWeapon(f.model)),
+    );
     if (slot) equip(f.model, p.itemId, slot);
     p.state = "pickedUp";
     this.collectedItems.push({
@@ -423,6 +454,8 @@ export class RealtimeBattle {
       (f === this.player || direction === -1) &&
       f.hp > 0 &&
       !f.grapple &&
+      f.action?.name !== "finish" &&
+      f.action?.name !== "shove" &&
       !f.knockdown &&
       f.stun === 0 &&
       !f.reaction &&
@@ -496,7 +529,13 @@ export class RealtimeBattle {
         if (!swing) continue;
         swing.elapsed += delta;
         if (swing.elapsed >= swing.duration) {
-          f.handCooldowns[hand] = 280;
+          f.handCooldowns[hand] =
+            twoHandWeapon(f.model) && swing.name === "quick" ? 400 : 280;
+          if (twoHandWeapon(f.model))
+            f.handCooldowns.front = f.handCooldowns.rear = Math.max(
+              f.handCooldowns.front,
+              f.handCooldowns.rear,
+            );
           f.handActions[hand] = null;
         }
       }
@@ -553,6 +592,10 @@ export class RealtimeBattle {
       if (c.belt) this.startBeltUse(f, c.belt);
       const hands = new Set(c.attacks ?? []);
       if (c.attack === "quick") hands.add(c.hand ?? primaryHand(f.model));
+      if (twoHandWeapon(f.model) && hands.size) {
+        hands.clear();
+        hands.add("rear");
+      }
       for (const hand of hands) {
         if (!this.canAttack(f, "quick", hand)) continue;
         f.handActions[hand] = {
@@ -560,7 +603,9 @@ export class RealtimeBattle {
           name: "quick",
           hand,
           elapsed: 0,
-          duration: attackTimings.quick.duration,
+          duration: twoHandWeapon(f.model)
+            ? twoHandDuration(twoHandWeapon(f.model)!)
+            : attackTimings.quick.duration,
           hit: false,
         };
         f.relaxed = false;
@@ -604,6 +649,8 @@ export class RealtimeBattle {
       if (f.guard) f.relaxed = false;
       if (
         c.jump &&
+        f.action?.name !== "finish" &&
+        f.action?.name !== "shove" &&
         !c.hop &&
         !f.hop &&
         !f.reaction &&
@@ -615,7 +662,10 @@ export class RealtimeBattle {
       }
       const running = c.run;
       const flyingKick = f.action?.name === "kick" && (f.y < 0 || f.vy < 0);
-      const movement = Math.max(-1, Math.min(1, c.move ?? 0));
+      const movement =
+        f.action?.name === "finish" || f.action?.name === "shove"
+          ? 0
+          : Math.max(-1, Math.min(1, c.move ?? 0));
       f.vx =
         movement *
         (running ? arenaRules.run : arenaRules.walk) *
@@ -761,14 +811,21 @@ export class RealtimeBattle {
         }
         if (swing.name === "recover" || swing.hit) continue;
         const weapon = weaponForHand(f.model, swing.hand);
+        if (
+          swing.name === "finish" &&
+          this.fighters[1 - i].knockdown?.phase !== "down"
+        )
+          continue;
         const shape = (g: CombatGeometry) =>
-          swing.name === "kick"
-            ? g.feet?.front
-            : weapon
-              ? g.blades
-                ? g.blades[swing.hand]
-                : g.blade
-              : g.hands?.[swing.hand];
+          swing.name === "shove"
+            ? g.shove
+            : swing.name === "kick"
+              ? g.feet?.front
+              : weapon
+                ? g.blades
+                  ? g.blades[swing.hand]
+                  : g.blade
+                : g.hands?.[swing.hand];
         const strike = shape(geometry[i]);
         if (!strike) continue;
         const timing = attackTimings[swing.name],
@@ -803,19 +860,30 @@ export class RealtimeBattle {
             id: swing.id,
             attackerId: f.model.id,
             defenderId: defender.model.id,
-            kind: swing.name === "kick" ? "kick" : weapon ? "weapon" : "punch",
+            kind:
+              swing.name === "shove"
+                ? "shove"
+                : swing.name === "finish"
+                  ? "finisher"
+                  : swing.name === "kick"
+                    ? "kick"
+                    : weapon
+                      ? "weapon"
+                      : "punch",
             hand: swing.hand,
             damage:
-              swing.name === "kick"
-                ? 0
-                : damage(
-                    f.model,
-                    defender.model,
-                    actions[swing.name].multiplier,
-                    false,
-                    defender.guard,
-                    swing.hand,
-                  ),
+              swing.name === "finish"
+                ? defender.hp
+                : swing.name === "kick" || swing.name === "shove"
+                  ? 0
+                  : damage(
+                      f.model,
+                      defender.model,
+                      actions[swing.name].multiplier,
+                      false,
+                      defender.guard,
+                      swing.hand,
+                    ),
             blocked: defender.guard,
             knockdown:
               swing.name === "kick" &&
@@ -926,23 +994,26 @@ export class RealtimeBattle {
       if (e.knockdown) defender.knockdown = { phase: "fall", elapsed: 0 };
       defender.stun = Math.max(
         defender.stun,
-        e.kind === "kick" ? arenaRules.kickStun : arenaRules.hitStun,
+        e.kind === "kick" || e.kind === "shove"
+          ? arenaRules.kickStun
+          : arenaRules.hitStun,
       );
       if (defender.reaction?.kind !== "parried")
         defender.reaction = e.knockdown
           ? null
           : {
               id: e.id,
-              kind: e.kind === "kick" ? "stagger" : "hit",
+              kind: e.kind === "kick" || e.kind === "shove" ? "stagger" : "hit",
               elapsed: 0,
               duration:
-                e.kind === "kick"
+                e.kind === "kick" || e.kind === "shove"
                   ? arenaRules.staggerDuration
                   : arenaRules.hitReaction,
               direction,
             };
       defender.pushVx =
-        direction * (e.kind === "kick" ? arenaRules.kickImpulse : 65);
+        direction *
+        (e.kind === "kick" || e.kind === "shove" ? arenaRules.kickImpulse : 65);
       defender.action = null;
       defender.parry = null;
       defender.hop = null;

@@ -5,6 +5,7 @@ import {
   primaryWeapon,
   primaryHand,
   weaponForHand,
+  twoHandWeapon,
 } from "../domain/progression";
 import type { Hand } from "../domain/model";
 import { activeActions, type ArenaFighter } from "../combat/realtime";
@@ -14,6 +15,7 @@ import { overhandThrowTiming } from "./throwMotion";
 import { hopPose } from "./hopPose";
 import { parryPose } from "./parryMotion";
 import { grapplePose } from "./grappleMotion";
+import { twoHandPose, finishPose } from "./twoHandMotion";
 const smooth = (value: number) => {
   const t = Math.max(0, Math.min(1, value));
   return t * t * (3 - 2 * t);
@@ -69,9 +71,19 @@ export class ArenaMotion {
     );
   }
   update(delta: number, f: ArenaFighter): Pose {
+    if (this.primary !== primaryHand(f.model)) {
+      this.primary = primaryHand(f.model);
+      this.movement = new Animator(
+        equipmentMotion(primaryWeapon(f.model), this.primary),
+      );
+      this.movementName = "";
+      this.pain = new Animator(
+        equipmentMotion(primaryWeapon(f.model), this.primary),
+      );
+    }
     for (const hand of ["front", "rear"] as const) {
       const weapon = weaponForHand(f.model, hand),
-        kind = weapon?.weaponType === "spear" ? "spear" : "sword";
+        kind = `${weapon?.weaponType ?? "sword"}-${weapon?.hands ?? 1}`;
       if (this.weaponKinds[hand] !== kind && !f.handActions[hand]) {
         this.actions[hand] = new Animator(equipmentMotion(weapon, hand));
         this.weaponKinds[hand] = kind;
@@ -326,6 +338,36 @@ export class ArenaMotion {
     }
     base.weaponGrip =
       base[`${this.primary === "rear" ? "far" : "near"}WeaponGrip`];
+    const twoHand = twoHandWeapon(f.model);
+    const shared = f.action;
+    if (
+      twoHand &&
+      !f.grapple &&
+      !f.parry &&
+      !f.reaction &&
+      (!shared || ["quick", "shove", "finish"].includes(shared.name))
+    ) {
+      Object.assign(
+        base,
+        twoHandPose(
+          base,
+          twoHand,
+          shared?.name,
+          shared ? shared.elapsed / shared.duration : 0,
+        ),
+      );
+      if (shared)
+        this.name =
+          shared.name === "quick"
+            ? `twoHand-${twoHand.weaponType}`
+            : shared.name;
+    } else if (shared?.name === "finish") {
+      Object.assign(
+        base,
+        finishPose(base, shared.hand, shared.elapsed / shared.duration),
+      );
+      this.name = "finish";
+    }
     if (f.grapple) {
       Object.assign(base, grapplePose(base, f.grapple));
       this.name =

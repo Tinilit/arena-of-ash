@@ -22,7 +22,9 @@ export function stats(p: Player, hand?: Hand) {
   const gear = [weapon, ...armor];
   return {
     hp: 100,
-    attack: 12 + gear.reduce((sum, entry) => sum + (entry?.attack ?? 0), 0),
+    attack: weapon
+      ? 12 + gear.reduce((sum, entry) => sum + (entry?.attack ?? 0), 0)
+      : 1,
     armor: gear.reduce((n, i) => n + (i?.armor ?? 0), 0),
   };
 }
@@ -44,7 +46,10 @@ export function purchase(p: Player, id: string, amount = 1) {
 export function canEquip(p: Player, id: string, slot: EquipmentSlot) {
   const i = item(id);
   return Boolean(
-    i && i.slot === slotCategory[slot] && p.inventory.includes(id),
+    i &&
+    i.slot === slotCategory[slot] &&
+    p.inventory.includes(id) &&
+    (i.hands !== 2 || slot === "rightHand"),
   );
 }
 export function equip(p: Player, id: string, slot: EquipmentSlot) {
@@ -57,6 +62,9 @@ export function equip(p: Player, id: string, slot: EquipmentSlot) {
     );
     if (worn) delete p.equipment[worn];
   }
+  if (i.hands === 2) delete p.equipment.leftHand;
+  else if (slot === "leftHand" && twoHandWeapon(p))
+    delete p.equipment.rightHand;
   p.equipment[slot] = id;
   return true;
 }
@@ -84,4 +92,10 @@ export function primaryHand(p: Player): "rear" | "front" {
 
 export function weaponForHand(p: Player, hand: Hand) {
   return item(p.equipment[handSlots[hand]] ?? "");
+}
+
+/** A two-handed item is owned once and reserves the opposite hand. */
+export function twoHandWeapon(p: Player) {
+  const weapon = item(p.equipment.rightHand ?? "");
+  return weapon?.hands === 2 ? weapon : undefined;
 }

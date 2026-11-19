@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "revision": "2026-11-18-throwables-potion",
+  "revision": "2026-11-19-two-handed-weapons",
   "items": [
     {
       "id": "wood",
@@ -121,6 +121,57 @@
       "use": "drink",
       "heal": 35,
       "description": "Belt consumable. Q/E drinks and restores up to 35 HP."
+    },
+    {
+      "id": "greatsword",
+      "name": "Two-handed Greatsword",
+      "slot": "weapon",
+      "price": 140,
+      "attack": 13,
+      "armor": 0,
+      "visual": "greatsword",
+      "weaponType": "sword",
+      "hands": 2,
+      "description": "Both hands. Wide overhead cuts. V shoves; X finishes.",
+      "hitbox": {
+        "startY": -150,
+        "endY": -38,
+        "radius": 7
+      }
+    },
+    {
+      "id": "war-hammer",
+      "name": "Two-handed War Hammer",
+      "slot": "weapon",
+      "price": 165,
+      "attack": 18,
+      "armor": 0,
+      "visual": "war-hammer",
+      "weaponType": "hammer",
+      "hands": 2,
+      "description": "Both hands. Weighty overhead blows and haft pushes.",
+      "hitbox": {
+        "startY": -147,
+        "endY": -113,
+        "radius": 18
+      }
+    },
+    {
+      "id": "battle-axe",
+      "name": "Two-handed Battle Axe",
+      "slot": "weapon",
+      "price": 155,
+      "attack": 16,
+      "armor": 0,
+      "visual": "battle-axe",
+      "weaponType": "axe",
+      "hands": 2,
+      "description": "Both hands. Chopping swings and close haft pushes.",
+      "hitbox": {
+        "startY": -146,
+        "endY": -101,
+        "radius": 18
+      }
     }
   ]
 }

@@ -7,7 +7,16 @@ export interface Catalog {
 }
 
 const visuals: Record<Slot, readonly string[]> = {
-  weapon: ["wood", "rust", "iron", "spear", "war-spear"],
+  weapon: [
+    "wood",
+    "rust",
+    "iron",
+    "spear",
+    "war-spear",
+    "greatsword",
+    "war-hammer",
+    "battle-axe",
+  ],
   helmet: ["cap", "viking"],
   chest: ["leather", "plate"],
   shield: ["shield", "tower"],
@@ -99,9 +108,27 @@ export function parseCatalog(
       throw Error("Invalid slot or fallback visual");
     if (
       v.weaponType !== undefined &&
-      (slot !== "weapon" || !["sword", "spear"].includes(String(v.weaponType)))
+      (slot !== "weapon" ||
+        !["sword", "spear", "hammer", "axe"].includes(String(v.weaponType)))
     )
       throw Error("Unsupported weapon type");
+    if (
+      v.hands !== undefined &&
+      (slot !== "weapon" || (v.hands !== 1 && v.hands !== 2))
+    )
+      throw Error("Only weapons can define one or two hands");
+    if ((v.weaponType === "hammer" || v.weaponType === "axe") && v.hands !== 2)
+      throw Error("Heavy axes and hammers require two hands");
+    if (
+      ["greatsword", "war-hammer", "battle-axe"].includes(String(v.visual)) &&
+      v.hands !== 2
+    )
+      throw Error("Two-handed visuals require both hands");
+    if (
+      (v.weaponType === "hammer") !== (v.visual === "war-hammer") ||
+      (v.weaponType === "axe") !== (v.visual === "battle-axe")
+    )
+      throw Error("Heavy weapon animation must match its fallback visual");
     const spearVisual = v.visual === "spear" || v.visual === "war-spear";
     if (slot === "weapon" && (v.weaponType === "spear") !== spearVisual)
       throw Error("Weapon animation must match its fallback visual");
@@ -133,6 +160,7 @@ export function parseCatalog(
       attack: number(v.attack, 0, 10000, true),
       armor: number(v.armor, 0, 10000, true),
       visual: String(v.visual),
+      ...(v.hands === undefined ? {} : { hands: v.hands as 1 | 2 }),
       ...(v.use === undefined ? {} : { use: v.use as Item["use"] }),
       ...(v.heal === undefined ? {} : { heal: number(v.heal, 1, 100, true) }),
       ...(v.weaponType === undefined

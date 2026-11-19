@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import liveItems from "../../public/content/items.json" with { type: "json" };
 import bundled from "../fixtures/catalog.json" with { type: "json" };
 import type { Player } from "../../src/domain/model";
 import { createPlayer } from "../../src/domain/model";
@@ -30,6 +31,7 @@ interface RigFrame {
 }
 interface Rig {
   shooting: { kind: number; flash: boolean };
+  twoHanded: { active: boolean; supportGrip: Point | null };
   drinking: boolean;
   drink: { vialVisible: boolean; mouth: Point; neck: Point; base: Point };
   physical: boolean;
@@ -1451,7 +1453,7 @@ test("a bare front fist deals contact damage while the rear weapon stays idle", 
   expect(hit).toBeTruthy();
   expect(hit!.hand).toBe("front");
   expect(hit!.kind).toBe("punch");
-  expect(hit!.damage).toBe(hit!.blocked ? 6 : 12);
+  expect(hit!.damage).toBe(1);
   expect(contact(hit!.blade, hit!.body)).not.toBeNull();
   await shot(page, "front-fist-physical-contact");
 });
@@ -2464,3 +2466,216 @@ test("H captures, holds an opponent overhead and throws into supported floor rec
   });
   await page.clock.resume();
 });
+
+async function twoHandFixture(page: Page, weapon = "greatsword") {
+  await page.route("**/content/items.json?_=*", (route) =>
+    route.fulfill({ json: liveItems }),
+  );
+  const p = createPlayer();
+  p.gold = 1000;
+  p.inventory.push("greatsword", "war-hammer", "battle-axe", "plate", "viking");
+  p.equipment = { rightHand: weapon, body: "plate", helmet: "viking" };
+  await savedFixture(page, p);
+}
+function sharedGrip(r: Rig) {
+  expect(r.twoHanded.active).toBe(true);
+  expect(r.weapons.filter((w) => w.visible)).toHaveLength(1);
+  expect(r.twoHanded.supportGrip).not.toBeNull();
+  expect(
+    Math.hypot(
+      r.near.hand.x - r.twoHanded.supportGrip!.x,
+      r.near.hand.y - r.twoHanded.supportGrip!.y,
+    ),
+  ).toBeLessThan(0.01);
+  anatomy(r, false);
+}
+for (const [weapon, duration] of [
+  ["greatsword", 1150],
+  ["war-hammer", 1350],
+  ["battle-axe", 1250],
+] as const)
+  test(`${weapon} holds one weapon with both hands through its own swing and air movement`, async ({
+    page,
+  }) => {
+    await twoHandFixture(page, weapon);
+    await page.clock.install();
+    await launch(page);
+    sharedGrip((await snapshot(page)).rigs![0]);
+    await click(page, "battle");
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
+    sharedGrip((await snapshot(page)).rigs![0]);
+    await page.keyboard.press("j");
+    await page.keyboard.press("k");
+    await page.clock.runFor(duration * 0.3);
+    let s = await snapshot(page);
+    sharedGrip(s.rigs![0]);
+    expect(s.battle!.player.handActions.front).toBeNull();
+    expect(s.battle!.player.handActions.rear?.duration).toBe(duration);
+    await page.screenshot({
+      path: `test-results/screenshots/${weapon}-backswing.png`,
+    });
+    await page.clock.runFor(duration * 0.3);
+    sharedGrip((await snapshot(page)).rigs![0]);
+    await page.screenshot({
+      path: `test-results/screenshots/${weapon}-swing.png`,
+    });
+    await page.clock.runFor(duration * 0.45 + 500);
+    await page.keyboard.press("Space");
+    await page.clock.runFor(100);
+    s = await snapshot(page);
+    expect(s.battle!.player.y).toBeLessThan(0);
+    sharedGrip(s.rigs![0]);
+    await page.clock.resume();
+  });
+
+test("shop offers all three two-handed weapons and equipping one releases the offhand into the backpack", async ({
+  page,
+}) => {
+  await twoHandFixture(page, "wood");
+  await launch(page);
+  await click(page, "character");
+  await click(page, "unequip-rightHand");
+  await click(page, "slot-leftHand");
+  await click(page, "equip-wood");
+  await click(page, "equip-greatsword");
+  let s = await snapshot(page);
+  expect(s.player.equipment.rightHand).toBe("greatsword");
+  expect(s.player.equipment.leftHand).toBeUndefined();
+  expect(s.player.inventory).toContain("wood");
+  sharedGrip(s.rigs![0]);
+  await page.screenshot({
+    path: "test-results/screenshots/two-handed-inventory.png",
+  });
+  await click(page, "back");
+  await click(page, "shop");
+  await click(page, "shop-next");
+  s = await snapshot(page);
+  for (const id of ["greatsword", "war-hammer", "battle-axe"])
+    expect(s.buttons[`buy-${id}`]).toBeTruthy();
+  await page.screenshot({
+    path: "test-results/screenshots/two-handed-shop.png",
+  });
+});
+async function approachClose(page: Page, range: number) {
+  await page.keyboard.down("d");
+  await page.keyboard.down("Shift");
+  for (let i = 0; i < 100; i++) {
+    const b = (await snapshot(page)).battle!;
+    if (Math.abs(b.enemy.x - b.player.x) <= range) break;
+    await page.clock.runFor(32);
+  }
+  await page.keyboard.up("d");
+  await page.keyboard.up("Shift");
+}
+test("V drives the held shaft into a nearby enemy and pushes without damage or a fall", async ({
+  page,
+}) => {
+  await twoHandFixture(page);
+  await page.clock.install();
+  await launch(page);
+  await click(page, "battle");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
+  await approachClose(page, 78);
+  for (let i = 0; i < 60; i++) {
+    const b = (await snapshot(page)).battle!;
+    if (
+      !b.player.action &&
+      b.player.stun === 0 &&
+      b.player.bodyCooldown === 0 &&
+      b.player.handCooldowns.rear === 0 &&
+      b.enemy.action &&
+      b.enemy.action.elapsed > 720
+    )
+      break;
+    await page.clock.runFor(32);
+  }
+  const before = (await snapshot(page)).battle!.enemy.hp;
+  await page.keyboard.press("v");
+  let hit: ContactEvent | undefined,
+    x = 0;
+  for (let i = 0; i < 35; i++) {
+    await page.clock.runFor(16);
+    const s = await snapshot(page);
+    hit = s.battle!.contacts.find((e) => e.kind === "shove");
+    if (hit) {
+      x = s.battle!.enemy.x;
+      sharedGrip(s.rigs![0]);
+      break;
+    }
+  }
+  expect(hit).toBeTruthy();
+  expect(hit!.damage).toBe(0);
+  expect(contact(hit!.blade, hit!.body)).not.toBeNull();
+  await page.screenshot({
+    path: "test-results/screenshots/two-handed-shove.png",
+  });
+  await page.clock.runFor(800);
+  const b = (await snapshot(page)).battle!;
+  expect(b.enemy.x - x).toBeGreaterThan(150);
+  expect(b.enemy.hp).toBe(before);
+  expect(b.enemy.knockdown).toBeNull();
+  await page.clock.resume();
+});
+for (const weapon of ["wood", "greatsword"])
+  test(`${weapon} physically finishes a grounded opponent in one hit with X`, async ({
+    page,
+  }) => {
+    await twoHandFixture(page, weapon);
+    await page.clock.install();
+    await launch(page);
+    await click(page, "battle");
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
+    await approachClose(page, 94);
+    for (let i = 0; i < 60; i++) {
+      const b = (await snapshot(page)).battle!;
+      if (b.enemy.grapple?.role === "target") break;
+      if (!b.player.grapple) await page.keyboard.press("h");
+      await page.clock.runFor(80);
+    }
+    expect((await snapshot(page)).battle!.enemy.grapple?.role).toBe("target");
+    await page.clock.runFor(1100);
+    await page.keyboard.press("h");
+    await page.clock.runFor(500);
+    await page.keyboard.down("d");
+    await page.keyboard.down("Shift");
+    let ready = false;
+    for (let i = 0; i < 60; i++) {
+      await page.clock.runFor(16);
+      const s = await snapshot(page),
+        b = s.battle!;
+      const parts = s.geometry![1].body.filter(
+        (c) => Math.min(c.a.y, c.b.y) > 440,
+      );
+      const left = Math.min(
+        ...parts.map((c) => Math.min(c.a.x, c.b.x) - c.radius),
+      );
+      if (b.enemy.knockdown?.phase === "down" && left - b.player.x <= 70) {
+        ready = true;
+        break;
+      }
+    }
+    await page.keyboard.up("d");
+    await page.keyboard.up("Shift");
+    expect(ready).toBe(true);
+    const hp = (await snapshot(page)).battle!.enemy.hp;
+    await page.keyboard.press("x");
+    await page.clock.runFor(300);
+    await page.screenshot({
+      path: `test-results/screenshots/${weapon}-finisher-windup.png`,
+    });
+    let hit: ContactEvent | undefined;
+    for (let i = 0; i < 50; i++) {
+      await page.clock.runFor(8);
+      const s = await snapshot(page);
+      hit = s.battle!.contacts.find((e) => e.kind === "finisher");
+      if (hit) break;
+    }
+    expect(hit).toBeTruthy();
+    expect(hit!.damage).toBe(hp);
+    expect(contact(hit!.blade, hit!.body)).not.toBeNull();
+    expect((await snapshot(page)).battle!.state).toBe("Victory");
+    await page.screenshot({
+      path: `test-results/screenshots/${weapon}-finisher-contact.png`,
+    });
+    await page.clock.resume();
+  });

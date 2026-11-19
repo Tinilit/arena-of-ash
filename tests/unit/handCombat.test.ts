@@ -34,7 +34,7 @@ describe("explicit hand attacks", () => {
     const [hit] = b.resolve([geometry(0, 100), geometry(0, 0)]);
     expect(hit.kind).toBe("punch");
     expect(hit.hand).toBe("front");
-    expect(hit.damage).toBe(12);
+    expect(hit.damage).toBe(1);
   });
   it("uses the chosen second weapon's capsule and stats without a primary fallback", () => {
     const b = make();

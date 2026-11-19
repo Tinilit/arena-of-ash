@@ -15,6 +15,12 @@ export function weaponHitbox(weapon?: Item): WeaponHitbox | null {
       radius: Math.max(1, Math.min(6, weapon.image.width * 0.2)),
     };
   }
+  if (weapon.visual === "greatsword")
+    return { startY: -150, endY: -38, radius: 7 };
+  if (weapon.visual === "war-hammer")
+    return { startY: -147, endY: -113, radius: 18 };
+  if (weapon.visual === "battle-axe")
+    return { startY: -146, endY: -101, radius: 18 };
   if (weapon.visual === "war-spear")
     return { startY: -150, endY: -113, radius: 6 };
   if (weapon.visual === "spear") return { startY: -132, endY: -99, radius: 5 };

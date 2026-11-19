@@ -46,6 +46,9 @@ export function deserialize(raw: string | null): Player {
               n >= 1 &&
               n <= 1000000,
           ))) ||
+      (item(p.equipment.rightHand ?? "")?.hands === 2 &&
+        Boolean(p.equipment.leftHand)) ||
+      item(p.equipment.leftHand ?? "")?.hands === 2 ||
       p.inventory.some((id) => equippedCount(p, id) > quantity(p, id)) ||
       !Object.entries(p.equipment).every(
         ([slot, id]) =>

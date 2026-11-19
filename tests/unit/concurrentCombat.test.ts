@@ -29,7 +29,7 @@ describe("independent hand actions", () => {
     b.advance(550, [{}, {}]);
     const hits = b.resolve([g, g]);
     expect(hits.map((h) => h.hand).sort()).toEqual(["front", "rear"]);
-    expect(b.enemy.hp).toBe(75);
+    expect(b.enemy.hp).toBe(86);
     expect(b.resolve([g, g])).toEqual([]);
   });
   it("starts the second hand during the first wind-up and keeps cooldowns independent", () => {
@@ -82,8 +82,8 @@ describe("independent hand actions", () => {
     b.advance(550, [{}, {}]);
     const hits = b.resolve([g, g]);
     expect(hits).toHaveLength(4);
-    expect(b.player.hp).toBe(75);
-    expect(b.enemy.hp).toBe(75);
+    expect(b.player.hp).toBe(86);
+    expect(b.enemy.hp).toBe(86);
     for (const f of b.fighters) {
       expect(f.handActions.front).toBeNull();
       expect(f.handActions.rear).toBeNull();

@@ -13,6 +13,7 @@ import {
   lightClip,
   staggerClip,
 } from "./meleeMotion";
+import { twoHandClip, finisherClip } from "./twoHandMotion";
 const base = groundedMotion.ash;
 let spearLibrary: Record<string, Clip> | undefined;
 /** Spears thrust; the equipment renderer does not alter combat rules. */
@@ -167,7 +168,7 @@ export function equipmentMotion(
   hand: WeaponHand = "rear",
 ): Record<string, Clip> {
   const spear = weapon?.weaponType === "spear",
-    key = `${hand}-${spear ? "spear" : "sword"}`;
+    key = `${hand}-${weapon?.hands === 2 ? weapon.weaponType + "-2h" : spear ? "spear" : "sword"}`;
   if (!libraries.has(key)) {
     const front = frontEquipmentMotion(weapon);
     const action = hand === "rear" ? rearHandMotion(front, spear) : front;
@@ -184,7 +185,13 @@ export function equipmentMotion(
       kick: kickClip,
       pain: painClip,
       staggerStep: staggerClip(hand),
-      quick: lightClip(action.quick),
+      quick:
+        weapon?.hands === 2 ? twoHandClip(weapon) : lightClip(action.quick),
+      shove: weapon?.hands === 2 ? twoHandClip(weapon, "shove") : action.quick,
+      finish:
+        weapon?.hands === 2
+          ? twoHandClip(weapon, "finish")
+          : finisherClip(hand),
     };
     library.idle = library.idleCombat;
     libraries.set(key, library);

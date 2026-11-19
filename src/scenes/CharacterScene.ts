@@ -146,7 +146,18 @@ export class CharacterScene extends BaseScene {
           },
           25,
         );
-      } else label(this, x, y + 3, en.empty, 17, "#9d947e").setOrigin(0.5);
+      } else
+        label(
+          this,
+          x,
+          y + 3,
+          position === "leftHand" &&
+            item(p.equipment.rightHand ?? "")?.hands === 2
+            ? "Supporting grip"
+            : en.empty,
+          14,
+          "#9d947e",
+        ).setOrigin(0.5);
     });
     for (const [kind, x] of [
       ["crossbow", 145],
@@ -174,19 +185,21 @@ export class CharacterScene extends BaseScene {
       const def = item(id)!,
         y = 233 + i * 34;
       const target =
-        def.slot === slotCategory[slot]
-          ? slot
-          : def.slot === "helmet"
-            ? "helmet"
-            : def.slot === "chest"
-              ? "body"
-              : def.slot === "utility"
-                ? !p.equipment.belt1
-                  ? "belt1"
-                  : "belt2"
-                : !p.equipment.rightHand
-                  ? "rightHand"
-                  : "leftHand";
+        def.hands === 2
+          ? "rightHand"
+          : def.slot === slotCategory[slot]
+            ? slot
+            : def.slot === "helmet"
+              ? "helmet"
+              : def.slot === "chest"
+                ? "body"
+                : def.slot === "utility"
+                  ? !p.equipment.belt1
+                    ? "belt1"
+                    : "belt2"
+                  : !p.equipment.rightHand
+                    ? "rightHand"
+                    : "leftHand";
       const name = label(
         this,
         855,

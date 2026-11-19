@@ -33,10 +33,13 @@ export function opponent(player: Player, random: Random = Math.random): Player {
   const equipment: Player["equipment"] = {};
   const main = pick(pool);
   if (main) equipment.rightHand = main.id;
-  if (random() < Math.min(0.75, 0.2 + tier * 0.2 + player.progress * 0.01)) {
-    const others = pool.filter((i) => i.id !== main?.id);
+  if (
+    random() < Math.min(0.75, 0.2 + tier * 0.2 + player.progress * 0.01) &&
+    main?.hands !== 2
+  ) {
+    const others = pool.filter((i) => i.id !== main?.id && i.hands !== 2);
     const fallback = weapons.filter(
-      (i) => i.id !== main?.id && i.attack <= maximum,
+      (i) => i.id !== main?.id && i.hands !== 2 && i.attack <= maximum,
     );
     const offhand = pick(others.length ? others : fallback.slice(-1));
     if (offhand) equipment.leftHand = offhand.id;

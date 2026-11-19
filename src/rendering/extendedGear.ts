@@ -3,6 +3,9 @@ export const extendedGearBounds: Record<
   string,
   [number, number, number, number]
 > = {
+  greatsword: [-27, -154, 54, 204],
+  "war-hammer": [-34, -151, 68, 204],
+  "battle-axe": [-34, -151, 68, 204],
   spear: [-15, -136, 30, 208],
   "war-spear": [-19, -154, 38, 244],
   viking: [-60, -83, 120, 104],
@@ -24,7 +27,81 @@ export function extendedGear(scene: Phaser.Scene, id: string) {
     g.fillPoints(points, true);
     g.strokePoints(points, true);
   };
-  if (id === "throwing-knife") {
+  if (["greatsword", "war-hammer", "battle-axe"].includes(id)) {
+    g.fillStyle(0x725035);
+    g.fillRoundedRect(-5, -125, 10, 172, 3);
+    g.strokeRoundedRect(-5, -125, 10, 172, 3);
+    g.fillStyle(0x3f3028);
+    g.fillRoundedRect(-7, -30, 14, 75, 3);
+    g.lineStyle(1, 0xc69b65);
+    for (let y = -24; y < 42; y += 6) g.lineBetween(-6, y, 6, y + 3);
+    g.lineStyle(2, ink);
+    g.fillStyle(trim);
+    g.fillCircle(0, 46, 6);
+    if (id === "greatsword") {
+      polygon(
+        [
+          { x: 0, y: -150 },
+          { x: 12, y: -129 },
+          { x: 11, y: -41 },
+          { x: 6, y: -33 },
+          { x: -6, y: -33 },
+          { x: -11, y: -41 },
+          { x: -12, y: -129 },
+        ],
+        metal,
+      );
+      g.lineStyle(2, light);
+      g.lineBetween(0, -143, 0, -40);
+      g.lineStyle(2, ink);
+      g.fillStyle(trim);
+      g.fillRoundedRect(-25, -36, 50, 8, 3);
+      g.strokeRoundedRect(-25, -36, 50, 8, 3);
+    } else if (id === "war-hammer") {
+      g.fillStyle(metal);
+      g.fillRoundedRect(-31, -146, 62, 29, 4);
+      g.strokeRoundedRect(-31, -146, 62, 29, 4);
+      g.fillStyle(light);
+      g.fillRect(-29, -143, 10, 23);
+      g.fillRect(19, -143, 10, 23);
+      g.fillStyle(trim);
+      g.fillRect(-10, -147, 20, 32);
+      g.strokeRect(-10, -147, 20, 32);
+    } else {
+      polygon(
+        [
+          { x: -5, y: -145 },
+          { x: 15, y: -142 },
+          { x: 32, y: -149 },
+          { x: 31, y: -115 },
+          { x: 22, y: -99 },
+          { x: 9, y: -109 },
+          { x: -5, y: -111 },
+        ],
+        metal,
+      );
+      polygon(
+        [
+          { x: 26, y: -146 },
+          { x: 32, y: -149 },
+          { x: 31, y: -115 },
+          { x: 22, y: -99 },
+          { x: 17, y: -105 },
+          { x: 25, y: -119 },
+        ],
+        light,
+      );
+      polygon(
+        [
+          { x: -5, y: -142 },
+          { x: -26, y: -135 },
+          { x: -30, y: -124 },
+          { x: -5, y: -120 },
+        ],
+        trim,
+      );
+    }
+  } else if (id === "throwing-knife") {
     polygon(
       [
         { x: 0, y: -55 },

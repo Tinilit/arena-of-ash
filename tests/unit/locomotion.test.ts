@@ -190,10 +190,12 @@ for (const hand of ["rear", "front"] as const)
           const angle =
             r +
             torso +
-            arm.angle +
-            arm.bend +
-            arm.wrist +
-            (p.weaponGrip ?? Math.PI / 2);
+            ((p[`${hand === "rear" ? "far" : "near"}WeaponAim`] ?? 0) > 0.5
+              ? p[`${hand === "rear" ? "far" : "near"}WeaponAngle`]!
+              : arm.angle +
+                arm.bend +
+                arm.wrist +
+                (p.weaponGrip ?? Math.PI / 2));
           const local = (y: number) => {
             const q = add(arm.hand, rotate({ x: 0, y }, angle));
             return rotate(

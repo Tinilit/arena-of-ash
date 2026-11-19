@@ -15,6 +15,8 @@ import { seeded } from "../utils/random";
 import {
   opponent,
   stats,
+  twoHandWeapon,
+  primaryHand,
   reward,
   consumeItem,
   addItem,
@@ -114,9 +116,31 @@ export class ArenaScene extends BaseScene {
     label(this, 855, 109, "HP", 14);
     this.status = label(this, 640, 92, en.fight, 23, "#e8bd72").setOrigin(0.5);
     label(this, 640, 166, en.arenaHint, 14).setOrigin(0.5);
-    this.pickupHint = label(this, 640, 561, "", 14, "#f4d18b")
-      .setOrigin(0.5)
+    this.pickupHint = label(this, 40, 570, "", 13, "#f4d18b")
+      .setOrigin(0, 0.5)
       .setDepth(50);
+    this.button(
+      "shove",
+      520,
+      570,
+      210,
+      "V  Weapon shove",
+      () => {
+        this.queued.attack = "shove";
+      },
+      26,
+    );
+    this.button(
+      "finish",
+      760,
+      570,
+      210,
+      "X  Finish grounded",
+      () => {
+        this.queued.attack = "finish";
+      },
+      26,
+    );
     this.button("parry", 90, 611, 150, "C  Parry", () => {
       this.queued.parry = true;
     });
@@ -247,6 +271,8 @@ export class ArenaScene extends BaseScene {
       if (key === "k" || key === "2") {
         this.queueHand("rear");
       }
+      if (key === "v") this.queued.attack = "shove";
+      if (key === "x") this.queued.attack = "finish";
       if (key === "f" || key === "3") this.queued.attack = "kick";
       if (key === " ") this.queueJump();
       if (key === "r") this.queued.toggleStance = true;
@@ -382,7 +408,26 @@ export class ArenaScene extends BaseScene {
     this.buttons["front-attack"].setEnabled(
       this.down("control")
         ? this.battle.canThrow(this.battle.player, "front")
-        : this.battle.canAttack(this.battle.player, "quick", "front"),
+        : this.battle.canAttack(
+            this.battle.player,
+            "quick",
+            twoHandWeapon(this.battle.player.model) ? "rear" : "front",
+          ),
+    );
+    this.buttons.shove.setEnabled(
+      this.battle.canAttack(this.battle.player, "shove"),
+    );
+    this.buttons.finish.setEnabled(
+      this.battle.canAttack(
+        this.battle.player,
+        "finish",
+        primaryHand(this.battle.player.model),
+      ),
+    );
+    this.buttons["front-attack"].setCaption(
+      twoHandWeapon(this.battle.player.model)
+        ? "LMB / J  Two-hand swing"
+        : "LMB / J  Front hand",
     );
     this.buttons.kick.setEnabled(
       this.battle.canAttack(this.battle.player, "kick"),
@@ -452,11 +497,15 @@ export class ArenaScene extends BaseScene {
       event.point.y,
       event.parried
         ? "Parry"
-        : event.kind === "kick"
-          ? event.knockdown
-            ? "Knockdown"
-            : "Off balance"
-          : `${event.blocked ? en.blocked + " " : ""}−${event.damage}`,
+        : event.kind === "finisher"
+          ? "Finisher"
+          : event.kind === "shove"
+            ? "Pushed back"
+            : event.kind === "kick"
+              ? event.knockdown
+                ? "Knockdown"
+                : "Off balance"
+              : `${event.blocked ? en.blocked + " " : ""}−${event.damage}`,
       26,
       event.blocked ? "#9bc6d1" : "#f4e2bc",
     ).setOrigin(0.5);
