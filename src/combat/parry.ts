@@ -3,4 +3,6 @@ export const parryRules = {
   duration: 450,
   cooldown: 750,
   stun: 1000,
+  shoveImpact: 150,
+  shoveDuration: 420,
 } as const;

@@ -20,6 +20,7 @@ import { Animator, type Pose } from "./animation";
 import type { CombatGeometry, Capsule } from "../combat/geometry";
 import { weaponHitbox } from "../combat/weaponGeometry";
 import { itemTextureKey } from "../content/textures";
+import { rangedPreview } from "../rendering/rangedPreview";
 export interface RigOptions {
   weaponHand?: WeaponHand;
   stance?: Stance;
@@ -58,6 +59,7 @@ export class Gladiator {
     >
   > = {};
   private potion!: Phaser.GameObjects.Container;
+  private guns!: ReturnType<typeof rangedPreview>[];
   private openPalm!: Phaser.GameObjects.Container;
   constructor(
     private scene: Phaser.Scene,
@@ -193,6 +195,14 @@ export class Gladiator {
     this.potion.setRotation(0.4);
     farHand.addAt(this.potion, 0);
     this.potion.setVisible(false);
+    this.guns = [
+      rangedPreview(scene, "crossbow"),
+      rangedPreview(scene, "rifle"),
+    ];
+    for (const gun of this.guns) {
+      frontTorso.addAt(gun.prop, 0);
+      gun.prop.setVisible(false);
+    }
     for (const [i, position] of (["belt1", "belt2"] as const).entries()) {
       const definition = item(model.equipment[position] ?? "");
       if (definition) {
@@ -313,11 +323,16 @@ export class Gladiator {
     const throwing = (p.throwPreview ?? 0) > 0.01,
       released = (p.throwReleased ?? 0) > 0.5;
     const drinking = (p.drinkPreview ?? 0) > 0.5;
+    const shooting = (p.shootPreview ?? 0) > 0.5;
+    const grappling = (p.grappling ?? 0) > 0.5;
+    this.root.setDepth((p.carried ?? 0) > 0 ? 5 : 0);
+    this.shadow.setVisible(!(p.held ?? 0));
     for (const hand of ["rear", "front"] as const) {
       const prefix = hand === "rear" ? "far" : "near",
         weapon = this.handWeapons[hand];
       const runtimeThrow = (p[`${prefix}Throw`] ?? 0) > 0.5,
         runtimeReleased = (p[`${prefix}Released`] ?? 0) > 0.5;
+      const shoving = (p[`${prefix}Shove`] ?? 0) > 0.5;
       weapon?.setRotation(
         p[`${prefix}WeaponGrip`] ??
           (hand === this.primaryHand
@@ -325,7 +340,11 @@ export class Gladiator {
             : (3 * Math.PI) / 4),
       );
       weapon?.setVisible(
-        !runtimeThrow && !(hand === "rear" && (throwing || drinking)),
+        !grappling &&
+          !shooting &&
+          !shoving &&
+          !runtimeThrow &&
+          !(hand === "rear" && (throwing || drinking)),
       );
       const prop = this.actionProps[hand];
       if (prop) {
@@ -345,6 +364,7 @@ export class Gladiator {
         );
       }
       const closed =
+        shooting ||
         Boolean(weapon) ||
         (p[`${prefix}Fist`] ?? 0) > 0.5 ||
         (hand === "rear" && throwing && !released) ||
@@ -352,22 +372,31 @@ export class Gladiator {
         (hand === "rear" && drinking);
       this.palms[hand].setVisible(
         closed &&
+          !grappling &&
+          !shoving &&
           !(hand === "rear" && throwing && released) &&
           !(runtimeThrow && runtimeReleased),
       );
       this.relaxedPalms[hand].setVisible(
-        (!closed || (runtimeThrow && runtimeReleased)) &&
+        (grappling ||
+          shoving ||
+          !closed ||
+          (runtimeThrow && runtimeReleased)) &&
           !(hand === "rear" && throwing),
       );
     }
     this.throwProp.setVisible(throwing && !released);
     this.potion.setVisible(drinking && !this.actionProps.rear);
-    const frontThrow = (p.nearThrow ?? 0) > 0.5;
+    const frontThrow =
+      grappling ||
+      shooting ||
+      (p.nearThrow ?? 0) > 0.5 ||
+      (p.nearShove ?? 0) > 0.5;
     const nearParent = frontThrow
       ? this.joints.frontTorso
       : this.joints.backTorso;
     if (this.joints.nearArm.parentContainer !== nearParent)
-      nearParent.addAt(this.joints.nearArm, 0);
+      nearParent.addAt(this.joints.nearArm, shooting ? 2 : 0);
     this.openPalm.setVisible(throwing && released);
     // The rear arm stays in front of the entire torso/head plane throughout
     // throwing. Keep depth fixed instead of hiding a moving hand with the head.
@@ -391,6 +420,19 @@ export class Gladiator {
       this.originX + solved.root.x * this.bodyScale * this.direction;
     this.root.y = this.originY + solved.root.y * this.bodyScale;
     this.root.rotation = solved.root.rotation * this.direction;
+    const handPosition = this.joints.farHand
+      .getWorldTransformMatrix()
+      .transformPoint(0, 0);
+    const localGun = this.joints.frontTorso
+      .getWorldTransformMatrix()
+      .applyInverse(handPosition.x, handPosition.y);
+    this.guns.forEach((gun, i) => {
+      gun.prop
+        .setVisible(Math.round(p.shootPreview ?? 0) === i + 1)
+        .setPosition(localGun.x, localGun.y)
+        .setRotation(-solved.root.rotation - solved.torso);
+      gun.flash.setVisible(Math.round(p.shotFlash ?? 0) === i + 1);
+    });
     let floorShadowX: number | undefined;
     if ((p.bodyFloor ?? 0) > 0) {
       // A rotated helmet can project beyond the unarmored head envelope.
@@ -468,6 +510,10 @@ export class Gladiator {
         headFront: this.joints.head.parentContainer === this.joints.frontTorso,
       },
       drinking: (this.displayedPose.drinkPreview ?? 0) > 0.5,
+      shooting: {
+        kind: Math.round(this.displayedPose.shootPreview ?? 0),
+        flash: (this.displayedPose.shotFlash ?? 0) > 0,
+      },
       drink: {
         vialVisible: vial.visible,
         mouth: point("head", 25, 4),

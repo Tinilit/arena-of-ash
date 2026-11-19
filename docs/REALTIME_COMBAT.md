@@ -62,7 +62,7 @@ Combat key commands use physical `KeyboardEvent.code`, with a symbol fallback fo
 
 `handActions` and `handCooldowns` are keyed by front/rear; `bodyAction` and `bodyCooldown` handle kicks/recovery. `action` and `attackCooldown` are aggregate presentation views, never the eligibility lock for a hand. Input queues retain both hand requests from the same rendered frame. Contact sweep histories track each swing ID separately, and all hits are collected before shared pain/stun clears both hands. No idle or inactive hand inherits the other hand's hit window.
 
-Enemy loadouts use a separate seeded stream from AI and kick knockdown. Wins are uncapped; three equipment tiers improve main/offhand weapon pools and helmet/body armor. AI considers each equipped hand's reach and cooldown, allowing overlapping attacks. Shields are absent and bots do not request belt actions, parries, pickups, kicks or directional hops. Rare weapon throws use their own RNG and interval. See [enemy generation](OPPONENTS.md).
+Enemy loadouts use a separate seeded stream from AI and kick knockdown. Wins are uncapped; three equipment tiers improve main/offhand weapon pools and helmet/body armor. AI considers each equipped hand's reach and cooldown, allowing overlapping attacks. Shields are absent and bots do not request belt actions, parries, pickups, kicks or forward hops. Rare weapon throws use their own RNG and interval. See [enemy generation](OPPONENTS.md).
 
 ## Released items and healing
 
@@ -76,7 +76,7 @@ Drinking occupies the rear-hand track for 2100 ms, consumes/heals at 55% and cla
 
 C creates a separate parry state, requiring a held weapon and no active action/stun/knockdown. Its 140 ms window is active immediately; the pose raises the selected weapon, then recovers through the 450 ms action. A further 750 ms cooldown prevents repeat spam. Input repeats cannot restart the timer. An interruption retains the remaining cooldown.
 
-The resolver first gathers the same actual swept melee contacts used for damage. A frontal weapon/fist contact inside the window is marked `parried`, deals zero damage, and cancels both attacker hand tracks before applying 1000 ms stun and a short off-balance recoil. Simultaneous hands are deflected together. Misses, late contacts, rear contacts, kicks and projectiles are not parried. Other hits cannot shorten the existing parry stun. No continuous player guard or energy resource is added.
+The resolver first gathers the same actual swept melee contacts used for damage. A frontal weapon/fist contact inside the window is marked `parried`, deals zero damage, and cancels both attacker hand tracks before applying 1000 ms stun. A confirmed success automatically extends the other open hand; 150 ms later it applies one 500 units/s shove with normal 600 units/s² friction. The 420 ms counter motion finishes before recovery. The shove adds no HP damage or knockdown and cannot reroll on repeated contact frames. Simultaneous hands are deflected together. Misses, late contacts, rear contacts, kicks and projectiles are not parried. Other hits cannot shorten the existing parry stun. No continuous player guard or energy resource is added.
 
 ## Counts, collection and aftermath
 
@@ -85,3 +85,11 @@ The resolver first gathers the same actual swept melee contacts used for damage.
 G selects the nearest landed projectile within an 85-unit pickup reach of its grip/blade span. The collector must be alive, grounded and free of action/stun/knockdown. Airborne/spent/expired/already-collected projectiles cannot be collected. One transition to `pickedUp` adds one copy and records its collector/target slot in `collectedItems`. Original empty compatible slots are preferred; occupied equipment is preserved and a full loadout receives the item in its backpack. Scene cursors mirror consumption and collection to the persistent player exactly once. `ArenaMotion` refreshes hand animation libraries when a collected weapon changes sword/spear type.
 
 `advanceAftermath` settles projectiles and moves the winner without further combat contacts. Continue opens ResultScene. This lets a lethal thrown item land and be recovered before the next match. Rewards remain idempotent and are granted on the original outcome, not on collection or Continue.
+
+## Reactive backsteps and coupled grabs
+
+Enemy backsteps use their own injected RNG. A grounded idle enemy notices each quick/kick action once between 120 ms and 45% of its duration, within weapon reach plus an approach margin. With at least 90 units behind, a 35% roll starts a regular backstep and a 2200 ms decision cooldown. There is no invulnerability; rendered weapons can still connect. Bots cannot forward-hop.
+
+`combat/grapples.ts` owns a single coupled grab. H requires both actors grounded, alive and within 105 units; the lifter must be free of actions and pain. After 420 ms anticipation it rechecks range and captures the target, cancelling its actions. Moving out of reach or interrupting the lifter cancels capture. The 1000 ms lift translates and rotates the opponent above the lifter; both actors are locked until release, with the normal separator temporarily disabled. A second H queues the throw, including during anticipation/lifting. Hold otherwise waits for the command. Release at 170 ms starts a constrained ballistic flight (360 horizontal, 280 upward, normal arena gravity); the 480 ms lifter motion then finishes. Landing transfers to the existing grounded hold and heavy get-up. No HP damage, item consumption or random knockdown roll occurs. Leaving the fight cancels the hold.
+
+`grappleMotion.ts` layers fixed-length IK hands and a horizontal carried-body pose over the pure state. `shootMotion.ts` provides separate harmless crossbow/rifle previews with two-handed aiming, one shot marker, recoil and controlled lowering; `rangedPreview.ts` draws their temporary props. Camp U/I and Character buttons expose them without changing catalog or combat.

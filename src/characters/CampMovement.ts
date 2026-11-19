@@ -46,6 +46,16 @@ export class CampMovement {
       this.action = "";
     });
   }
+  shoot(kind: "crossbow" | "rifle") {
+    if (this.jumping) return;
+    this.jumping = true;
+    this.action = kind === "crossbow" ? "shootCrossbow" : "shootRifle";
+    this.demo = undefined;
+    this.rig.play(this.action, undefined, () => {
+      this.jumping = false;
+      this.action = "";
+    });
+  }
   jump() {
     if (this.jumping) return;
     this.jumping = true;

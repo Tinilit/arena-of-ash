@@ -3,7 +3,7 @@ export const en = {
   draw: "DRAW",
   guarding: "3  Guarding • tap to release",
   arenaHint:
-    "A/D move • Shift run • Space jump • A/D+Space hop • LMB/J front • RMB/K rear • Ctrl+attack throw • Q/E belt • F kick • C parry • G pick up • R stance • Esc camp",
+    "A/D move • Shift run • Space jump • A/D+Space hop • LMB/J front • RMB/K rear • Ctrl+attack throw • Q/E belt • F kick • C parry • G pick up • H lift/throw • R stance • Esc camp",
   backHop: "Backhop",
   forwardHop: "Hop",
   movementHint:

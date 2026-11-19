@@ -2,21 +2,25 @@ import { weaponForHand } from "../domain/progression";
 import { weaponHitbox } from "./weaponGeometry";
 import type { Random } from "../utils/random";
 import type { Hand } from "../domain/model";
-import type { ArenaFighter, ArenaInput } from "./realtime";
+import { activeActions, type ArenaFighter, type ArenaInput } from "./realtime";
 export class ArenaAI {
   private thinking: Record<Hand, number> = { rear: 450, front: 650 };
   private guardFor = 0;
   private jumpCooldown = 1600;
   private throwCooldown = 1800;
   private throwsRemaining = 1;
+  private dodgeCooldown = 0;
+  private noticed = new Set<number>();
   constructor(
     private rng: Random,
     private throwRandom: Random = Math.random,
+    private dodgeRandom: Random = Math.random,
   ) {}
   update(delta: number, self: ArenaFighter, target: ArenaFighter): ArenaInput {
     this.guardFor -= delta;
     this.jumpCooldown -= delta;
     this.throwCooldown -= delta;
+    this.dodgeCooldown = Math.max(0, this.dodgeCooldown - delta);
     for (const hand of ["rear", "front"] as const) this.thinking[hand] -= delta;
     const hands: Hand[] = (["rear", "front"] as Hand[]).filter((hand) =>
       weaponForHand(self.model, hand),
@@ -37,6 +41,7 @@ export class ArenaAI {
       guard: this.guardFor > 0,
     };
     if (
+      self.grapple ||
       self.knockdown ||
       self.stun > 0 ||
       self.reaction ||
@@ -44,6 +49,38 @@ export class ArenaAI {
       self.bodyCooldown > 0
     )
       return input;
+    if (self.hop) return { ...input, move: 0, guard: false };
+    if (
+      !self.action &&
+      !self.parry &&
+      self.y === 0 &&
+      self.vy === 0 &&
+      self.hopCooldown === 0 &&
+      this.dodgeCooldown === 0
+    ) {
+      const threat = activeActions(target).find(
+        (a) =>
+          (a.name === "quick" || a.name === "kick") &&
+          a.elapsed >= 120 &&
+          a.elapsed <= a.duration * 0.45 &&
+          !this.noticed.has(a.id),
+      );
+      if (threat) {
+        this.noticed.add(threat.id);
+        if (this.noticed.size > 32)
+          this.noticed.delete(this.noticed.values().next().value!);
+        const threatReach =
+          Math.abs(
+            weaponHitbox(weaponForHand(target.model, threat.hand))?.startY ??
+              -60,
+          ) + 80;
+        const room = self.facing === 1 ? self.x - 90 : 1190 - self.x;
+        if (gap <= threatReach && room >= 90 && this.dodgeRandom() < 0.35) {
+          this.dodgeCooldown = 2200;
+          return { hop: -1, move: 0, guard: false };
+        }
+      }
+    }
     if (
       this.throwsRemaining &&
       this.throwCooldown <= 0 &&

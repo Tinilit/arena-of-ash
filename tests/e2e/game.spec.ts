@@ -29,6 +29,7 @@ interface RigFrame {
   down: Point;
 }
 interface Rig {
+  shooting: { kind: number; flash: boolean };
   drinking: boolean;
   drink: { vialVisible: boolean; mouth: Point; neck: Point; base: Point };
   physical: boolean;
@@ -1015,7 +1016,7 @@ test("direction plus Space hops without an automatic attack and bots keep ordina
     expect(hopping.some((s) => s.player.y < -15)).toBe(true);
     expect(hopping.some((s) => s.player.hop?.phase === "landing")).toBe(true);
     expect((hopping.at(-1)!.player.x - initial) * sign).toBeGreaterThan(85);
-    expect(samples.every((s) => s.enemy.hop === null)).toBe(true);
+    expect(samples.every((s) => s.enemy.hop?.kind !== "forwardHop")).toBe(true);
     expect(samples.every((s) => s.player.action === null)).toBe(true);
     expect(
       samples.every((s) =>
@@ -2152,13 +2153,24 @@ test("a timed C parry deflects a real enemy hit and gives the attacker a full se
   expect(s.battle!.enemy.reaction?.kind).toBe("parried");
   expect(s.rigs![0].animation).toBe("parry");
   anatomy(s.rigs![0]);
-  await page.clock.runFor(80);
-  anatomy((await snapshot(page)).rigs![0]);
+  const pushedFrom = s.battle!.enemy.x;
+  await page.clock.runFor(160);
+  s = await snapshot(page);
+  anatomy(s.rigs![0]);
+  expect(s.rigs![0].body.frontArms).toContain("nearArm");
+  expect(s.rigs![0].near.hand.x).toBeGreaterThan(
+    s.rigs![0].near.shoulder.x + 60,
+  );
+  expect(s.battle!.enemy.x).toBeGreaterThan(pushedFrom);
+  expect(s.battle!.enemy.knockdown).toBeNull();
   await page.screenshot({
     path: "test-results/screenshots/timed-parry-stun.png",
   });
-  await page.clock.runFor(850);
-  expect((await snapshot(page)).battle!.enemy.stun).toBeGreaterThan(0);
+  await page.clock.runFor(770);
+  s = await snapshot(page);
+  expect(s.battle!.enemy.stun).toBeGreaterThan(0);
+  expect(s.battle!.enemy.x - pushedFrom).toBeGreaterThan(180);
+  expect(s.battle!.enemy.knockdown).toBeNull();
   await page.clock.runFor(200);
   expect((await snapshot(page)).battle!.enemy.stun).toBe(0);
   await page.clock.resume();
@@ -2301,4 +2313,154 @@ test("a rare enemy throw leaves a recoverable weapon that becomes permanent play
   await page.reload();
   await scene(page, "MainMenuScene");
   expect(ownedCopies((await snapshot(page)).player, id)).toBe(initial + 1);
+});
+
+test("crossbow and rifle previews aim, fire and restore equipment without changing ownership", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await launch(page);
+  const before = (await snapshot(page)).player;
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  for (const [key, kind, duration] of [
+    ["u", 1, 2050],
+    ["i", 2, 1850],
+  ] as const) {
+    await page.keyboard.press(key);
+    await page.clock.runFor(duration * 0.4);
+    let r = (await snapshot(page)).rigs![0];
+    expect(r.shooting.kind).toBe(kind);
+    expect(r.weapons.every((w) => !w.visible)).toBe(true);
+    expect(r.body.frontArms).toContain("nearArm");
+    expect(r.near.hand.x).toBeGreaterThan(r.far.hand.x + 25);
+    expect(Math.abs(r.near.hand.y - r.far.hand.y)).toBeLessThan(12);
+    anatomy(r);
+    await page.clock.runFor(duration * 0.14);
+    r = (await snapshot(page)).rigs![0];
+    expect(r.shooting.flash).toBe(true);
+    await page.screenshot({
+      path: `test-results/screenshots/${kind === 1 ? "crossbow" : "rifle"}-shot.png`,
+    });
+    await page.clock.runFor(duration * 0.6);
+    r = (await snapshot(page)).rigs![0];
+    expect(r.shooting.kind).toBe(0);
+    expect(r.weapons[0].visible).toBe(true);
+    expect(r.body.backArms).toContain("nearArm");
+    expect((await snapshot(page)).player).toEqual(before);
+  }
+  await page.clock.resume();
+  await click(page, "character");
+  await click(page, "preview-rifle");
+  await expect
+    .poll(async () => (await snapshot(page)).rigs![0].shooting.kind)
+    .toBe(2);
+});
+
+test("enemy reacts to an approaching swing with a real backward hop", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.goto("/?seed=0&renderer=canvas");
+  await scene(page, "MainMenuScene");
+  await click(page, "battle");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  await page.keyboard.down("d");
+  await page.keyboard.down("Shift");
+  for (let i = 0; i < 100; i++) {
+    const b = (await snapshot(page)).battle!;
+    if (b.enemy.x - b.player.x < 185) break;
+    await page.clock.runFor(16);
+  }
+  await page.keyboard.up("d");
+  await page.keyboard.up("Shift");
+  await page.keyboard.press("k");
+  let hopped = false,
+    airborne = false;
+  for (let i = 0; i < 50; i++) {
+    await page.clock.runFor(16);
+    const b = (await snapshot(page)).battle!;
+    hopped ||= b.enemy.hop?.kind === "backstep";
+    airborne ||= b.enemy.hop?.kind === "backstep" && b.enemy.y < -10;
+    expect(b.enemy.hop?.kind).not.toBe("forwardHop");
+  }
+  expect(hopped).toBe(true);
+  expect(airborne).toBe(true);
+  await page.screenshot({
+    path: "test-results/screenshots/enemy-backstep.png",
+  });
+  await page.clock.resume();
+});
+
+test("H captures, holds an opponent overhead and throws into supported floor recovery", async ({
+  page,
+}) => {
+  const p = createPlayer();
+  p.inventory.push("plate", "viking");
+  p.equipment.body = "plate";
+  p.equipment.helmet = "viking";
+  await page.addInitScript(
+    (p) =>
+      localStorage.setItem(
+        "arena-of-ash.v3",
+        JSON.stringify({ version: 3, player: p }),
+      ),
+    p,
+  );
+  await page.clock.install();
+  await launch(page);
+  await click(page, "battle");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  await page.keyboard.down("d");
+  await page.keyboard.down("Shift");
+  for (let i = 0; i < 120; i++) {
+    if (
+      Math.abs(
+        (await snapshot(page)).battle!.enemy.x -
+          (await snapshot(page)).battle!.player.x,
+      ) <= 94
+    )
+      break;
+    await page.clock.runFor(16);
+  }
+  await page.keyboard.up("d");
+  await page.keyboard.up("Shift");
+  for (let i = 0; i < 60; i++) {
+    const b = (await snapshot(page)).battle!;
+    if (b.enemy.grapple?.role === "target") break;
+    if (!b.player.grapple) await page.keyboard.press("h");
+    await page.clock.runFor(80);
+  }
+  expect((await snapshot(page)).battle!.enemy.grapple?.role).toBe("target");
+  await page.clock.runFor(1100);
+  let s = await snapshot(page);
+  expect(s.battle!.player.grapple?.phase).toBe("hold");
+  const hp = [s.battle!.player.hp, s.battle!.enemy.hp],
+    owned = s.player;
+  const hips = (s.rigs![1].near.hip.y + s.rigs![1].far.hip.y) / 2;
+  expect(hips).toBeLessThan(s.rigs![0].far.shoulder.y - 80);
+  expect(s.rigs![0].far.hand.y).toBeLessThan(s.rigs![0].far.shoulder.y - 55);
+  expect(s.rigs![0].body.frontArms).toContain("nearArm");
+  for (const r of s.rigs!) anatomy(r, false);
+  await page.screenshot({
+    path: "test-results/screenshots/opponent-overhead.png",
+  });
+  await page.keyboard.press("h");
+  await page.clock.runFor(250);
+  s = await snapshot(page);
+  expect(s.battle!.enemy.grapple?.phase).toBe("air");
+  expect(s.battle!.enemy.vy).toBeLessThan(0);
+  await page.screenshot({
+    path: "test-results/screenshots/opponent-thrown.png",
+  });
+  await page.clock.runFor(1100);
+  s = await snapshot(page);
+  expect(s.battle!.enemy.knockdown?.phase).toBe("down");
+  expect([s.battle!.player.hp, s.battle!.enemy.hp]).toEqual(hp);
+  expect(s.player).toEqual(owned);
+  await page.clock.runFor(1100);
+  expect((await snapshot(page)).battle!.enemy.knockdown?.phase).toBe("getUp");
+  await page.screenshot({
+    path: "test-results/screenshots/opponent-throw-getup.png",
+  });
+  await page.clock.resume();
 });

@@ -3,6 +3,7 @@ import { item } from "../data/catalog";
 import { handSlots } from "../domain/model";
 import { stats, consumeItem, addItem, equip } from "../domain/progression";
 import { parryRules } from "./parry";
+import { GrappleController, type GrapplePoseState } from "./grapples";
 import {
   advanceProjectile,
   settleProjectile,
@@ -70,6 +71,7 @@ export interface ArenaInput {
   toggleStance?: boolean;
   parry?: boolean;
   pickup?: boolean;
+  grapple?: boolean;
 }
 export interface Swing {
   id: number;
@@ -102,7 +104,16 @@ export interface ArenaFighter extends Fighter {
   attackCooldown: number;
   stun: number;
   pushVx: number;
-  parry: { id: number; elapsed: number; succeeded: boolean } | null;
+  grapple?: GrapplePoseState;
+  grappleCooldown?: number;
+  parry: {
+    id: number;
+    elapsed: number;
+    succeeded: boolean;
+    targetId?: string;
+    shoveAge?: number;
+    pushed?: boolean;
+  } | null;
   parryCooldown: number;
   knockdown: { phase: "fall" | "down" | "getUp"; elapsed: number } | null;
   reaction: {
@@ -200,6 +211,7 @@ export class RealtimeBattle {
     projectileId: number;
   }[] = [];
   private sequence = 0;
+  private grapples = new GrappleController();
   private previous?: [CombatGeometry, CombatGeometry];
   private previousFacing: number[] = [];
   private previousActive: Set<number>[] = [];
@@ -216,6 +228,9 @@ export class RealtimeBattle {
   get enemy() {
     return this.fighters[1];
   }
+  canGrapple() {
+    return this.grapples.canStart(this.state, this.player, this.enemy);
+  }
   canAttack(
     f: ArenaFighter,
     name: ArenaAction,
@@ -227,6 +242,7 @@ export class RealtimeBattle {
       name !== "heavy" &&
       !f.knockdown &&
       !f.parry &&
+      !f.grapple &&
       f.stun === 0 &&
       !f.bodyAction &&
       f.bodyCooldown === 0 &&
@@ -254,6 +270,7 @@ export class RealtimeBattle {
     return (
       this.state === "Fighting" &&
       f.hp > 0 &&
+      !f.grapple &&
       !f.knockdown &&
       f.stun === 0 &&
       !f.parry &&
@@ -273,7 +290,8 @@ export class RealtimeBattle {
       f.stun > 0 ||
       f.knockdown ||
       f.parry ||
-      f.action
+      f.action ||
+      f.grapple
     )
       return undefined;
     return this.projectiles
@@ -402,8 +420,9 @@ export class RealtimeBattle {
     return (
       this.state === "Fighting" &&
       (direction === -1 || direction === 1) &&
-      f === this.player &&
+      (f === this.player || direction === -1) &&
       f.hp > 0 &&
+      !f.grapple &&
       !f.knockdown &&
       f.stun === 0 &&
       !f.reaction &&
@@ -415,6 +434,7 @@ export class RealtimeBattle {
   }
   advance(delta: number, input: [ArenaInput, ArenaInput]) {
     if (this.state !== "Fighting") return;
+    this.grapples.command(this.state, this.player, this.enemy, input[0]);
     const dt = delta / 1000;
     this.projectiles.forEach((p) =>
       advanceProjectile(p, delta, arenaRules.floor),
@@ -422,10 +442,26 @@ export class RealtimeBattle {
     const before = this.fighters.map((f) => f.x);
     this.fighters.forEach((f, i) => {
       f.landed += delta;
+      f.grappleCooldown = Math.max(0, (f.grappleCooldown ?? 0) - delta);
       f.parryCooldown = Math.max(0, f.parryCooldown - delta);
       if (f.parry) {
         f.parry.elapsed += delta;
-        if (f.parry.elapsed >= parryRules.duration) {
+        if (f.parry.succeeded) {
+          f.parry.shoveAge = (f.parry.shoveAge ?? 0) + delta;
+          if (!f.parry.pushed && f.parry.shoveAge >= parryRules.shoveImpact) {
+            f.parry.pushed = true;
+            const target = this.fighters.find(
+              (t) => t.model.id === f.parry?.targetId,
+            );
+            if (target && target.hp > 0 && !target.knockdown)
+              target.pushVx = f.facing * arenaRules.kickImpulse;
+          }
+        }
+        if (
+          f.parry.elapsed >= parryRules.duration &&
+          (!f.parry.succeeded ||
+            (f.parry.shoveAge ?? 0) >= parryRules.shoveDuration)
+        ) {
           f.parry = null;
           f.parryCooldown = parryRules.cooldown;
         }
@@ -490,11 +526,13 @@ export class RealtimeBattle {
           f.landed = 1000;
         }
       }
+      if (f.grapple?.role === "target") return;
       const c =
         f.knockdown ||
         f.stun > 0 ||
         f.reaction?.kind === "stagger" ||
-        f.reaction?.kind === "parried"
+        f.reaction?.kind === "parried" ||
+        f.grapple
           ? {}
           : input[i];
       if (c.toggleStance) f.relaxed = !f.relaxed;
@@ -546,7 +584,7 @@ export class RealtimeBattle {
         f.relaxed = false;
         f.reaction = null;
       }
-      if (i === 0 && c.hop && this.canHop(f, c.hop)) {
+      if (c.hop && this.canHop(f, c.hop)) {
         const kind = hopKind(c.hop);
         f.hop = {
           kind,
@@ -619,7 +657,15 @@ export class RealtimeBattle {
       }
     });
     const [a, b] = this.fighters;
+    this.grapples.update(
+      delta,
+      this.state,
+      arenaRules.gravity,
+      arenaRules.minX,
+      arenaRules.maxX,
+    );
     if (
+      !this.grapples.blocksSeparation() &&
       !a.knockdown &&
       !b.knockdown &&
       Math.abs(a.y - b.y) < 180 &&
@@ -834,6 +880,8 @@ export class RealtimeBattle {
         e.damage = 0;
         e.knockdown = false;
         defender.parry.succeeded = true;
+        defender.parry.targetId = attacker.model.id;
+        defender.parry.shoveAge ??= 0;
         parriedAttackers.add(attacker.model.id);
       }
     }
@@ -852,7 +900,7 @@ export class RealtimeBattle {
       f.hop = null;
       f.guard = false;
       f.relaxed = false;
-      f.pushVx = -f.facing * 120;
+      f.pushVx = 0;
       f.bodyCooldown = Math.max(f.bodyCooldown, parryRules.stun);
       for (const hand of ["front", "rear"] as const)
         f.handCooldowns[hand] = Math.max(
@@ -927,6 +975,7 @@ export class RealtimeBattle {
     if (this.player.hp === 0 && this.enemy.hp === 0) this.state = "Draw";
     else if (this.enemy.hp === 0) this.state = "Victory";
     else if (this.player.hp === 0) this.state = "Defeat";
+    if (this.state !== "Fighting") this.grapples.end();
     return events;
   }
 }

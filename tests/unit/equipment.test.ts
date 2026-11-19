@@ -140,6 +140,7 @@ for (const id of ["spear", "war-spear"])
         };
         if (
           (p.throwPreview ?? 0) > 0.01 ||
+          (p.shootPreview ?? 0) > 0 ||
           (p.drinkPreview ?? 0) > 0.5 ||
           name === "punch"
         )

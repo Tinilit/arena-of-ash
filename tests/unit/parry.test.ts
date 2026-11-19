@@ -3,7 +3,7 @@ import { combatRest } from "../../src/characters/locomotion";
 import { groundedPose, skeleton } from "../../src/characters/kinematics";
 import { describe, expect, it } from "vitest";
 import { createPlayer } from "../../src/domain/model";
-import { RealtimeBattle } from "../../src/combat/realtime";
+import { RealtimeBattle, arenaRules } from "../../src/combat/realtime";
 import { parryRules } from "../../src/combat/parry";
 import type { CombatGeometry } from "../../src/combat/geometry";
 const capsule = { a: { x: 0, y: 0 }, b: { x: 0, y: 20 }, radius: 8 };
@@ -27,6 +27,26 @@ function prepare(b: RealtimeBattle, age = 0) {
   b.advance(age, [{}, {}]);
 }
 describe("timed physical-contact parry", () => {
+  it("automatically follows a success with exactly one kick-strength shove and never a fall", () => {
+    const b = make();
+    b.player.x = 500;
+    b.enemy.x = 600;
+    prepare(b, 60);
+    b.resolve([g, g]);
+    const start = b.enemy.x;
+    for (let i = 0; i < 14; i++) b.advance(10, [{}, {}]);
+    expect(b.enemy.x).toBe(start);
+    b.advance(10, [{}, {}]);
+    expect(b.enemy.pushVx).toBe(
+      arenaRules.kickImpulse - arenaRules.pushFriction * 0.01,
+    );
+    for (let i = 0; i < 100; i++) b.advance(10, [{}, {}]);
+    expect(b.enemy.x - start).toBeGreaterThan(200);
+    expect(b.enemy.x - start).toBeLessThan(220);
+    expect(b.enemy.hp).toBe(100);
+    expect(b.enemy.knockdown).toBeNull();
+    expect(b.contacts).toHaveLength(1);
+  });
   it("deflects a physical frontal hit, preserving HP and stunning the attacker for a full second", () => {
     const b = make();
     prepare(b, 60);
@@ -41,7 +61,8 @@ describe("timed physical-contact parry", () => {
     const x = b.enemy.x;
     b.advance(999, [{}, { move: 1, jump: true, attack: "quick" }]);
     expect(b.enemy.vy).toBe(0);
-    expect(b.enemy.x - x).toBeLessThan(130);
+    expect(b.enemy.x - x).toBeGreaterThan(150);
+    expect(b.enemy.knockdown).toBeNull();
     expect(b.enemy.action).toBeNull();
     expect(b.canAttack(b.enemy, "quick")).toBe(false);
     b.advance(1, [{}, {}]);

@@ -53,8 +53,8 @@ export class CharacterScene extends BaseScene {
       en.throwUnder,
       () => {
         if (
-          this.rig.animator.name.startsWith("throw") ||
-          this.rig.animator.name === "drink"
+          this.rig.animator.running &&
+          !this.rig.animator.name.startsWith("idle")
         )
           return;
         this.rig.play("throw");
@@ -69,8 +69,8 @@ export class CharacterScene extends BaseScene {
       en.throwOver,
       () => {
         if (
-          this.rig.animator.name.startsWith("throw") ||
-          this.rig.animator.name === "drink"
+          this.rig.animator.running &&
+          !this.rig.animator.name.startsWith("idle")
         )
           return;
         this.rig.play("throwOverhand");
@@ -85,8 +85,8 @@ export class CharacterScene extends BaseScene {
       "Drink potion",
       () => {
         if (
-          this.rig.animator.name.startsWith("throw") ||
-          this.rig.animator.name === "drink"
+          this.rig.animator.running &&
+          !this.rig.animator.name.startsWith("idle")
         )
           return;
         this.rig.play("drink");
@@ -148,6 +148,26 @@ export class CharacterScene extends BaseScene {
         );
       } else label(this, x, y + 3, en.empty, 17, "#9d947e").setOrigin(0.5);
     });
+    for (const [kind, x] of [
+      ["crossbow", 145],
+      ["rifle", 295],
+    ] as const)
+      this.button(
+        `preview-${kind}`,
+        x,
+        574,
+        140,
+        kind === "crossbow" ? "Crossbow" : "Rifle",
+        () => {
+          if (
+            this.rig.animator.running &&
+            !this.rig.animator.name.startsWith("idle")
+          )
+            return;
+          this.rig.play(kind === "crossbow" ? "shootCrossbow" : "shootRifle");
+        },
+        30,
+      );
     label(this, 855, 177, "BACKPACK · UNEQUIPPED", 21);
     label(this, 855, 199, `Target: ${en.equipmentSlots[slot]}`, 14, "#b9aa8d");
     inventory.slice(page * 8, (page + 1) * 8).forEach((id, i) => {
@@ -217,7 +237,7 @@ export class CharacterScene extends BaseScene {
     label(
       this,
       65,
-      584,
+      612,
       `HP ${st.hp} • ATK ${st.attack} • ARM ${st.armor}`,
       16,
     );

@@ -203,6 +203,7 @@ for (const hand of ["rear", "front"] as const)
           };
           if (
             (p.throwPreview ?? 0) > 0.01 ||
+            (p.shootPreview ?? 0) > 0 ||
             (hand === "rear" && (p.drinkPreview ?? 0) > 0.5) ||
             name === "punch"
           )

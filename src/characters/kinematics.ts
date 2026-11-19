@@ -183,7 +183,7 @@ export function groundedPose(p: Pose, travelScale = 1) {
   // Released feet can roll during a collapse, but their heel/toe sole line
   // cannot pass through the ground. Translate the solved pose as one rigid
   // assembly; never stretch a segment or feed the correction back into IK.
-  if (plant < 1) {
+  if (plant < 1 && !v("carried")) {
     const bottom = (leg: typeof nearLeg) => {
       const angle = root.rotation + leg.angle + leg.bend + leg.foot;
       return Math.max(

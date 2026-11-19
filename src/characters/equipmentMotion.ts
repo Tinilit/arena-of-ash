@@ -4,6 +4,7 @@ import { rearHandMotion } from "./rearHandMotion";
 import { locomotionClips, type WeaponHand } from "./locomotion";
 import { groundedMotion } from "./groundedMotion";
 import { drinkClip } from "./drinkMotion";
+import { shootClip } from "./shootMotion";
 import { throwClip, overhandThrowClip } from "./throwMotion";
 import {
   punchClip,
@@ -177,6 +178,8 @@ export function equipmentMotion(
       throwOverhand: overhandThrowClip(),
       throwAction: overhandThrowClip(hand),
       drink: drinkClip(),
+      shootCrossbow: shootClip("crossbow"),
+      shootRifle: shootClip("rifle"),
       punch: punchClip(hand),
       kick: kickClip,
       pain: painClip,

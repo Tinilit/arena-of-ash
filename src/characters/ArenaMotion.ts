@@ -13,6 +13,7 @@ import { groundedPose } from "./kinematics";
 import { overhandThrowTiming } from "./throwMotion";
 import { hopPose } from "./hopPose";
 import { parryPose } from "./parryMotion";
+import { grapplePose } from "./grappleMotion";
 const smooth = (value: number) => {
   const t = Math.max(0, Math.min(1, value));
   return t * t * (3 - 2 * t);
@@ -318,12 +319,22 @@ export class ArenaMotion {
           base,
           f.parry.elapsed,
           weaponForHand(f.model, "rear") ? "rear" : "front",
+          f.parry.shoveAge,
         ),
       );
       this.name = "parry";
     }
     base.weaponGrip =
       base[`${this.primary === "rear" ? "far" : "near"}WeaponGrip`];
+    if (f.grapple) {
+      Object.assign(base, grapplePose(base, f.grapple));
+      this.name =
+        f.grapple.role === "target"
+          ? "carried"
+          : f.grapple.phase === "throw"
+            ? "throwOpponent"
+            : "liftOpponent";
+    }
     this.displayed = { ...base };
     return base;
   }

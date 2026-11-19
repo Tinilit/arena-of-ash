@@ -77,7 +77,11 @@ export class ArenaScene extends BaseScene {
       opponent(this.services.player, seeded(seed ^ 0x92)),
       seeded(seed ^ 0x4b1d),
     );
-    this.ai = new ArenaAI(seeded(seed), seeded(seed ^ 0x92ab));
+    this.ai = new ArenaAI(
+      seeded(seed),
+      seeded(seed ^ 0x92ab),
+      seeded(seed ^ 0x9170),
+    );
     this.rigs = [
       new Gladiator(
         this,
@@ -115,6 +119,9 @@ export class ArenaScene extends BaseScene {
       .setDepth(50);
     this.button("parry", 90, 611, 150, "C  Parry", () => {
       this.queued.parry = true;
+    });
+    this.button("grapple", 1185, 611, 160, "H  Lift", () => {
+      this.queued.grapple = true;
     });
     this.button(
       "pickup",
@@ -231,6 +238,7 @@ export class ArenaScene extends BaseScene {
       }
       if (key === "q") this.queued.belt = "belt1";
       if (key === "c") this.queued.parry = true;
+      if (key === "h") this.queued.grapple = true;
       if (key === "g") this.queued.pickup = true;
       if (key === "e") this.queued.belt = "belt2";
       if (key === "j" || key === "1") {
@@ -344,6 +352,15 @@ export class ArenaScene extends BaseScene {
   }
   private refresh() {
     this.buttons.parry.setEnabled(this.battle.canParry(this.battle.player));
+    this.buttons.grapple
+      .setCaption(
+        this.battle.player.grapple?.role === "lifter" ? "H  Throw" : "H  Lift",
+      )
+      .setEnabled(
+        !this.ending &&
+          (this.battle.player.grapple?.role === "lifter" ||
+            this.battle.canGrapple()),
+      );
     const pickup = this.battle.nearbyPickup(this.battle.player);
     this.buttons.pickup.setEnabled(Boolean(pickup));
     this.pickupHint.setText(

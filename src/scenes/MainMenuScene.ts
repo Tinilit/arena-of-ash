@@ -54,6 +54,8 @@ export class MainMenuScene extends BaseScene {
       throw: "T",
       throwOverhand: "Y",
       drink: "P",
+      crossbow: "U",
+      rifle: "I",
     }) as Record<string, Phaser.Input.Keyboard.Key> | undefined;
     this.keys?.jump.on("down", () => {
       if (!this.modalOpen) this.movement.jump();
@@ -66,6 +68,12 @@ export class MainMenuScene extends BaseScene {
     });
     this.keys?.drink.on("down", () => {
       if (!this.modalOpen) this.movement.drink();
+    });
+    this.keys?.crossbow.on("down", () => {
+      if (!this.modalOpen) this.movement.shoot("crossbow");
+    });
+    this.keys?.rifle.on("down", () => {
+      if (!this.modalOpen) this.movement.shoot("rifle");
     });
     this.keys?.stance.on("down", () => {
       if (!this.modalOpen) this.movement.toggle();
@@ -85,6 +93,24 @@ export class MainMenuScene extends BaseScene {
       30,
     );
     label(this, 960, 588, this.services.player.name, 20).setOrigin(0.5);
+    this.button(
+      "preview-crossbow",
+      240,
+      590,
+      190,
+      "U  Crossbow",
+      () => this.movement.shoot("crossbow"),
+      30,
+    );
+    this.button(
+      "preview-rifle",
+      450,
+      590,
+      190,
+      "I  Rifle",
+      () => this.movement.shoot("rifle"),
+      30,
+    );
     label(this, 960, 614, en.movementHint, 13).setOrigin(0.5);
     const controls = [
       [

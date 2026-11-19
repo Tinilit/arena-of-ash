@@ -15,7 +15,7 @@ describe("player directional hops", () => {
       const b = make(),
         start = b.player.x;
       b.advance(0, [{ hop: direction }, { hop: direction }]);
-      expect(b.enemy.hop).toBeNull();
+      expect(b.enemy.hop?.kind ?? null).toBe(direction < 0 ? "backstep" : null);
       expect(b.player.hop?.phase).toBe("anticipation");
       expect(b.player.y).toBe(0);
       let minimum = 0;
@@ -95,7 +95,7 @@ describe("player directional hops", () => {
     expect(events).toHaveLength(2);
     expect(b.player.hp).toBeLessThan(100);
   });
-  it("never gives bots special hops while retaining their ordinary jump", () => {
+  it("limits bots to backward hops while retaining their ordinary jump", () => {
     const b = make();
     expect(b.canHop(b.enemy, 1)).toBe(false);
     b.advance(8, [{}, { move: -1, jump: true }]);
