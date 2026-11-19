@@ -60,7 +60,9 @@ export function drawCrossbow(scene: Phaser.Scene) {
   bolt.fillStyle(0x6d9698);
   bolt.fillTriangle(5, -12, 14, -18, 21, -12);
   bolt.fillTriangle(5, -12, 14, -7, 21, -12);
-  root.add(scene.add.zone(-48, -110, 84, 151).setOrigin(0));
+  // Keep bounds on the innermost art container: Phaser otherwise unions its
+  // empty Graphics bounds at world zero into the whole character's bounds.
+  art.add(scene.add.zone(-41, -48, 151, 84).setOrigin(0));
   root.setData("crossbowParts", { string, bolt } satisfies CrossbowParts);
   setCrossbowState(root, 1, true);
   return root;
