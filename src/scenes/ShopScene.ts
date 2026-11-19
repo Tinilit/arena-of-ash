@@ -4,18 +4,45 @@ import { purchase, quantity } from "../domain/progression";
 import { label, panel } from "../ui/widgets";
 import { drawGear } from "../rendering/characterVisuals";
 import { en } from "../ui/strings";
+import {
+  shopCategory,
+  shopStock,
+  shopCategories,
+  type ShopCategory,
+} from "../domain/shop";
 const PAGE_SIZE = 8;
 export class ShopScene extends BaseScene {
+  private category: ShopCategory = "weapons";
+  private page = 0;
   constructor() {
     super("ShopScene");
   }
-  create(data: { page?: number; amount?: number } = {}) {
+  create(
+    data: { page?: number; amount?: number; category?: ShopCategory } = {},
+  ) {
     this.prepare(en.shopTitle);
+    const category = shopCategories.includes(data.category!)
+      ? data.category!
+      : "weapons";
+    this.category = category;
+    const stock = shopStock(items, category);
     const p = this.services.player,
-      pages = Math.ceil(items.length / PAGE_SIZE),
+      pages = Math.max(1, Math.ceil(stock.length / PAGE_SIZE)),
       page = Math.max(0, Math.min(data.page ?? 0, pages - 1)),
       amount = [1, 5, 10].includes(data.amount ?? 1) ? (data.amount ?? 1) : 1;
-    label(this, 460, 108, "Consumable quantity", 17);
+    this.page = page;
+    shopCategories.forEach((name, i) =>
+      this.button(
+        `shop-${name}`,
+        135 + i * 160,
+        108,
+        145,
+        name[0].toUpperCase() + name.slice(1),
+        () => this.scene.restart({ category: name, amount }),
+        34,
+      ).setAlpha(name === category ? 1 : 0.65),
+    );
+    label(this, 545, 108, "Consumable quantity", 16);
     [1, 5, 10].forEach((n, i) =>
       this.button(
         `quantity-${n}`,
@@ -23,11 +50,11 @@ export class ShopScene extends BaseScene {
         108,
         90,
         `×${n}`,
-        () => this.scene.restart({ page, amount: n }),
+        () => this.scene.restart({ page, category, amount: n }),
         32,
       ).setAlpha(n === amount ? 1 : 0.65),
     );
-    items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).forEach((it, i) => {
+    stock.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).forEach((it, i) => {
       const x = 42 + (i % 2) * 626,
         y = 192 + Math.floor(i / 2) * 108;
       panel(this, x + 285, y + 20, 570, 96);
@@ -61,7 +88,7 @@ export class ShopScene extends BaseScene {
         () => {
           if (purchase(p, it.id, count)) {
             this.services.save();
-            this.scene.restart({ page, amount });
+            this.scene.restart({ page, category, amount });
           }
         },
         42,
@@ -69,13 +96,26 @@ export class ShopScene extends BaseScene {
     });
     this.back();
     this.button("shop-prev", 500, 670, 200, en.previous, () =>
-      this.scene.restart({ page: page - 1, amount }),
+      this.scene.restart({ page: page - 1, category, amount }),
     ).setEnabled(page > 0);
     label(this, 735, 670, `${en.page} ${page + 1} / ${pages}`, 20).setOrigin(
       0.5,
     );
     this.button("shop-next", 970, 670, 200, en.nextPage, () =>
-      this.scene.restart({ page: page + 1, amount }),
+      this.scene.restart({ page: page + 1, category, amount }),
     ).setEnabled(page + 1 < pages);
+  }
+  override snapshot() {
+    return {
+      ...super.snapshot(),
+      shop: {
+        category: this.category,
+        page: this.page,
+        itemCategories: Object.fromEntries(
+          items.map((item) => [item.id, shopCategory(item)]),
+        ),
+        items: shopStock(items, this.category).map((item) => item.id),
+      },
+    };
   }
 }

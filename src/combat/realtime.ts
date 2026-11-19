@@ -1,4 +1,4 @@
-import { wearArmor, type ArmorSlot } from "./armor";
+import { wearArmor, repairArmor, type ArmorSlot } from "./armor";
 import { aimedVelocity } from "./aim";
 import type { Player, Hand, EquipmentSlot } from "../domain/model";
 import { item } from "../data/catalog";
@@ -166,6 +166,7 @@ export interface ContactEvent {
   defenderId: string;
   damage: number;
   rawDamage?: number;
+  hitRegion?: ArmorSlot;
   blocked: boolean;
   parried?: boolean;
   deflected?: boolean;
@@ -729,7 +730,8 @@ export class RealtimeBattle {
         f.facing = this.fighters[1 - i].x >= f.x ? 1 : -1;
       if (
         f.aim &&
-        twoHandWeapon(f.model)?.weaponType === "crossbow" &&
+        (twoHandWeapon(f.model)?.weaponType === "crossbow" ||
+          (!f.action && !f.hop)) &&
         !f.grapple &&
         !f.finisher &&
         !f.knockdown &&
@@ -1066,15 +1068,21 @@ export class RealtimeBattle {
         const blade = strike,
           oldBlade = shape(previous[i]) ?? blade;
         let collision: ReturnType<typeof sweptContact> = null;
+        let hitRegion: ArmorSlot = "body";
         for (let index = 0; index < geometry[other].body.length; index++) {
           const part = geometry[other].body[index];
-          collision = sweptContact(
+          const candidate = sweptContact(
             oldBlade,
             blade,
             previous[other].body[index] ?? part,
             part,
           );
-          if (collision) break;
+          if (candidate && (!collision || candidate.time < collision.time)) {
+            collision = candidate;
+            hitRegion =
+              geometry[other].bodyRegions?.[index] ??
+              (index === 0 ? "helmet" : "body");
+          }
         }
         if (collision) {
           swing.hit = true;
@@ -1094,6 +1102,7 @@ export class RealtimeBattle {
               swing.name === "kick" || swing.name === "shove"
                 ? 0
                 : damage(f.model, defender.model, swing.hand),
+            hitRegion,
             rawDamage: swing.name === "quick" ? (weapon?.attack ?? 0) : 0,
             blocked:
               swing.name === "quick" &&
@@ -1157,9 +1166,11 @@ export class RealtimeBattle {
           continue;
         }
       }
+      let collision: ReturnType<typeof sweptContact> = null;
+      let hitPart = 0;
       for (let part = 0; part < geometry[target].body.length; part++) {
         const body = geometry[target].body[part];
-        const collision = sweptContact(
+        const candidate = sweptContact(
           projectileShape(p, true),
           projectileShape(p),
           p.age > 0 && this.previousFacing[target] === defender.facing
@@ -1167,7 +1178,12 @@ export class RealtimeBattle {
             : body,
           body,
         );
-        if (!collision) continue;
+        if (candidate && (!collision || candidate.time < collision.time)) {
+          collision = candidate;
+          hitPart = part;
+        }
+      }
+      if (collision) {
         p.state = "spent";
         p.vx *= 0.18;
         p.vy = Math.max(60, p.vy);
@@ -1180,11 +1196,13 @@ export class RealtimeBattle {
           kind: "projectile",
           damage: damageAfterArmor(p.attack, defender.model),
           rawDamage: p.attack,
+          hitRegion:
+            geometry[target].bodyRegions?.[hitPart] ??
+            (hitPart === 0 ? "helmet" : "body"),
           blocked: damageAfterArmor(p.attack, defender.model) === 0,
           knockdown: false,
           ...collision,
         });
-        break;
       }
     }
     this.projectiles.forEach((p) => settleProjectile(p, arenaRules.floor));
@@ -1255,7 +1273,11 @@ export class RealtimeBattle {
         const hadArmor = Boolean(
           defender.model.equipment.helmet || defender.model.equipment.body,
         );
-        const broken = wearArmor(defender.model, e.rawDamage!);
+        const broken = wearArmor(
+          defender.model,
+          e.rawDamage!,
+          e.hitRegion ?? "body",
+        );
         if (hadArmor) this.armorRevision++;
         for (const piece of broken) {
           const id = ++this.sequence;
@@ -1353,6 +1375,8 @@ export class RealtimeBattle {
     else if (this.enemy.hp === 0) this.state = "Victory";
     else if (this.player.hp === 0) this.state = "Defeat";
     if (this.state !== "Fighting") {
+      for (const fighter of this.fighters)
+        if (repairArmor(fighter.model)) this.armorRevision++;
       this.grapples.end();
       this.finishers.end();
     }

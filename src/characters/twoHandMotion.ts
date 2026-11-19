@@ -26,7 +26,7 @@ export const twoHandDuration = (weapon: Item) =>
         ? 1250
         : 1150;
 /** Keep both exact grip points within the fixed 40/34 arm chains. */
-function pairedGrip(
+export function pairedGrip(
   base: Pose,
   x: number,
   y: number,

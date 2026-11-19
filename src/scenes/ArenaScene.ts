@@ -1,5 +1,6 @@
+import { repairArmor } from "../combat/armor";
 import { bossAt, ladderLength } from "../domain/ladder";
-import { twoHandWeapon } from "../domain/progression";
+import { twoHandWeapon, primaryWeapon } from "../domain/progression";
 import { drawBolt } from "../rendering/crossbow";
 import Phaser from "phaser";
 import { BaseScene } from "./BaseScene";
@@ -221,6 +222,7 @@ export class ArenaScene extends BaseScene {
       }
       if (key === "b" && !event.ctrlKey) {
         this.autoBattle = !this.autoBattle;
+        if (this.autoBattle) this.battle.player.aim = undefined;
         this.ai.setAdvanced(
           this.autoBattle ||
             !this.trainingAI ||
@@ -285,6 +287,7 @@ export class ArenaScene extends BaseScene {
     this.game.events.on(Phaser.Core.Events.BLUR, pause);
     this.game.events.on(Phaser.Core.Events.FOCUS, resume);
     this.events.once("shutdown", () => {
+      if (repairArmor(this.services.player)) this.services.save();
       this.input.off("pointerdown", useHand);
       this.input.off("pointermove", moveAim);
       this.game.canvas.style.cursor = "";
@@ -391,7 +394,7 @@ export class ArenaScene extends BaseScene {
       !this.autoBattle &&
       this.aimActive &&
       this.aimPoint &&
-      twoHandWeapon(this.battle.player.model)?.weaponType === "crossbow" &&
+      primaryWeapon(this.battle.player.model) &&
       this.battle.state === "Fighting";
     this.aimReticle?.clear();
     this.game.canvas.style.cursor = aiming ? "crosshair" : "";
@@ -473,21 +476,13 @@ export class ArenaScene extends BaseScene {
           ? event.disarmed
             ? "Disarmed"
             : "Parry"
-          : event.kind === "finisher"
-            ? "Finisher"
-            : event.kind === "shove"
-              ? "Pushed back"
-              : event.kind === "kick"
-                ? event.knockdown
-                  ? "Knockdown"
-                  : "Off balance"
-                : event.knockdown
-                  ? "Knockdown"
-                  : event.pushed
-                    ? "Pushed back"
-                    : event.blocked
-                      ? "Armor hit"
-                      : "Hit",
+          : event.kind === "shove"
+            ? "Pushed back"
+            : event.kind === "kick"
+              ? event.knockdown
+                ? "Knockdown"
+                : "Off balance"
+              : `${event.damage}`,
       26,
       event.blocked ? "#9bc6d1" : "#f4e2bc",
     ).setOrigin(0.5);
@@ -508,6 +503,8 @@ export class ArenaScene extends BaseScene {
     this.ending = true;
     this.clearInput();
     this.controlHints.forEach((t) => t.setVisible(false));
+    repairArmor(this.services.player);
+    this.rigs.forEach((rig, i) => rig.syncArena(this.battle.fighters[i]));
     const win = this.battle.state === "Victory";
     const payout = reward(this.services.player, this.battleId, win);
     this.services.save();
@@ -698,6 +695,13 @@ export class ArenaScene extends BaseScene {
     this.accumulator += elapsed;
     while (this.accumulator >= arenaRules.step && !this.ending) {
       const manual = this.inputState();
+      if (
+        this.autoBattle &&
+        twoHandWeapon(this.battle.player.model)?.weaponType !== "crossbow"
+      )
+        this.battle.player.aim = undefined;
+      if (twoHandWeapon(this.battle.enemy.model)?.weaponType !== "crossbow")
+        this.battle.enemy.aim = undefined;
       const commands = this.autoBattle
         ? this.playerAI.update(
             arenaRules.step * fighterSpeed(this.battle.player),

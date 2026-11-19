@@ -1,3 +1,4 @@
+import { meleeAimPose, meleePitch } from "./meleeAim";
 import { rangedPitch } from "../combat/aim";
 import { Animator, type Pose } from "./animation";
 import { equipmentMotion } from "./equipmentMotion";
@@ -411,6 +412,19 @@ export class ArenaMotion {
           : f.grapple.phase === "throw"
             ? "throwOpponent"
             : "liftOpponent";
+    }
+    if (f.aim && !f.reaction && !f.parry && !f.grapple) {
+      for (const action of activeActions(f)) {
+        const weapon = weaponForHand(f.model, action.hand);
+        if (action.name !== "quick" || !weapon) continue;
+        const weight =
+          smooth(action.elapsed / 180) *
+          smooth((action.duration - action.elapsed) / 180);
+        Object.assign(
+          base,
+          meleeAimPose(base, weapon, action.hand, meleePitch(f) * weight),
+        );
+      }
     }
     this.displayed = { ...base };
     return base;

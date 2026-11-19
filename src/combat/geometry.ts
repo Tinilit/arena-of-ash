@@ -18,11 +18,13 @@ export interface CombatGeometry {
     Record<Hand, { profile: WeaponHitbox; floorRadius: number }>
   >;
   body: Capsule[];
+  bodyRegions?: ("helmet" | "body")[];
   blades?: Partial<Record<Hand, Capsule>>;
   hands?: Record<Hand, Capsule>;
   feet?: Record<Hand, Capsule>;
 }
 export interface SweptCollision {
+  time: number;
   point: Point;
   blade: Capsule;
   body: Capsule;
@@ -119,7 +121,13 @@ export function sweptContact(
     const sampledBlade = interpolate(previousBlade, blade, i / samples),
       sampledBody = interpolate(previousBody, body, i / samples);
     const p = contact(sampledBlade, sampledBody);
-    if (p) return { point: p, blade: sampledBlade, body: sampledBody };
+    if (p)
+      return {
+        point: p,
+        blade: sampledBlade,
+        body: sampledBody,
+        time: i / samples,
+      };
   }
   return null;
 }

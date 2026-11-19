@@ -45,7 +45,7 @@ Supply your own `frost-spear.png`, or omit `image` to use the existing war-spear
 
 ## Fields
 
-The top level contains `version: 2`, a nonempty `revision` up to 64 characters, and `items` (6–1000 definitions). Array order determines shop order.
+The top level contains `version: 2`, a nonempty `revision` up to 64 characters, and `items` (6–1000 definitions). The shop derives Weapons, Armor and Misc from equipment/use types. Held weapons precede belt throwables in Weapons; catalog order is preserved within these groups and the other categories.
 
 | Field             | Contract                                                                                                                     |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------- |

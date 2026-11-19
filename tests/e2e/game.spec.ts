@@ -30,6 +30,8 @@ interface RigFrame {
   down: Point;
 }
 interface Rig {
+  armorDamage: { helmet: number; body: number };
+  armorCracks: { helmet?: number; body?: number };
   alpha: number;
   armor: { helmet?: string; body?: string };
   crossbow: { loaded: boolean; draw: number; supportGrip: Point | null } | null;
@@ -71,6 +73,12 @@ interface Rig {
   far: Limb;
 }
 interface Snapshot {
+  shop?: {
+    category: string;
+    page: number;
+    items: string[];
+    itemCategories: Record<string, string>;
+  };
   aim?: Point;
   ladder?: {
     index: number;
@@ -442,6 +450,23 @@ async function scene(page: Page, name: string) {
   await expect.poll(async () => (await snapshot(page))?.scene).toBe(name);
 }
 async function click(page: Page, id: string) {
+  let state = await snapshot(page);
+  if (state.scene === "ShopScene" && id.startsWith("buy-") && state.shop) {
+    const itemId = id.slice(4),
+      category = state.shop.itemCategories[itemId];
+    if (category && category !== state.shop.category)
+      await click(page, `shop-${category}`);
+    state = await snapshot(page);
+    const targetPage = Math.floor(state.shop!.items.indexOf(itemId) / 8);
+    while (category && state.shop!.page !== targetPage) {
+      await click(
+        page,
+        state.shop!.page < targetPage ? "shop-next" : "shop-prev",
+      );
+      state = await snapshot(page);
+    }
+  }
+
   await expect
     .poll(async () => Boolean((await snapshot(page))?.buttons[id]), {
       timeout: 15000,
@@ -633,7 +658,7 @@ test("paginated purchases and inventory equip all remaining items and persist th
     "war-spear",
   ])
     await click(page, `buy-${id}`);
-  await click(page, "shop-next");
+  await click(page, "shop-armor");
   await expect
     .poll(async () => Boolean((await snapshot(page)).buttons["buy-viking"]))
     .toBe(true);
@@ -2165,6 +2190,7 @@ test("belt knife makes a physical projectile hit, is lost on reload, and can be 
     "throwing-knife",
   );
   await click(page, "shop");
+  await click(page, "shop-weapons");
   await click(page, "shop-next");
   expect((await snapshot(page)).buttons["buy-throwing-knife"]).toBeTruthy();
   expect((await snapshot(page)).buttons["buy-throwing-axe"]).toBeTruthy();
@@ -2933,7 +2959,8 @@ test("shop offers all three two-handed weapons and equipping one releases the of
   });
   await click(page, "back");
   await click(page, "shop");
-  await click(page, "shop-next");
+  await click(page, "shop-weapons");
+  await click(page, "shop-prev");
   s = await snapshot(page);
   for (const id of ["greatsword", "war-hammer", "battle-axe"])
     expect(s.buttons[`buy-${id}`]).toBeTruthy();
@@ -3272,7 +3299,121 @@ test("backpack sales remove only spare copies and persist gold and equipped gear
   expect((await snapshot(page)).player).toEqual(s.player);
 });
 
-test("worn armor shatters on real contact, removes overlays and stays destroyed after reload", async ({
+test("a physical hit shatters only the contacted armor piece and repair never restores it", async ({
+  page,
+}) => {
+  const catalog = structuredClone(liveItems);
+  for (const it of catalog.items) if (it.slot === "weapon") it.attack = 60;
+  catalog.items.find((it) => it.id === "closed-helm")!.armor = 0;
+  catalog.items.find((it) => it.id === "cuirass")!.armor = 0;
+  await page.route("**/content/items.json?_=*", (r) =>
+    r.fulfill({ json: catalog }),
+  );
+  const p = createPlayer();
+  p.inventory.push("closed-helm", "cuirass");
+  p.equipment.helmet = "closed-helm";
+  p.equipment.body = "cuirass";
+  await savedFixture(page, p);
+  await launch(page);
+  await click(page, "battle");
+  await scene(page, "ArenaScene");
+  await expect
+    .poll(
+      async () =>
+        (await snapshot(page)).battle?.armorBreaks.filter(
+          (e) => e.ownerId === "wanderer",
+        ).length,
+      { timeout: 20000 },
+    )
+    .toBeGreaterThan(0);
+  const s = await snapshot(page),
+    broken = s.battle!.armorBreaks.find((e) => e.ownerId === "wanderer")!;
+  expect(s.player.inventory).not.toContain(broken.itemId);
+  expect(s.rigs![0].armor[broken.slot as "helmet" | "body"]).toBeUndefined();
+  expect(s.battle!.projectiles).toEqual([]);
+  await shot(page, "localized-armor-shattering");
+  await page.keyboard.press("Escape");
+  await scene(page, "MainMenuScene");
+  const repaired = (await snapshot(page)).player;
+  expect(repaired.armorWear ?? {}).toEqual({});
+  expect(repaired.inventory).not.toContain(broken.itemId);
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect((await snapshot(page)).player.inventory).not.toContain(broken.itemId);
+});
+
+test("shop separates Weapons, Armor and Misc while preserving consumable quantities", async ({
+  page,
+}) => {
+  await page.route("**/content/items.json?_=*", (r) =>
+    r.fulfill({ json: liveItems }),
+  );
+  const p = createPlayer();
+  p.gold = 2000;
+  await savedFixture(page, p);
+  await launch(page);
+  await click(page, "shop");
+  const all = new Set<string>();
+  for (const category of ["weapons", "armor", "misc"]) {
+    await click(page, `shop-${category}`);
+    const s = await snapshot(page);
+    expect(s.shop!.category).toBe(category);
+    for (const id of s.shop!.items) {
+      expect(all.has(id)).toBe(false);
+      all.add(id);
+    }
+    expect(
+      s.shop!.items.every((id) => s.shop!.itemCategories[id] === category),
+    ).toBe(true);
+    await shot(page, `shop-category-${category}`);
+  }
+  expect(all.size).toBe(liveItems.items.length);
+  await click(page, "quantity-5");
+  await click(page, "buy-healing-potion");
+  expect(ownedCopies((await snapshot(page)).player, "healing-potion")).toBe(5);
+  expect((await snapshot(page)).shop!.category).toBe("misc");
+  await click(page, "shop-armor");
+  expect((await snapshot(page)).buttons["buy-wood"]).toBeUndefined();
+  await click(page, "buy-closed-helm");
+  expect((await snapshot(page)).player.inventory).toContain("closed-helm");
+});
+
+for (const weapon of ["wood", "greatsword"])
+  test(`${weapon} melee strike tilts toward the mouse while keeping fixed shoulders`, async ({
+    page,
+  }) => {
+    await page.route("**/content/items.json?_=*", (r) =>
+      r.fulfill({ json: liveItems }),
+    );
+    const p = createPlayer();
+    if (weapon !== "wood") p.inventory.push(weapon);
+    p.equipment.rightHand = weapon;
+    await savedFixture(page, p);
+    await page.clock.install();
+    const poses: Rig[] = [];
+    for (const y of [220, 530]) {
+      await launch(page);
+      await click(page, "battle");
+      await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+      await page.mouse.move(750, y);
+      await page.clock.runFor(32);
+      await page.keyboard.press("k");
+      await page.clock.runFor(500);
+      const s = await snapshot(page);
+      expect(s.battle!.player.handActions.rear?.name).toBe("quick");
+      poses.push(s.rigs![0]);
+      await page.screenshot({
+        path: `test-results/screenshots/melee-aim-${weapon}-${y}.png`,
+      });
+      const geometry = s.geometry![0].blades!.rear!;
+      expect(Number.isFinite(geometry.a.y)).toBe(true);
+      await page.clock.resume();
+    }
+    expect(poses[0].far.hand.y).toBeLessThan(poses[1].far.hand.y - 3);
+    for (const r of poses) anatomy(r);
+  });
+
+test("localized damage shows actual numbers, subtle cracks and repairs survivors on exit", async ({
   page,
 }) => {
   await page.route("**/content/items.json?_=*", (r) =>
@@ -3282,37 +3423,57 @@ test("worn armor shatters on real contact, removes overlays and stays destroyed 
   p.inventory.push("closed-helm", "cuirass");
   p.equipment.helmet = "closed-helm";
   p.equipment.body = "cuirass";
-  p.armorWear = { "closed-helm": 69, cuirass: 141 };
   await savedFixture(page, p);
   await launch(page);
   await click(page, "battle");
-  await scene(page, "ArenaScene");
-  expect((await snapshot(page)).rigs![0].armor).toEqual({
-    helmet: "closed-helm",
-    body: "cuirass",
-  });
+  await expect
+    .poll(async () => (await snapshot(page)).battle!.contacts.length, {
+      timeout: 15000,
+    })
+    .toBeGreaterThan(0);
+  let s = await snapshot(page);
+  const hit = s.battle!.contacts.find((e) => e.defenderId === "wanderer")!;
+  expect(hit.hitRegion).toBeTruthy();
+  const damagedId = hit.hitRegion === "helmet" ? "closed-helm" : "cuirass";
+  expect(s.player.armorWear?.[damagedId]).toBeGreaterThan(0);
+  expect(
+    await page.evaluate(
+      (value) =>
+        (
+          window as unknown as {
+            __arena: { display: () => { texts: { text: string }[] } };
+          }
+        ).__arena
+          .display()
+          .texts.some((t) => t.text === value),
+      String(hit.damage),
+    ),
+  ).toBe(true);
   await expect
     .poll(
       async () =>
-        (await snapshot(page)).battle?.armorBreaks.filter(
-          (e) => e.ownerId === "wanderer",
-        ).length,
-      { timeout: 20000 },
+        Math.max(...Object.values((await snapshot(page)).rigs![0].armorDamage)),
+      { timeout: 25000 },
     )
-    .toBe(2);
-  const s = await snapshot(page);
-  expect(s.rigs![0].armor).toEqual({});
-  expect(s.player.equipment).toEqual({ rightHand: "wood" });
-  expect(s.player.inventory).toEqual(["wood"]);
-  expect(s.player.armorWear).toEqual({});
-  expect(s.battle!.projectiles).toEqual([]);
-  await shot(page, "armor-shattering-bare-head-and-torso");
-  await page.waitForTimeout(350);
-  await expect.poll(async () => (await snapshot(page)).rigs![0].alpha).toBe(1);
-  await page.reload();
+    .toBeGreaterThan(0.75);
+  s = await snapshot(page);
+  const ratios = s.rigs![0].armorCracks;
+  expect(Math.max(...Object.values(ratios).map((v) => v ?? 0))).toBeGreaterThan(
+    0,
+  );
+  expect(
+    Math.max(...Object.values(ratios).map((v) => v ?? 0)),
+  ).toBeLessThanOrEqual(0.5);
+  await shot(page, "subtle-damaged-armor-cracks");
+  const surviving = { ...(await snapshot(page)).player.equipment };
+  await page.keyboard.press("Escape");
   await scene(page, "MainMenuScene");
-  expect((await snapshot(page)).player.inventory).toEqual(["wood"]);
-  expect((await snapshot(page)).player.equipment).toEqual({
-    rightHand: "wood",
-  });
+  expect((await snapshot(page)).player.armorWear ?? {}).toEqual({});
+  expect((await snapshot(page)).player.equipment).toEqual(surviving);
+  expect(
+    Object.values((await snapshot(page)).rigs![0].armorCracks).every(
+      (v) => v === 0,
+    ),
+  ).toBe(true);
+  await shot(page, "armor-repaired-after-combat");
 });

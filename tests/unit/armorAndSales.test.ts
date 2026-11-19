@@ -67,16 +67,29 @@ describe("fixed damage and breakable protection", () => {
     const [hit] = b.resolve([touching, touching]);
     expect(hit).toMatchObject({ damage: 0, rawDamage: 13, blocked: true });
     expect(b.enemy.hp).toBe(100);
-    expect(b.enemy.model.equipment).toEqual({ rightHand: "wood" });
-    expect(b.enemy.model.inventory).toEqual(["wood"]);
-    expect(b.armorBreaks.map((e) => e.slot).sort()).toEqual(["body", "helmet"]);
-    expect(b.consumedItems).toHaveLength(2);
-    expect(b.projectiles).toEqual([]); // Debris never becomes a pickup.
+    expect(b.enemy.model.equipment).toEqual({
+      rightHand: "wood",
+      body: "cuirass",
+    });
+    expect(b.enemy.model.inventory).toEqual(["wood", "cuirass"]);
+    expect(b.armorBreaks.map((e) => e.slot)).toEqual(["helmet"]);
+    expect(b.consumedItems).toHaveLength(1);
+    expect(b.projectiles).toEqual([]);
     expect(b.resolve([touching, touching])).toEqual([]);
     for (let i = 0; i < 120; i++) b.advance(8, [{}, {}]);
-    expect(strike(b)[0].damage).toBe(13);
-    expect(b.enemy.hp).toBe(87);
+    // A later torso contact breaks only the remaining body piece.
+    const bodyHit = {
+      ...touching,
+      bodyRegions: ["body", "body"] as ("body" | "helmet")[],
+    };
+    b.advance(0, [{ attack: "quick" }, {}]);
+    b.advance(550, [{}, {}]);
+    expect(b.resolve([bodyHit, bodyHit])[0].damage).toBe(5);
+    expect(b.enemy.model.equipment).toEqual({ rightHand: "wood" });
     expect(b.consumedItems).toHaveLength(2);
+    for (let i = 0; i < 120; i++) b.advance(8, [{}, {}]);
+    expect(strike(b)[0].damage).toBe(13);
+    expect(b.enemy.hp).toBe(82);
   });
   it("uses the same fixed armor subtraction and wear for thrown items and bolts", () => {
     for (const kind of ["throw", "bolt"] as const) {
@@ -113,7 +126,6 @@ describe("fixed damage and breakable protection", () => {
       });
       expect(b.enemy.model.armorWear).toEqual({
         "closed-helm": 18,
-        cuirass: 18,
       });
     }
   });
@@ -129,7 +141,7 @@ describe("fixed damage and breakable protection", () => {
     expect(parried.resolve([touching, touching])[0].parried).toBe(true);
     expect(parried.enemy.model.armorWear).toBeUndefined();
   });
-  it("retains fatigue across re-equipping, saving and another fight", () => {
+  it("retains fatigue across re-equipping and saving until battle repair", () => {
     const p = make().enemy.model;
     wearArmor(p, 20);
     unequip(p, "helmet");

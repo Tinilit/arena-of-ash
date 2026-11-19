@@ -1,3 +1,4 @@
+import { armorDamage, type ArmorSlot } from "../combat/armor";
 import { crossbowPose } from "./crossbowMotion";
 import { setCrossbowState } from "../rendering/crossbow";
 import { twoHandPose } from "./twoHandMotion";
@@ -52,6 +53,9 @@ export class Gladiator {
   private beltItems: Phaser.GameObjects.Container[] = [];
   private throwProp!: Phaser.GameObjects.Graphics;
   private loadoutKey = "";
+  private armorCracks: Partial<Record<ArmorSlot, Phaser.GameObjects.Graphics>> =
+    {};
+  private armorRatios: Partial<Record<ArmorSlot, number>> = {};
   private armorArt: Partial<
     Record<"helmet" | "body", Phaser.GameObjects.Container>
   > = {};
@@ -136,6 +140,7 @@ export class Gladiator {
         scene,
         item(model.equipment.body) ?? "leather",
       ).setY(skeleton.torsoArtY);
+      this.attachCracks("body", this.armorArt.body);
       torso.add(this.armorArt.body);
       this.armorIds.body = model.equipment.body;
     }
@@ -145,6 +150,7 @@ export class Gladiator {
         scene,
         item(model.equipment.helmet) ?? "cap",
       );
+      this.attachCracks("helmet", this.armorArt.helmet);
       head.add(this.armorArt.helmet);
       this.armorIds.helmet = model.equipment.helmet;
     }
@@ -253,6 +259,7 @@ export class Gladiator {
       }
     }
 
+    this.updateCracks(model);
     this.loadoutKey = JSON.stringify(model.equipment);
     scene.events.once("shutdown", () => this.animator.stop());
     this.update(0);
@@ -266,22 +273,62 @@ export class Gladiator {
       ? { ...definition, image: undefined, hitbox: undefined }
       : definition;
   }
+  private attachCracks(slot: ArmorSlot, art: Phaser.GameObjects.Container) {
+    const bounds = art.getBounds();
+    const x = bounds.centerX - art.x,
+      y = slot === "helmet" ? -28 : bounds.centerY - art.y;
+    const w =
+        slot === "helmet"
+          ? Math.min(20, bounds.width * 0.3)
+          : bounds.width * 0.3,
+      h = slot === "helmet" ? 9 : bounds.height * 0.32;
+    const cracks = this.scene.add.graphics().lineStyle(0.9, 0x263238, 0.8);
+    for (const offset of [-0.5, 0.6]) {
+      cracks
+        .beginPath()
+        .moveTo(x + offset * w, y - h * 0.7)
+        .lineTo(x + offset * w - w * 0.12, y - h * 0.1)
+        .lineTo(x + offset * w + w * 0.18, y + h * 0.2)
+        .lineTo(x + offset * w + w * 0.03, y + h * 0.8)
+        .strokePath();
+      cracks.lineBetween(
+        x + offset * w - w * 0.12,
+        y - h * 0.1,
+        x + offset * w - w * 0.42,
+        y + h * 0.1,
+      );
+    }
+    art.add(cracks.setAlpha(0));
+    this.armorCracks[slot] = cracks;
+  }
+  private updateCracks(model: Player) {
+    for (const slot of ["helmet", "body"] as const) {
+      const ratio = armorDamage(model, slot);
+      this.armorRatios[slot] = ratio;
+      this.armorCracks[slot]?.setAlpha(
+        Math.max(0, (ratio - 0.55) / 0.45) * 0.5,
+      );
+    }
+  }
   syncArena(f: ArenaFighter) {
     for (const slot of ["helmet", "body"] as const) {
       const id = f.model.equipment[slot];
       if (id === this.armorIds[slot]) continue;
       this.armorArt[slot]?.destroy();
       delete this.armorArt[slot];
+      delete this.armorCracks[slot];
       this.armorIds[slot] = id;
       const definition = item(id ?? "");
       if (definition) {
         const art = drawGear(this.scene, definition).setY(
           slot === "body" ? skeleton.torsoArtY : 0,
         );
+        this.attachCracks(slot, art);
         this.joints[slot === "body" ? "torso" : "head"].addAt(art, 1);
         this.armorArt[slot] = art;
       }
     }
+    this.updateCracks(f.model);
     this.equippedWeapon = primaryWeapon(f.model);
     this.primaryHand = primaryHand(f.model);
     const key = JSON.stringify(f.model.equipment);
@@ -673,6 +720,13 @@ export class Gladiator {
         },
       },
       armor: { ...this.armorIds },
+      armorDamage: { ...this.armorRatios },
+      armorCracks: Object.fromEntries(
+        Object.entries(this.armorCracks).map(([slot, art]) => [
+          slot,
+          art.alpha,
+        ]),
+      ),
       scale: Math.abs(this.root.scaleY),
       near: {
         hip: point("nearThigh"),
@@ -796,6 +850,7 @@ export class Gladiator {
       ),
       blades,
       body,
+      bodyRegions: body.map((_, index) => (index === 0 ? "helmet" : "body")),
       hands: {
         front: capsule(point("nearHand", 0, 4), point("nearHand", 0, 10), 8),
         rear: capsule(point("farHand", 0, 4), point("farHand", 0, 10), 8),

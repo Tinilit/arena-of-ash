@@ -10,10 +10,14 @@ export function armorDurability(definition: Item) {
     ? Math.max(30, 20 + definition.armor * 10)
     : Math.max(50, 30 + definition.armor * 14);
 }
-export function wearArmor(player: Player, rawDamage: number) {
+export function wearArmor(
+  player: Player,
+  rawDamage: number,
+  region?: ArmorSlot,
+) {
   const broken: { slot: ArmorSlot; itemId: string }[] = [];
   if (rawDamage <= 0) return broken;
-  for (const slot of armorSlots) {
+  for (const slot of region ? [region] : armorSlots) {
     const id = player.equipment[slot],
       definition = item(id ?? "");
     if (!id || !definition) continue;
@@ -26,4 +30,18 @@ export function wearArmor(player: Player, rawDamage: number) {
     }
   }
   return broken;
+}
+
+/** Surviving equipment is repaired; consumed/broken copies are never restored. */
+export function repairArmor(player: Player) {
+  const damaged = Object.keys(player.armorWear ?? {}).length > 0;
+  if (player.armorWear) player.armorWear = {};
+  return damaged;
+}
+export function armorDamage(player: Player, slot: ArmorSlot) {
+  const id = player.equipment[slot],
+    definition = item(id ?? "");
+  return definition
+    ? Math.min(1, (player.armorWear?.[id!] ?? 0) / armorDurability(definition))
+    : 0;
 }

@@ -1,3 +1,4 @@
+import { repairArmor } from "../combat/armor";
 import { SaveStore } from "../persistence/save";
 import { createPlayer, type Player } from "../domain/model";
 export class Services {
@@ -13,6 +14,7 @@ export class Services {
   player: Player = createPlayer();
   load() {
     this.player = this.store.load();
+    if (repairArmor(this.player)) this.save();
   }
   save() {
     this.store.save(this.player);
