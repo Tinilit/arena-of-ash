@@ -27,7 +27,17 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      - run: npx playwright install --with-deps chromium
+      - name: Prepare Chromium
+        shell: bash
+        run: |
+          for arena_browser in chromium google-chrome chromium-browser; do
+            arena_browser_path="$(command -v "$arena_browser" || true)"
+            if [ -n "$arena_browser_path" ] && "$arena_browser_path" --version; then
+              printf 'CHROMIUM_PATH=%s\n' "$arena_browser_path" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+          npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: always()

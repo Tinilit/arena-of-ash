@@ -16,6 +16,8 @@ Push a code update to `main`. The **Validate and deploy game** workflow runs str
 
 The existing public site stays on its last successful deployment if validation fails. Screenshots and failure traces are available from the workflow artifacts. The deploy job's environment URL is authoritative, especially if a custom domain is configured later.
 
+Browser validation first uses a working Chromium/Chrome executable already installed on the hosted runner, passing its path through `CHROMIUM_PATH`. A runner without one falls back to `playwright install --with-deps chromium`. This avoids making publication depend on an unnecessary browser/dependency download when the runner image already supplies the browser. The full unit and browser suites still gate deployment. Hosted image contents are documented in [GitHub runner images](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md).
+
 Local smoke check for the same subdirectory build:
 
 ```sh
