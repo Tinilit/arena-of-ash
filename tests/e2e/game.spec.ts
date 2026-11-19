@@ -2001,6 +2001,10 @@ test("both throw styles remain selectable and the overarm serve releases high in
 test("hand inputs keep separate animation clocks when staggered", async ({
   page,
 }) => {
+  const p = createPlayer();
+  p.inventory.push("rust");
+  p.equipment.leftHand = "rust";
+  await savedFixture(page, p);
   await page.clock.install();
   await launch(page);
   await click(page, "battle");
@@ -2175,7 +2179,8 @@ test("belt axe uses an overarm airborne throw while the front hand attacks indep
   page,
 }) => {
   const p = createPlayer();
-  p.inventory.push("throwing-axe");
+  p.inventory.push("throwing-axe", "rust");
+  p.equipment.leftHand = "rust";
   p.equipment.belt2 = "throwing-axe";
   await savedFixture(page, p);
   await page.clock.install();
@@ -2258,8 +2263,8 @@ test("Ctrl plus each mouse attack throws that hand's actual weapon and leaves ba
   await page.keyboard.press("k");
   await page.clock.runFor(50);
   s = await snapshot(page);
-  expect(s.battle!.player.handActions.front?.name).toBe("quick");
-  expect(s.battle!.player.handActions.rear?.name).toBe("quick");
+  expect(s.battle!.player.handActions.front).toBeNull();
+  expect(s.battle!.player.handActions.rear).toBeNull();
   expect(s.geometry![0].blades?.front).toBeUndefined();
   expect(s.geometry![0].blades?.rear).toBeUndefined();
   expect(s.rigs![0].body.backArms).toContain("nearArm");
