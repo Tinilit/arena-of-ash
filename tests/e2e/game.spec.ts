@@ -32,7 +32,11 @@ interface RigFrame {
 interface Rig {
   crossbow: { loaded: boolean; draw: number; supportGrip: Point | null } | null;
   shooting: { kind: number; flash: boolean };
-  twoHanded: { active: boolean; supportGrip: Point | null };
+  twoHanded: {
+    active: boolean;
+    shoulderCarry: boolean;
+    supportGrip: Point | null;
+  };
   drinking: boolean;
   drink: { vialVisible: boolean; mouth: Point; neck: Point; base: Point };
   physical: boolean;
@@ -2333,7 +2337,8 @@ test("crossbow and rifle previews aim, fire and restore equipment without changi
     let r = (await snapshot(page)).rigs![0];
     expect(r.shooting.kind).toBe(kind);
     expect(r.weapons.every((w) => !w.visible)).toBe(true);
-    expect(r.body.frontArms).toContain("nearArm");
+    expect(r.body.backArms).toContain("nearArm");
+    expect(r.body.frontArms).toContain("farArm");
     expect(r.near.hand.x).toBeGreaterThan(r.far.hand.x + 25);
     expect(Math.abs(r.near.hand.y - r.far.hand.y)).toBeLessThan(12);
     anatomy(r);
@@ -2496,8 +2501,9 @@ async function twoHandFixture(page: Page, weapon = "greatsword") {
 }
 function sharedGrip(r: Rig) {
   expect(r.twoHanded.active).toBe(true);
-  expect(r.body.backArms).toContain("farArm");
-  expect(r.body.frontArms).not.toContain("farArm");
+  expect(r.twoHanded.shoulderCarry).toBe(false);
+  expect(r.body.backArms).toContain("nearArm");
+  expect(r.body.frontArms).toContain("farArm");
   expect(r.weapons.filter((w) => w.visible)).toHaveLength(1);
   expect(r.twoHanded.supportGrip).not.toBeNull();
   expect(
@@ -2519,7 +2525,27 @@ for (const [weapon, duration] of [
     await twoHandFixture(page, weapon);
     await page.clock.install();
     await launch(page);
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+    let resting = (await snapshot(page)).rigs![0];
+    expect(resting.twoHanded.shoulderCarry).toBe(true);
+    expect(resting.near.hand.y - resting.near.shoulder.y).toBeCloseTo(
+      69 * resting.scale,
+      2,
+    );
+    expect(resting.body.backArms).toContain("nearArm");
+    expect(resting.body.frontArms).toContain("farArm");
+    await page.screenshot({
+      path: `test-results/screenshots/${weapon}-shoulder-idle.png`,
+    });
+    await page.keyboard.press("r");
+    await page.clock.runFor(500);
     sharedGrip((await snapshot(page)).rigs![0]);
+    await page.keyboard.press("r");
+    await page.clock.runFor(500);
+    resting = (await snapshot(page)).rigs![0];
+    expect(resting.twoHanded.shoulderCarry).toBe(true);
+    anatomy(resting, false);
+    await page.clock.resume();
     await click(page, "battle");
     await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
     sharedGrip((await snapshot(page)).rigs![0]);
@@ -2738,7 +2764,7 @@ test("camp, character and active arena expose no demonstration or combat action 
     .toBe("quick");
 });
 
-test("crossbow is bought and equipped, holds a rear elbow behind the torso, and fires physical bolts without consuming the item", async ({
+test("crossbow is bought and equipped, holds its rear elbow in front and front elbow behind, and fires physical bolts without consuming the item", async ({
   page,
 }) => {
   await page.route("**/content/items.json?_=*", (route) =>
@@ -2768,7 +2794,8 @@ test("crossbow is bought and equipped, holds a rear elbow behind the torso, and 
   let s = await snapshot(page);
   const owned = s.player;
   expect(s.rigs![0].crossbow?.loaded).toBe(true);
-  expect(s.rigs![0].body.backArms).toContain("farArm");
+  expect(s.rigs![0].body.backArms).toContain("nearArm");
+  expect(s.rigs![0].body.frontArms).toContain("farArm");
   const support = s.rigs![0].crossbow!.supportGrip!;
   expect(
     Math.hypot(

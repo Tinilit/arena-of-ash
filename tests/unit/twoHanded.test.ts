@@ -143,13 +143,18 @@ describe("two-handed ownership and contact rules", () => {
 });
 for (const id of ids)
   for (const action of [undefined, "quick", "shove", "finish"])
-    it(`${id}/${action ?? "idle"} keeps fixed bones and two exact grip points on one shaft`, () => {
+    it(`${id}/${action ?? "idle"} keeps fixed bones and the appropriate weapon grip`, () => {
       for (const rest of [combatRest, relaxedRest])
         for (let step = 0; step <= 400; step++) {
           const p = twoHandPose(rest, item(id)!, action, step / 400),
             s = groundedPose(p);
           expect(s.nearArm.clamped).toBe(false);
           expect(s.farArm.clamped).toBe(false);
+          if (action === "quick" && step === 128) {
+            expect(p.farWeaponAngle).toBeLessThan(-0.7);
+            expect(s.farArm.hand.y).toBeLessThan(s.farArm.shoulder.y);
+            expect(p.torso).toBeLessThan(-0.1);
+          }
           const grip = add(
             s.farArm.hand,
             rotate(
@@ -157,9 +162,24 @@ for (const id of ids)
               s.root.rotation + s.torso + p.farWeaponAngle!,
             ),
           );
-          expect(
-            Math.hypot(grip.x - s.nearArm.hand.x, grip.y - s.nearArm.hand.y),
-          ).toBeLessThan(1e-6);
+          if (rest === relaxedRest && !action) {
+            expect(p.shoulderCarry).toBe(1);
+            expect(s.nearArm.hand.y - s.nearArm.shoulder.y).toBeCloseTo(69, 7);
+            const shoulderContact = add(
+              s.farArm.hand,
+              rotate({ x: 0, y: -39 }, p.farWeaponAngle!),
+            );
+            expect(
+              Math.hypot(
+                shoulderContact.x - s.farArm.shoulder.x,
+                shoulderContact.y - s.farArm.shoulder.y,
+              ),
+            ).toBeLessThan(1);
+          } else
+            expect(
+              Math.hypot(grip.x - s.nearArm.hand.x, grip.y - s.nearArm.hand.y),
+              `phase ${step / 400}`,
+            ).toBeLessThan(1e-6);
           for (const arm of [s.nearArm, s.farArm])
             expect(
               Math.hypot(

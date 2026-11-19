@@ -1,6 +1,6 @@
 import type { Clip, Pose } from "./animation";
 import type { Hand, Item } from "../domain/model";
-import { combatRest } from "./locomotion";
+import { combatRest, freeFrontArm } from "./locomotion";
 import { skeleton, rotate } from "./kinematics";
 const clamp = (v: number) => Math.max(0, Math.min(1, v));
 const ease = (v: number) => {
@@ -48,7 +48,6 @@ function pairedGrip(base: Pose, x: number, y: number, angle: number): Pose {
   return {
     ...base,
     twoHanded: 1,
-    nearStrike: 1,
     farHandX: x,
     farHandY: y,
     farWrist: 0.1,
@@ -68,12 +67,7 @@ export function twoHandPose(
   const relaxed = clamp(
     ((base.weaponGrip ?? Math.PI / 2) - Math.PI / 2) / (Math.PI / 4),
   );
-  const idle: Key = [
-    0,
-    44 + 4 * relaxed,
-    52 - 14 * relaxed,
-    0.75 + 1.85 * relaxed,
-  ];
+  const idle: Key = [0, 44, 52, 0.75];
   let grip = idle.slice(1);
   if (action === "quick") {
     const hammer = weapon.weaponType === "hammer",
@@ -81,8 +75,9 @@ export function twoHandPose(
     grip = sample(
       [
         idle,
-        [0.28, 64, -26, hammer ? 0.16 : axe ? 0.24 : 0.34],
-        [0.44, 60, 12, axe ? 1.1 : 1.25],
+        [0.14, 67, 32, 0.35],
+        [0.32, 69, -20, hammer ? -0.95 : axe ? -0.85 : -0.75],
+        [0.44, 62, 4, axe ? 0.9 : 1],
         [
           0.6,
           hammer ? 44 : 48,
@@ -121,11 +116,31 @@ export function twoHandPose(
     );
   }
   const result = pairedGrip(base, grip[0], grip[1], grip[2]);
+  const carry = action ? 0 : ease(relaxed);
+  result.shoulderCarry = carry;
+  if (carry > 0) {
+    // The shaft rests on the rear shoulder, with the grip ahead of it and
+    // the blade/head pointing back. The front arm releases the support grip.
+    for (const [key, target] of Object.entries({
+      farHandX: 36,
+      farHandY: 14,
+      farWeaponAngle: -1.2,
+      ...freeFrontArm,
+    }))
+      result[key] = result[key]! + (target! - result[key]!) * carry;
+  }
   if (action) {
     const weight = ease(phase / 0.2) * ease((1 - phase) / 0.18);
-    result.torso =
-      (base.torso ?? 0) + (action === "shove" ? 0.1 : 0.08) * weight;
-    result.head = (base.head ?? 0) - 0.025 * weight;
+    if (action === "quick") {
+      const coil = ease(phase / 0.32) * ease((0.5 - phase) / 0.18),
+        drive = ease((phase - 0.32) / 0.25) * ease((1 - phase) / 0.18);
+      result.torso = (base.torso ?? 0) - 0.17 * coil + 0.14 * drive;
+      result.head = (base.head ?? 0) + 0.05 * coil - 0.035 * drive;
+    } else {
+      result.torso =
+        (base.torso ?? 0) + (action === "shove" ? 0.1 : 0.08) * weight;
+      result.head = (base.head ?? 0) - 0.025 * weight;
+    }
   }
   return result;
 }

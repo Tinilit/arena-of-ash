@@ -408,7 +408,8 @@ export class Gladiator {
       const closed =
         shooting ||
         (p.rangedHold ?? 0) > 0.5 ||
-        (p.twoHanded ?? 0) > 0.5 ||
+        ((p.twoHanded ?? 0) > 0.5 &&
+          (hand === "rear" || (p.shoulderCarry ?? 0) < 0.5)) ||
         Boolean(weapon) ||
         (p[`${prefix}Fist`] ?? 0) > 0.5 ||
         (hand === "rear" && throwing && !released) ||
@@ -431,27 +432,23 @@ export class Gladiator {
     }
     this.throwProp.setVisible(throwing && !released);
     this.potion.setVisible(drinking && !this.actionProps.rear);
+    const pairedHold = (p.twoHanded ?? 0) > 0.5 || (p.rangedHold ?? 0) > 0.5;
     const frontThrow =
       grappling ||
-      shooting ||
-      (p.nearStrike ?? 0) > 0.5 ||
+      (!pairedHold && (p.nearStrike ?? 0) > 0.5) ||
       (p.nearThrow ?? 0) > 0.5 ||
       (p.nearShove ?? 0) > 0.5;
     const nearParent = frontThrow
       ? this.joints.frontTorso
       : this.joints.backTorso;
     if (this.joints.nearArm.parentContainer !== nearParent)
-      nearParent.addAt(this.joints.nearArm, shooting ? 2 : 0);
-    const deepRear = (p.twoHanded ?? 0) > 0.5 || (p.rangedHold ?? 0) > 0.5;
-    const rearParent = deepRear
-      ? this.joints.backTorso
-      : this.joints.frontTorso;
+      nearParent.addAt(this.joints.nearArm, 0);
+    const rearParent = this.joints.frontTorso;
     if (this.joints.farArm.parentContainer !== rearParent)
       rearParent.addAt(this.joints.farArm, 0);
-    const handParent = deepRear ? this.joints.frontTorso : this.joints.farElbow;
+    const handParent = this.joints.farElbow;
     if (this.joints.farHand.parentContainer !== handParent)
       handParent.add(this.joints.farHand);
-    if (deepRear) this.joints.frontTorso.bringToTop(this.joints.nearArm);
     this.openPalm.setVisible(throwing && released);
     // The rear arm stays in front of the entire torso/head plane throughout
     // throwing. Keep depth fixed instead of hiding a moving hand with the head.
@@ -471,22 +468,7 @@ export class Gladiator {
       this.limbs[`${side}Leg`].pose(leg.bend);
       this.limbs[`${side}Arm`].pose(arm.bend, arm.angle);
     }
-    if (deepRear) {
-      const arm = solved.farArm;
-      const tip = {
-        x:
-          -Math.sin(arm.angle) * skeleton.upperArm -
-          Math.sin(arm.angle + arm.bend) * skeleton.forearm,
-        y:
-          Math.cos(arm.angle) * skeleton.upperArm +
-          Math.cos(arm.angle + arm.bend) * skeleton.forearm,
-      };
-      this.joints.farHand.setPosition(
-        skeleton.farShoulderX + tip.x,
-        skeleton.shoulderY + tip.y,
-      );
-      this.joints.farHand.rotation = arm.angle + arm.bend + arm.wrist;
-    } else this.joints.farHand.setPosition(0, skeleton.forearm);
+    this.joints.farHand.setPosition(0, skeleton.forearm);
     this.root.x =
       this.originX + solved.root.x * this.bodyScale * this.direction;
     this.root.y = this.originY + solved.root.y * this.bodyScale;
@@ -606,6 +588,7 @@ export class Gladiator {
           : null,
       twoHanded: {
         active: (this.displayedPose.twoHanded ?? 0) > 0.5,
+        shoulderCarry: (this.displayedPose.shoulderCarry ?? 0) > 0.5,
         supportGrip:
           this.equippedWeapon?.hands === 2 && this.handWeapons.rear?.visible
             ? {
