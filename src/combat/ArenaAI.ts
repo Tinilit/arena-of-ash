@@ -14,6 +14,7 @@ export class ArenaAI {
   recoveryTargetId?: number;
   private recoveryGoal?: number;
   private tacticalCooldown = 300;
+  private drinkCooldown = 0;
   private parryPlans = new Map<
     number,
     { at: number; attempt: boolean; done: boolean }
@@ -157,10 +158,12 @@ export class ArenaAI {
     for (const belt of ["belt1", "belt2"] as const) {
       const def = item(self.model.equipment[belt] ?? "");
       if (
+        this.drinkCooldown === 0 &&
         def?.use === "drink" &&
         ((def.effect === "haste" && !(self.speedRemaining ?? 0)) ||
           (def.heal && self.hp < 65))
       ) {
+        this.drinkCooldown = 6000;
         this.lastDecision = "drink";
         return { belt, move: gap < 200 ? -toward : 0 };
       }
@@ -214,6 +217,7 @@ export class ArenaAI {
     target: ArenaFighter,
     ground: readonly Projectile[] = [],
   ): ArenaInput {
+    this.drinkCooldown = Math.max(0, this.drinkCooldown - delta);
     this.guardFor -= delta;
     this.jumpCooldown -= delta;
     this.throwCooldown -= delta;

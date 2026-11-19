@@ -89,6 +89,22 @@ function drop(b: RealtimeBattle, x: number, id = "rust"): Projectile {
   return p;
 }
 
+it("returns to combat after an interrupted drink instead of retrying every free frame", () => {
+  const b = battle();
+  b.player.hp = 40;
+  b.player.model.inventory.push("healing-potion");
+  b.player.model.equipment.belt1 = "healing-potion";
+  const brain = ai();
+  const command = brain.update(300, b.player, b.enemy);
+  expect(command.belt).toBe("belt1");
+  b.advance(0, [command, {}]);
+  expect(b.player.action?.name).toBe("drink");
+  b.player.action = null;
+  expect(brain.update(1500, b.player, b.enemy).belt).toBeUndefined();
+  expect(brain.update(4500, b.player, b.enemy).belt).toBe("belt1");
+  expect(b.player.model.equipment.belt1).toBe("healing-potion");
+});
+
 describe("real-time haste", () => {
   it("requires purchased supplies and permits haste at full health", () => {
     expect(createPlayer().inventory).toEqual(["wood"]);
