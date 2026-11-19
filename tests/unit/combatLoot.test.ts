@@ -84,15 +84,15 @@ function ground(id: string, x: number, sequence = 100): Projectile {
 }
 
 describe("empty-first equipment", () => {
-  it("starts and reloads a new character with an empty belt and supplies in the backpack", () => {
+  it("starts and reloads a new character without any free belt supplies", () => {
     const p = createPlayer();
     expect(p.equipment).toEqual({ rightHand: "wood" });
     expect(deserialize(serialize(p)).equipment).toEqual(p.equipment);
-    expect(p.inventory).toContain("throwing-knife");
+    expect(p.inventory).toEqual(["wood"]);
   });
   it("fills empty hands and belt slots before replacing the selected occupied slot", () => {
     const p = createPlayer();
-    p.inventory.push("rust");
+    p.inventory.push("rust", "throwing-knife", "throwing-axe");
     equip(p, "rust", equipmentTarget(p, "rust", "rightHand"));
     expect(p.equipment).toMatchObject({ rightHand: "wood", leftHand: "rust" });
     equip(p, "throwing-knife", equipmentTarget(p, "throwing-knife", "belt1"));

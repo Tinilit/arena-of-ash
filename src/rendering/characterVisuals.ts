@@ -1,4 +1,5 @@
 import { drawCrossbow } from "./crossbow";
+import { arenaGearBounds, drawArenaGear } from "./arenaGear";
 import { armorBounds, drawArmor } from "./armorGear";
 import Phaser from "phaser";
 import { extendedGear, extendedGearBounds } from "./extendedGear";
@@ -284,6 +285,8 @@ export function drawGear(
     return scene.add.container(0, 0, [visual]).setName(key);
   }
   if (id === "crossbow") return drawCrossbow(scene);
+  if (arenaGearBounds[id])
+    return bounded(scene, drawArenaGear(scene, id), arenaGearBounds[id]);
   if (armorBounds[id])
     return bounded(scene, drawArmor(scene, id), armorBounds[id]);
   const extended = extendedGear(scene, id);

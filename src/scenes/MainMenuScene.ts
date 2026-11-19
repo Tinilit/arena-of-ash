@@ -98,6 +98,14 @@ export class MainMenuScene extends BaseScene {
       `${en.next}: ${opponentName(this.services.player.progress)} · Victories: ${this.services.player.progress}`,
       21,
     ).setOrigin(0.5);
+    label(
+      this,
+      960,
+      650,
+      "Arena: B toggles Auto Battle",
+      14,
+      "#b9aa8d",
+    ).setOrigin(0.5);
   }
   override snapshot() {
     return {

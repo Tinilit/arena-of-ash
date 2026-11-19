@@ -61,6 +61,7 @@ export interface CombatProcRandom {
   disarm?: () => number;
   hammerKnockdown?: () => number;
   hammerPush?: () => number;
+  drop?: () => number;
 }
 import { twoHandDuration } from "../characters/twoHandMotion";
 export const attackTimings = {
@@ -107,6 +108,9 @@ export interface Swing {
   throwAttack?: number;
 }
 export interface ArenaFighter extends Fighter {
+  speedRemaining?: number;
+  timeScale?: number;
+  animationDelta?: number;
   x: number;
   y: number;
   vx: number;
@@ -220,6 +224,8 @@ export function activeActions(f: ArenaFighter): Swing[] {
     (a): a is Swing => a !== null,
   );
 }
+export const fighterSpeed = (f: ArenaFighter) =>
+  (f.speedRemaining ?? 0) > 0 ? 2 : 1;
 export class RealtimeBattle {
   state: ArenaState = "Fighting";
   readonly fighters: [ArenaFighter, ArenaFighter];
@@ -257,8 +263,12 @@ export class RealtimeBattle {
   get enemy() {
     return this.fighters[1];
   }
-  canGrapple() {
-    return this.grapples.canStart(this.state, this.player, this.enemy);
+  canGrapple(f = this.player) {
+    return this.grapples.canStart(
+      this.state,
+      f,
+      this.fighters.find((t) => t !== f)!,
+    );
   }
   canAttack(
     f: ArenaFighter,
@@ -439,7 +449,9 @@ export class RealtimeBattle {
     return (
       definition?.use === "drink" &&
       this.canAttack(f, "drink", "rear") &&
-      f.hp < stats(f.model).hp
+      (definition.effect === "haste"
+        ? (f.speedRemaining ?? 0) === 0
+        : f.hp < stats(f.model).hp)
     );
   }
   private startBeltUse(f: ArenaFighter, slot: "belt1" | "belt2") {
@@ -484,18 +496,21 @@ export class RealtimeBattle {
     });
     const origin = geometry.grips?.[hand] ??
       geometry.hands?.[hand]?.a ?? { x: f.x, y: arenaRules.floor + f.y - 160 };
-    const angle = f.facing * 0.5;
+    const roll = this.procRandom.drop ?? Math.random;
+    const direction = roll() < 0.5 ? -1 : 1;
+    const angle = (roll() * 2 - 1) * Math.PI;
     this.projectiles.push({
       id,
+      kind: "disarmed",
       ownerId: f.model.id,
       itemId: definition.id,
       hand,
       sourceSlot,
       ...origin,
-      vx: -f.facing * 130,
-      vy: -180,
+      vx: direction * (230 + roll() * 230),
+      vy: -280 - roll() * 130,
       angle,
-      spin: f.facing * 4,
+      spin: direction * (8 + roll() * 7),
       previous: { ...origin, angle },
       attack: 0,
       floorRadius: projectileFloorRadius(definition),
@@ -530,7 +545,6 @@ export class RealtimeBattle {
     return (
       this.state === "Fighting" &&
       (direction === -1 || direction === 1) &&
-      (f === this.player || direction === -1) &&
       f.hp > 0 &&
       !f.finisher &&
       !f.grapple &&
@@ -547,20 +561,27 @@ export class RealtimeBattle {
   }
   advance(delta: number, input: [ArenaInput, ArenaInput]) {
     if (this.state !== "Fighting") return;
-    this.grapples.command(this.state, this.player, this.enemy, input[0]);
+    this.fighters.forEach((f, i) =>
+      this.grapples.command(this.state, f, this.fighters[1 - i], input[i]),
+    );
     const dt = delta / 1000;
     this.projectiles.forEach((p) =>
       advanceProjectile(p, delta, arenaRules.floor),
     );
     const before = this.fighters.map((f) => f.x);
     this.fighters.forEach((f, i) => {
-      f.landed += delta;
-      f.grappleCooldown = Math.max(0, (f.grappleCooldown ?? 0) - delta);
-      f.parryCooldown = Math.max(0, f.parryCooldown - delta);
+      const actorDelta = delta + Math.min(delta, f.speedRemaining ?? 0);
+      f.timeScale = delta > 0 ? actorDelta / delta : fighterSpeed(f);
+      f.animationDelta = actorDelta;
+      f.speedRemaining = Math.max(0, (f.speedRemaining ?? 0) - delta);
+      const dt = actorDelta / 1000;
+      f.landed += actorDelta;
+      f.grappleCooldown = Math.max(0, (f.grappleCooldown ?? 0) - actorDelta);
+      f.parryCooldown = Math.max(0, f.parryCooldown - actorDelta);
       if (f.parry) {
-        f.parry.elapsed += delta;
+        f.parry.elapsed += actorDelta;
         if (f.parry.succeeded) {
-          f.parry.shoveAge = (f.parry.shoveAge ?? 0) + delta;
+          f.parry.shoveAge = (f.parry.shoveAge ?? 0) + actorDelta;
           if (!f.parry.pushed && f.parry.shoveAge >= parryRules.shoveImpact) {
             f.parry.pushed = true;
             const target = this.fighters.find(
@@ -579,20 +600,20 @@ export class RealtimeBattle {
           f.parryCooldown = parryRules.cooldown;
         }
       }
-      f.stun = Math.max(0, f.stun - delta);
-      f.rangedCooldown = Math.max(0, (f.rangedCooldown ?? 0) - delta);
-      f.bodyCooldown = Math.max(0, f.bodyCooldown - delta);
+      f.stun = Math.max(0, f.stun - actorDelta);
+      f.rangedCooldown = Math.max(0, (f.rangedCooldown ?? 0) - actorDelta);
+      f.bodyCooldown = Math.max(0, f.bodyCooldown - actorDelta);
       for (const hand of ["front", "rear"] as const)
-        f.handCooldowns[hand] = Math.max(0, f.handCooldowns[hand] - delta);
+        f.handCooldowns[hand] = Math.max(0, f.handCooldowns[hand] - actorDelta);
       if (f.reaction) {
-        f.reaction.elapsed += delta;
+        f.reaction.elapsed += actorDelta;
         if (f.reaction.elapsed >= f.reaction.duration) f.reaction = null;
       }
-      f.hopCooldown = Math.max(0, f.hopCooldown - delta);
+      f.hopCooldown = Math.max(0, f.hopCooldown - actorDelta);
       if (f.hop) {
         const h = f.hop,
           definition = hopDefinitions[h.kind];
-        h.elapsed += delta;
+        h.elapsed += actorDelta;
         if (
           h.phase === "anticipation" &&
           h.elapsed >= definition.anticipation
@@ -608,7 +629,7 @@ export class RealtimeBattle {
       for (const hand of ["front", "rear"] as const) {
         const swing = f.handActions[hand];
         if (!swing) continue;
-        swing.elapsed += delta;
+        swing.elapsed += actorDelta;
         if (swing.elapsed >= swing.duration) {
           f.handCooldowns[hand] =
             twoHandWeapon(f.model) && swing.name === "quick" ? 400 : 280;
@@ -621,7 +642,7 @@ export class RealtimeBattle {
         }
       }
       if (f.bodyAction) {
-        f.bodyAction.elapsed += delta;
+        f.bodyAction.elapsed += actorDelta;
         if (f.bodyAction.elapsed >= f.bodyAction.duration) {
           f.bodyCooldown = f.bodyAction.name === "kick" ? 350 : 280;
           f.bodyAction = null;
@@ -629,7 +650,7 @@ export class RealtimeBattle {
       }
       if (f.knockdown && !f.finisher) {
         const k = f.knockdown;
-        k.elapsed += delta;
+        k.elapsed += actorDelta;
         if (
           k.phase === "fall" &&
           k.elapsed >= knockdownTiming.fall &&
@@ -813,13 +834,14 @@ export class RealtimeBattle {
       }
     });
     const [a, b] = this.fighters;
-    this.finishers.update(delta);
+    this.finishers.update(delta, (f) => f.timeScale ?? 1);
     this.grapples.update(
       delta,
       this.state,
       arenaRules.gravity,
       arenaRules.minX,
       arenaRules.maxX,
+      (f) => f.timeScale ?? 1,
     );
     if (
       !this.grapples.blocksSeparation() &&
@@ -853,11 +875,14 @@ export class RealtimeBattle {
           if (
             !swing.released &&
             swing.elapsed / swing.duration >= attackTimings.drink.from &&
-            definition?.heal &&
+            definition?.use === "drink" &&
             swing.sourceSlot &&
             f.model.equipment[swing.sourceSlot] === definition.id
           ) {
-            f.hp = Math.min(stats(f.model).hp, f.hp + definition.heal);
+            if (definition.effect === "haste")
+              f.speedRemaining = definition.durationMs ?? 10000;
+            else
+              f.hp = Math.min(stats(f.model).hp, f.hp + (definition.heal ?? 0));
             this.consume(f, swing, definition.id);
           }
           continue;
@@ -879,6 +904,7 @@ export class RealtimeBattle {
             this.projectiles.push({
               id: swing.id,
               kind: "bolt",
+              timeScale: fighterSpeed(f),
               ownerId: f.model.id,
               itemId: weapon.id,
               sourceSlot: "rightHand",
@@ -921,11 +947,12 @@ export class RealtimeBattle {
                   : definition.visual === "throwing-axe"
                     ? 600
                     : 700;
-              const vx = f.facing * speed + f.vx * 0.35,
+              const vx = f.facing * speed + (f.vx / (f.timeScale ?? 1)) * 0.35,
                 vy = -120;
               const angle = Math.atan2(vy, vx) + Math.PI / 2;
               this.projectiles.push({
                 id: swing.id,
+                timeScale: fighterSpeed(f),
                 ownerId: f.model.id,
                 itemId: definition.id,
                 sourceSlot: slot,

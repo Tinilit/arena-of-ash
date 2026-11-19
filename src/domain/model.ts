@@ -49,6 +49,9 @@ export interface Item {
   hitbox?: WeaponHitbox;
   use?: "throw" | "drink";
   heal?: number;
+  effect?: "haste";
+  durationMs?: number;
+  speedMultiplier?: number;
 }
 export interface Player {
   id: string;
@@ -64,7 +67,7 @@ export const createPlayer = (): Player => ({
   id: "wanderer",
   name: "The Wanderer",
   gold: 100,
-  inventory: ["wood", "throwing-knife", "throwing-axe"],
+  inventory: ["wood"],
   quantities: {},
   equipment: {
     rightHand: "wood",

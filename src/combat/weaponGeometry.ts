@@ -23,6 +23,8 @@ export function weaponHitbox(weapon?: Item): WeaponHitbox | null {
     return { startY: -146, endY: -101, radius: 18 };
   if (weapon.visual === "war-spear")
     return { startY: -150, endY: -113, radius: 6 };
+  if (weapon.visual === "trident")
+    return { startY: -195, endY: -144, radius: 17 };
   if (weapon.visual === "spear") return { startY: -132, endY: -99, radius: 5 };
   return { startY: -95, endY: -15, radius: 5 };
 }

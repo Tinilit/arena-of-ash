@@ -8,6 +8,7 @@ import {
   arenaRules,
   type ArenaInput,
   type ContactEvent,
+  fighterSpeed,
 } from "../combat/realtime";
 import { ArenaAI } from "../combat/ArenaAI";
 import type { CombatGeometry } from "../combat/geometry";
@@ -30,6 +31,10 @@ export class ArenaScene extends BaseScene {
   private rigs!: [Gladiator, Gladiator];
   private motions!: [ArenaMotion, ArenaMotion];
   private ai!: ArenaAI;
+  private playerAI!: ArenaAI;
+  private autoBattle = false;
+  private trainingAI = false;
+  private speedLabels: Phaser.GameObjects.Text[] = [];
   private bars!: ProgressBar[];
   private status!: Phaser.GameObjects.Text;
   private keys: Record<string, Phaser.Input.Keyboard.Key> = {};
@@ -67,6 +72,8 @@ export class ArenaScene extends BaseScene {
     this.paused = false;
     this.consumptionCursor = this.collectionCursor = this.lootElapsed = 0;
     const query = new URLSearchParams(location.search);
+    this.autoBattle = false;
+    this.trainingAI = import.meta.env.DEV && query.get("ai") === "training";
     const seed =
       import.meta.env.DEV && query.has("seed")
         ? Number(query.get("seed"))
@@ -79,12 +86,21 @@ export class ArenaScene extends BaseScene {
         disarm: seeded(seed ^ 0x78d3),
         hammerKnockdown: seeded(seed ^ 0x3fe1),
         hammerPush: seeded(seed ^ 0x65c2),
+        drop: seeded(seed ^ 0x5e17),
       },
     );
     this.ai = new ArenaAI(
       seeded(seed),
       seeded(seed ^ 0x92ab),
       seeded(seed ^ 0x9170),
+      seeded(seed ^ 0x711c),
+      { advanced: !this.trainingAI },
+    );
+    this.playerAI = new ArenaAI(
+      seeded(seed ^ 0xa710),
+      seeded(seed ^ 0x71ac),
+      seeded(seed ^ 0xe72),
+      seeded(seed ^ 0xf123),
     );
     this.rigs = [
       new Gladiator(
@@ -116,13 +132,17 @@ export class ArenaScene extends BaseScene {
     ];
     label(this, 399, 109, "HP", 14);
     label(this, 855, 109, "HP", 14);
+    this.speedLabels = [
+      label(this, 44, 132, "", 14, "#73e4dc"),
+      label(this, 1235, 132, "", 14, "#73e4dc").setOrigin(1, 0.5),
+    ];
     this.status = label(this, 640, 92, en.fight, 23, "#e8bd72").setOrigin(0.5);
     this.controlHints = [
       label(
         this,
         640,
         611,
-        "A/D: walk · Shift: run · Space: jump · A/D+Space: hop · R: stance",
+        "A/D: walk · Shift: run · Space: jump · A/D+Space: hop · R: stance · B: Auto Battle",
         16,
       ),
       label(
@@ -167,6 +187,12 @@ export class ArenaScene extends BaseScene {
       if (this.ending) {
         if (this.battle.state === "Victory" && key === "g" && !event.ctrlKey)
           this.queued.pickup = true;
+        return;
+      }
+      if (key === "b" && !event.ctrlKey) {
+        this.autoBattle = !this.autoBattle;
+        this.ai.setAdvanced(this.autoBattle || !this.trainingAI);
+        this.clearInput();
         return;
       }
       if (event.ctrlKey) {
@@ -280,7 +306,13 @@ export class ArenaScene extends BaseScene {
         f.facing,
         arenaRules.floor,
       );
-      rig.applyPose(this.motions[i].update(delta, f), this.motions[i].name);
+      rig.applyPose(
+        this.motions[i].update(
+          delta === 0 ? 0 : (f.animationDelta ?? delta),
+          f,
+        ),
+        this.motions[i].name,
+      );
     });
     this.geometry = [
       this.rigs[0].combatGeometry(),
@@ -288,6 +320,10 @@ export class ArenaScene extends BaseScene {
     ];
   }
   private refresh() {
+    if (!this.ending)
+      this.status.setText(
+        this.autoBattle ? "Auto Battle · B: manual" : en.fight,
+      );
     const pickup = this.battle.nearbyPickup(this.battle.player);
     this.pickupHint.setText(
       pickup
@@ -303,6 +339,11 @@ export class ArenaScene extends BaseScene {
     this.battle.fighters.forEach((f, i) => {
       const s = stats(f.model);
       this.bars[i].update(f.hp, s.hp);
+      this.speedLabels[i].setText(
+        (f.speedRemaining ?? 0) > 0
+          ? `Haste ×2 · ${((f.speedRemaining ?? 0) / 1000).toFixed(1)}s`
+          : "",
+      );
     });
   }
   private renderProjectiles() {
@@ -359,7 +400,10 @@ export class ArenaScene extends BaseScene {
       duration: 700,
       onComplete: () => text.destroy(),
     });
-    this.cameras.main.shake(55, 0.001);
+    this.cameras.main.shake(
+      event.disarmed ? 110 : 55,
+      event.disarmed ? 0.0025 : 0.001,
+    );
   }
   private finish() {
     if (this.ending) return;
@@ -477,11 +521,19 @@ export class ArenaScene extends BaseScene {
     }
     this.accumulator += elapsed;
     while (this.accumulator >= arenaRules.step && !this.ending) {
-      const commands = this.inputState();
+      const manual = this.inputState();
+      const commands = this.autoBattle
+        ? this.playerAI.update(
+            arenaRules.step * fighterSpeed(this.battle.player),
+            this.battle.player,
+            this.battle.enemy,
+            this.battle.projectiles,
+          )
+        : manual;
       this.battle.advance(arenaRules.step, [
         commands,
         this.ai.update(
-          arenaRules.step,
+          arenaRules.step * fighterSpeed(this.battle.enemy),
           this.battle.enemy,
           this.battle.player,
           this.battle.projectiles,
@@ -519,6 +571,13 @@ export class ArenaScene extends BaseScene {
   override snapshot() {
     return {
       ...super.snapshot(),
+      autoBattle: this.autoBattle,
+      ai: {
+        player: this.playerAI.lastDecision,
+        enemy: this.ai.lastDecision,
+        playerRecovery: this.playerAI.recoveryTargetId,
+        enemyRecovery: this.ai.recoveryTargetId,
+      },
       rigs: this.rigs.map((r) => r.jointSnapshot()),
       geometry: structuredClone(this.geometry),
       battle: structuredClone({

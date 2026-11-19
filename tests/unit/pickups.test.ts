@@ -13,6 +13,7 @@ const empty: CombatGeometry = {
 function make() {
   const p = createPlayer(),
     e = createPlayer();
+  p.inventory.push("throwing-knife", "throwing-axe");
   p.equipment.belt1 = "throwing-knife";
   p.equipment.belt2 = "throwing-axe";
   e.id = "enemy";

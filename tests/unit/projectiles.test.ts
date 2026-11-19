@@ -8,6 +8,7 @@ import type { CombatGeometry, Capsule } from "../../src/combat/geometry";
 const make = () => {
   const p = createPlayer(),
     e = createPlayer();
+  p.inventory.push("throwing-knife", "throwing-axe");
   p.equipment.belt1 = "throwing-knife";
   p.equipment.belt2 = "throwing-axe";
   e.id = "enemy";
@@ -159,6 +160,7 @@ describe("overarm projectiles", () => {
   });
   it("persists consumption exactly once and allows buying a replacement", () => {
     const p = createPlayer();
+    p.inventory.push("throwing-knife");
     expect(consumeItem(p, "throwing-knife")).toBe(true);
     expect(consumeItem(p, "throwing-knife")).toBe(false);
     const loaded = deserialize(serialize(p));

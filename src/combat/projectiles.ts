@@ -3,7 +3,8 @@ import { weaponHitbox } from "./weaponGeometry";
 import type { Capsule, Point } from "./geometry";
 export interface Projectile {
   id: number;
-  kind?: "bolt";
+  kind?: "bolt" | "disarmed";
+  timeScale?: number;
   ownerId: string;
   itemId: string;
   hand: Hand;
@@ -36,6 +37,7 @@ export function projectileProfile(item: Item) {
   );
 }
 export function projectileFloorRadius(item: Item) {
+  if (item.visual === "trident") return 30;
   if (item.visual === "crossbow") return 48;
   return item.image
     ? item.image.width * Math.max(item.image.originX, 1 - item.image.originX)
@@ -69,9 +71,15 @@ export function advanceProjectile(p: Projectile, delta: number, floor: number) {
   p.previous = { x: p.x, y: p.y, angle: p.angle };
   if (p.state === "landed" || p.state === "expired" || p.state === "pickedUp")
     return;
+  delta *= p.timeScale ?? 1;
   const dt = delta / 1000;
   p.age += delta;
   p.x += p.vx * dt;
+  if (p.kind === "disarmed" && (p.x < 90 || p.x > 1190)) {
+    p.x = Math.max(90, Math.min(1190, p.x));
+    p.vx *= -0.55;
+    p.spin *= -0.7;
+  }
   const gravity = p.kind === "bolt" ? 220 : 1000;
   p.y += p.vy * dt + 0.5 * gravity * dt * dt;
   p.vy += gravity * dt;

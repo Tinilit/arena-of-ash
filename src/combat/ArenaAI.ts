@@ -10,6 +10,14 @@ import type { Random } from "../utils/random";
 import type { Hand } from "../domain/model";
 import { activeActions, type ArenaFighter, type ArenaInput } from "./realtime";
 export class ArenaAI {
+  lastDecision = "approach";
+  recoveryTargetId?: number;
+  private recoveryGoal?: number;
+  private tacticalCooldown = 300;
+  private parryPlans = new Map<
+    number,
+    { at: number; attempt: boolean; done: boolean }
+  >();
   private thinking: Record<Hand, number> = { rear: 450, front: 650 };
   private guardFor = 0;
   private jumpCooldown = 1600;
@@ -21,7 +29,185 @@ export class ArenaAI {
     private rng: Random,
     private throwRandom: Random = Math.random,
     private dodgeRandom: Random = Math.random,
+    private tacticsRandom: Random = Math.random,
+    private options: { advanced?: boolean } = {},
   ) {}
+  setAdvanced(enabled: boolean) {
+    this.options.advanced = enabled;
+  }
+  private ready(self: ArenaFighter) {
+    return (
+      !self.action &&
+      !self.parry &&
+      !self.hop &&
+      self.bodyCooldown === 0 &&
+      self.handCooldowns.front === 0 &&
+      self.handCooldowns.rear === 0
+    );
+  }
+  private tactics(
+    self: ArenaFighter,
+    target: ArenaFighter,
+    ground: readonly Projectile[],
+  ): ArenaInput | undefined {
+    const gap = Math.abs(target.x - self.x),
+      toward = Math.sign(target.x - self.x);
+    const armed = Boolean(
+      weaponForHand(self.model, "rear") || weaponForHand(self.model, "front"),
+    );
+    const loot = ground
+      .filter(
+        (p) =>
+          p.kind !== "bolt" &&
+          p.state !== "expired" &&
+          p.state !== "pickedUp" &&
+          item(p.itemId)?.slot === "weapon" &&
+          freeEquipmentSlot(self.model, p.itemId) &&
+          ((p.kind === "disarmed" && p.ownerId === self.model.id) ||
+            (!armed && p.state === "landed")),
+      )
+      .sort(
+        (a, b) =>
+          Number(b.ownerId === self.model.id) -
+            Number(a.ownerId === self.model.id) ||
+          Math.abs(a.x - self.x) - Math.abs(b.x - self.x),
+      )[0];
+    this.recoveryTargetId = loot?.id;
+    if (loot) {
+      const height = Math.max(0, 551 - loot.floorRadius - loot.y);
+      const flight =
+        loot.state === "landed"
+          ? 0
+          : (-loot.vy + Math.sqrt(loot.vy ** 2 + 2000 * height)) / 1000;
+      const goal = Math.max(90, Math.min(1190, loot.x + loot.vx * flight));
+      this.recoveryGoal = goal;
+      this.lastDecision = "recover-weapon";
+      if (
+        loot.state === "landed" &&
+        pickupDistance(loot, self.x) <= 85 &&
+        !self.action &&
+        !self.parry
+      )
+        return { pickup: true, move: 0 };
+      const move = Math.sign(goal - self.x),
+        blocked =
+          (target.x - self.x) * move > 0 &&
+          (goal - target.x) * move > -35 &&
+          gap < 130 &&
+          !target.knockdown;
+      if (blocked && this.ready(self) && this.tacticalCooldown <= 0) {
+        this.tacticalCooldown = 900;
+        if (
+          gap <= 105 &&
+          (self.grappleCooldown ?? 0) === 0 &&
+          target.y === 0 &&
+          this.tacticsRandom() < 0.45
+        ) {
+          this.lastDecision = "recovery-grapple";
+          return { grapple: true, move: 0 };
+        }
+        this.lastDecision = "recovery-kick";
+        return { attack: "kick", move: 0 };
+      }
+      return { move: Math.abs(goal - self.x) > 15 ? move : 0, run: true };
+    }
+    this.recoveryGoal = undefined;
+    if (
+      armed &&
+      !self.action &&
+      !self.parry &&
+      self.parryCooldown === 0 &&
+      self.y === 0 &&
+      !self.hop &&
+      gap < 235
+    ) {
+      for (const threat of activeActions(target).filter(
+        (a) => a.name === "quick",
+      )) {
+        let plan = this.parryPlans.get(threat.id);
+        if (!plan) {
+          plan = {
+            at: threat.duration * (0.34 + this.tacticsRandom() * 0.1),
+            attempt: this.tacticsRandom() < 0.28,
+            done: false,
+          };
+          this.parryPlans.set(threat.id, plan);
+          if (this.parryPlans.size > 32)
+            this.parryPlans.delete(this.parryPlans.keys().next().value!);
+        }
+        if (!plan.done && threat.elapsed >= plan.at) {
+          plan.done = true;
+          if (
+            plan.attempt &&
+            threat.elapsed <= threat.duration * 0.6 &&
+            (target.x - self.x) * self.facing >= 0
+          ) {
+            this.lastDecision = "parry";
+            return { parry: true, move: 0 };
+          }
+        }
+      }
+    }
+    if (!this.ready(self) || this.tacticalCooldown > 0) return undefined;
+    this.tacticalCooldown = 700 + this.tacticsRandom() * 800;
+    if (target.knockdown?.phase === "down" && armed && gap < 260) {
+      this.lastDecision = "finish";
+      return { attack: "finish", move: toward };
+    }
+    for (const belt of ["belt1", "belt2"] as const) {
+      const def = item(self.model.equipment[belt] ?? "");
+      if (
+        def?.use === "drink" &&
+        ((def.effect === "haste" && !(self.speedRemaining ?? 0)) ||
+          (def.heal && self.hp < 65))
+      ) {
+        this.lastDecision = "drink";
+        return { belt, move: gap < 200 ? -toward : 0 };
+      }
+      if (
+        def?.use === "throw" &&
+        gap > 160 &&
+        gap < 600 &&
+        this.tacticsRandom() < 0.5
+      ) {
+        this.lastDecision = "belt-throw";
+        return { belt, move: 0 };
+      }
+    }
+    const choice = this.tacticsRandom();
+    if (
+      gap < 100 &&
+      target.y === 0 &&
+      !target.knockdown &&
+      (self.grappleCooldown ?? 0) === 0 &&
+      choice < 0.18
+    ) {
+      this.lastDecision = "grapple";
+      return { grapple: true };
+    }
+    if (gap < 130 && choice < 0.45) {
+      this.lastDecision = choice < 0.1 ? "jump-kick" : "kick";
+      return { attack: "kick", jump: choice < 0.1 };
+    }
+    if (gap < 135 && twoHandWeapon(self.model) && choice < 0.68) {
+      this.lastDecision = "shove";
+      return { attack: "shove" };
+    }
+    if (gap > 175 && gap < 320 && self.hopCooldown === 0 && choice < 0.4) {
+      this.lastDecision = "forward-hop";
+      return { hop: 1, move: 0 };
+    }
+    if (gap < 185 && choice > 0.8) {
+      this.lastDecision = "jump-attack";
+      return {
+        jump: true,
+        attack: "quick",
+        hand: weaponForHand(self.model, "rear") ? "rear" : "front",
+        move: toward,
+      };
+    }
+    return undefined;
+  }
   update(
     delta: number,
     self: ArenaFighter,
@@ -32,11 +218,15 @@ export class ArenaAI {
     this.jumpCooldown -= delta;
     this.throwCooldown -= delta;
     this.dodgeCooldown = Math.max(0, this.dodgeCooldown - delta);
+    this.tacticalCooldown = Math.max(0, this.tacticalCooldown - delta);
     for (const hand of ["rear", "front"] as const) this.thinking[hand] -= delta;
     const hands: Hand[] = (["rear", "front"] as Hand[]).filter((hand) =>
       weaponForHand(self.model, hand),
     );
     if (!hands.length) hands.push("rear");
+    if (this.options.advanced !== false && !twoHandWeapon(self.model))
+      for (const hand of ["front", "rear"] as const)
+        if (!hands.includes(hand)) hands.push(hand);
     const reachFor = (hand: Hand) =>
       Math.max(
         85,
@@ -52,6 +242,24 @@ export class ArenaAI {
       guard: this.guardFor > 0,
     };
     if (
+      this.options.advanced !== false &&
+      self.grapple?.role === "lifter" &&
+      self.grapple.phase === "hold"
+    ) {
+      this.lastDecision = "throw-opponent";
+      return {
+        grapple: true,
+        move:
+          this.recoveryGoal === undefined
+            ? 0
+            : -Math.sign(this.recoveryGoal - self.x),
+      };
+    }
+    if (this.options.advanced !== false && self.action?.name === "drink") {
+      this.lastDecision = "drink";
+      return { move: gap < 300 ? -toward : 0, run: true };
+    }
+    if (
       self.grapple ||
       self.finisher ||
       self.knockdown ||
@@ -61,6 +269,10 @@ export class ArenaAI {
       self.bodyCooldown > 0
     )
       return input;
+    if (this.options.advanced !== false) {
+      const tactic = this.tactics(self, target, ground);
+      if (tactic) return { ...tactic, toggleStance: self.relaxed };
+    }
     if (
       !self.action &&
       !self.parry &&

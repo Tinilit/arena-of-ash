@@ -271,7 +271,13 @@ describe("real-time arena rules", () => {
   });
   it("AI closes distance, attacks and waits through knockdown", () => {
     const b = make(),
-      ai = new ArenaAI(() => 0.8);
+      ai = new ArenaAI(
+        () => 0.8,
+        () => 1,
+        () => 1,
+        () => 1,
+        { advanced: false },
+      );
     expect(ai.update(600, b.enemy, b.player).move).toBe(-1);
     b.enemy.x = b.player.x + 120;
     expect(ai.update(600, b.enemy, b.player).attack).toBe("quick");

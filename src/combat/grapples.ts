@@ -90,6 +90,7 @@ export class GrappleController {
     gravity: number,
     minX: number,
     maxX: number,
+    speed: (f: ArenaFighter) => number = () => 1,
   ) {
     const h = this.hold;
     if (!h) return;
@@ -103,6 +104,7 @@ export class GrappleController {
       this.cancel();
       return;
     }
+    delta *= speed(a);
     h.elapsed += delta;
     if (h.phase === "reach" && h.elapsed >= grappleRules.anticipation) {
       if (

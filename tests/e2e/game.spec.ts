@@ -69,6 +69,7 @@ interface Rig {
   far: Limb;
 }
 interface Snapshot {
+  autoBattle?: boolean;
   scene: string;
   style: "ash";
   stance?: "relaxed" | "combat";
@@ -105,6 +106,185 @@ test.beforeEach(async ({ page }) => {
     if (m.type() === "error") list.push(m.text());
   });
 });
+
+test("chainmail, Roman legionary helm and two-handed trident equip with a true thrust", async ({
+  page,
+}) => {
+  await page.route("**/content/items.json?_=*", (r) =>
+    r.fulfill({ json: liveItems }),
+  );
+  const p = createPlayer();
+  p.gold = 2000;
+  await savedFixture(page, p);
+  await launch(page);
+  expect((await snapshot(page)).player.inventory).toEqual(["wood"]);
+  await click(page, "shop");
+  await click(page, "shop-next");
+  await click(page, "shop-next");
+  for (const id of ["chainmail", "legionary-helm", "trident", "speed-potion"])
+    await click(page, `buy-${id}`);
+  expect((await snapshot(page)).player.gold).toBe(1520);
+  await shot(page, "polearm-and-haste-shop");
+  await click(page, "back");
+  await click(page, "character");
+  for (const id of ["chainmail", "legionary-helm", "trident", "speed-potion"])
+    await click(page, `equip-${id}`);
+  expect((await snapshot(page)).player.equipment).toMatchObject({
+    rightHand: "trident",
+    body: "chainmail",
+    helmet: "legionary-helm",
+    belt1: "speed-potion",
+  });
+  await shot(page, "legionary-mail-trident-loadout");
+  await click(page, "back");
+  await click(page, "battle");
+  await page.clock.install();
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
+  sharedGrip((await snapshot(page)).rigs![0]);
+  await page.keyboard.press("k");
+  await page.clock.runFor(400);
+  const drawn = (await snapshot(page)).rigs![0].weapons[0];
+  await page.screenshot({
+    path: "test-results/screenshots/trident-anticipation.png",
+  });
+  await page.clock.runFor(225);
+  const s = await snapshot(page);
+  sharedGrip(s.rigs![0]);
+  expect(s.rigs![0].weapons[0].x - drawn.x).toBeGreaterThan(35);
+  const blade = s.geometry![0].blade!;
+  expect(Math.abs(blade.b.x - blade.a.x)).toBeGreaterThan(
+    Math.abs(blade.b.y - blade.a.y) * 4,
+  );
+  await page.screenshot({
+    path: "test-results/screenshots/trident-thrust.png",
+  });
+  await page.clock.resume();
+});
+
+test("haste drinks at full health, starts a ten-second timer and doubles movement without persisting the buff", async ({
+  page,
+}) => {
+  await page.route("**/content/items.json?_=*", (r) =>
+    r.fulfill({ json: liveItems }),
+  );
+  const p = createPlayer();
+  p.inventory.push("speed-potion", "chainmail", "legionary-helm");
+  p.equipment = {
+    rightHand: "wood",
+    body: "chainmail",
+    helmet: "legionary-helm",
+    belt1: "speed-potion",
+  };
+  await savedFixture(page, p);
+  await page.clock.install();
+  await launch(page);
+  await click(page, "battle");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
+  await page.keyboard.press("q");
+  await page.clock.runFor(1200);
+  let s = await snapshot(page);
+  expect(s.battle!.player.speedRemaining).toBeGreaterThan(9900);
+  expect(s.player.inventory).not.toContain("speed-potion");
+  await page.screenshot({ path: "test-results/screenshots/haste-active.png" });
+  await page.clock.runFor(600);
+  const before = (await snapshot(page)).battle!.player.x;
+  await page.keyboard.down("d");
+  await page.clock.runFor(200);
+  await page.keyboard.up("d");
+  s = await snapshot(page);
+  expect(s.battle!.player.x - before).toBeGreaterThan(38);
+  expect(s.rigs![0].animation).toBe("walkForward");
+  expect(s.battle!.player.speedRemaining).toBeLessThan(9300);
+  await page.clock.resume();
+  await page.keyboard.press("Escape");
+  await scene(page, "MainMenuScene");
+  await page.reload();
+  await scene(page, "MainMenuScene");
+  expect((await snapshot(page)).player.inventory).not.toContain("speed-potion");
+});
+
+test("B toggles full Auto Battle and both fighters act without manual attack input", async ({
+  page,
+}) => {
+  await page.route("**/content/items.json?_=*", (r) =>
+    r.fulfill({ json: liveItems }),
+  );
+  const p = createPlayer();
+  p.inventory.push(
+    "cuirass",
+    "legionary-helm",
+    "speed-potion",
+    "throwing-knife",
+  );
+  p.equipment = {
+    rightHand: "wood",
+    body: "cuirass",
+    helmet: "legionary-helm",
+    belt1: "speed-potion",
+    belt2: "throwing-knife",
+  };
+  await savedFixture(page, p);
+  await page.goto("/?seed=42&renderer=canvas");
+  await scene(page, "MainMenuScene");
+  await click(page, "battle");
+  await page.clock.install();
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
+  expect((await snapshot(page)).autoBattle).toBe(false);
+  await page.keyboard.press("b");
+  expect((await snapshot(page)).autoBattle).toBe(true);
+  await page.clock.runFor(100);
+  await page.keyboard.press("b");
+  expect((await snapshot(page)).autoBattle).toBe(false);
+  await page.keyboard.press("b");
+  const observing = page.evaluate(
+    () =>
+      new Promise<{
+        player: string[];
+        enemy: string[];
+        moved: boolean;
+        damage: boolean;
+      }>((resolve) => {
+        const player = new Set<string>(),
+          enemy = new Set<string>();
+        let moved = false,
+          damage = false;
+        const end = performance.now() + 3750;
+        const sample = () => {
+          const s = (
+            window as unknown as { __arena: { snapshot: () => Snapshot } }
+          ).__arena.snapshot();
+          if (s.battle) {
+            for (const [f, set] of [
+              [s.battle.player, player],
+              [s.battle.enemy, enemy],
+            ] as const) {
+              if (f.action) set.add(f.action.name);
+              if (f.parry) set.add("parry");
+              if (f.grapple) set.add("grapple");
+              if (f.hop) set.add(f.hop.kind);
+            }
+            moved ||= Math.abs(s.battle.player.x - 370) > 50;
+            damage ||= s.battle.player.hp < 100 || s.battle.enemy.hp < 100;
+          }
+          if (performance.now() >= end)
+            resolve({ player: [...player], enemy: [...enemy], moved, damage });
+          else requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      }),
+  );
+  await page.clock.runFor(3800);
+  const observed = await observing;
+  expect(observed.moved).toBe(true);
+  expect(observed.damage).toBe(true);
+  expect(observed.player.length).toBeGreaterThan(1);
+  expect(observed.enemy.length).toBeGreaterThan(0);
+  expect(observed.player).toContain("drink");
+  await page.screenshot({
+    path: "test-results/screenshots/auto-battle-live.png",
+  });
+  await page.clock.resume();
+});
 test.afterEach(async ({ page }) => expect(errors.get(page)).toEqual([]));
 const snapshot = (page: Page) =>
   page.evaluate(() =>
@@ -130,7 +310,9 @@ async function scene(page: Page, name: string) {
 }
 async function click(page: Page, id: string) {
   await expect
-    .poll(async () => Boolean((await snapshot(page))?.buttons[id]))
+    .poll(async () => Boolean((await snapshot(page))?.buttons[id]), {
+      timeout: 15000,
+    })
     .toBe(true);
   await frames(page);
   const s = await snapshot(page),
@@ -144,7 +326,7 @@ async function click(page: Page, id: string) {
   await frames(page);
 }
 async function launch(page: Page) {
-  await page.goto("/?seed=42&renderer=canvas");
+  await page.goto("/?seed=42&renderer=canvas&ai=training");
   await scene(page, "MainMenuScene");
 }
 async function steer(page: Page, state: Snapshot) {
@@ -325,8 +507,10 @@ test("paginated purchases and inventory equip all remaining items and persist th
   expect((await snapshot(page)).buttons["buy-glaives"]).toBeUndefined();
   await shot(page, "new-equipment-shop");
   await click(page, "buy-viking");
+  await click(page, "buy-throwing-knife");
+  await click(page, "buy-throwing-axe");
   await click(page, "buy-healing-potion");
-  expect((await snapshot(page)).player.gold).toBe(385);
+  expect((await snapshot(page)).player.gold).toBe(315);
   expect((await snapshot(page)).player.inventory).toHaveLength(12);
   await click(page, "back");
   await click(page, "character");
@@ -366,7 +550,7 @@ test("paginated purchases and inventory equip all remaining items and persist th
     belt2: "throwing-axe",
     helmet: "viking",
   });
-  expect(loaded.gold).toBe(385);
+  expect(loaded.gold).toBe(315);
   expect(loaded.inventory).toHaveLength(12);
 });
 test("arena movement, running, jumping and attacks share fixed-length joint transforms", async ({
@@ -441,6 +625,7 @@ test("keyboard input, scene shutdown, reset confirmation and viewport scaling", 
   await click(page, "reset");
   await click(page, "resetYes");
   expect((await snapshot(page)).player.gold).toBe(100);
+  expect((await snapshot(page)).player.inventory).toEqual(["wood"]);
   expect((await snapshot(page)).player.equipment).toEqual({
     rightHand: "wood",
   });
@@ -1126,7 +1311,13 @@ test("anatomical slots move weapons between hands and persist two belt attachmen
   await launch(page);
   const p = (await snapshot(page)).player;
   p.gold = 1000;
-  p.inventory.push("war-spear", "viking", "plate");
+  p.inventory.push(
+    "war-spear",
+    "viking",
+    "plate",
+    "throwing-knife",
+    "throwing-axe",
+  );
   await page.evaluate(
     (p) =>
       localStorage.setItem(
@@ -1400,7 +1591,7 @@ test("backpack lists all unequipped categories, excludes worn items and restores
 }) => {
   await launch(page);
   const p = (await snapshot(page)).player;
-  p.inventory.push("rust", "plate", "viking");
+  p.inventory.push("rust", "plate", "viking", "throwing-knife", "throwing-axe");
   await page.evaluate(
     (p) =>
       localStorage.setItem(
@@ -1825,6 +2016,7 @@ test("belt knife makes a physical projectile hit, is lost on reload, and can be 
   page,
 }) => {
   const p = createPlayer();
+  p.inventory.push("throwing-knife");
   p.equipment.belt1 = "throwing-knife";
   await savedFixture(page, p);
   await page.clock.install();
@@ -1880,6 +2072,7 @@ test("belt axe uses an overarm airborne throw while the front hand attacks indep
   page,
 }) => {
   const p = createPlayer();
+  p.inventory.push("throwing-axe");
   p.equipment.belt2 = "throwing-axe";
   await savedFixture(page, p);
   await page.clock.install();
@@ -2094,6 +2287,7 @@ test("bulk consumables retain backpack reserves while each belt slot carries one
 }) => {
   const p = createPlayer();
   p.gold = 1000;
+  p.inventory.push("throwing-knife", "throwing-axe");
   await savedFixture(page, p);
   await page.clock.install();
   await launch(page);
@@ -2282,7 +2476,7 @@ test("a rare enemy throw leaves a recoverable weapon that becomes permanent play
   p.equipment.helmet = "cap";
   await savedFixture(page, p);
   await page.clock.install();
-  await page.goto("/?seed=2&renderer=canvas");
+  await page.goto("/?seed=2&renderer=canvas&ai=training");
   await scene(page, "MainMenuScene");
   await click(page, "battle");
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 500));
@@ -2893,10 +3087,12 @@ test("fresh belts stay empty, Equip fills free slots, and closed armor buys and 
   await click(page, "shop");
   await click(page, "buy-rust");
   await click(page, "shop-next");
+  await click(page, "buy-throwing-knife");
+  await click(page, "buy-throwing-axe");
   await click(page, "shop-next");
   await click(page, "buy-closed-helm");
   await click(page, "buy-cuirass");
-  expect((await snapshot(page)).player.gold).toBe(670);
+  expect((await snapshot(page)).player.gold).toBe(600);
   await shot(page, "closed-armor-shop");
   await click(page, "back");
   await click(page, "character");

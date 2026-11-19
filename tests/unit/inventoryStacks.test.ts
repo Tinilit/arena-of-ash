@@ -35,6 +35,7 @@ describe("inventory quantities and one-copy equipment slots", () => {
   });
   it("equips one copy per belt, displays reserves, and never deletes the other slot on use", () => {
     const p = createPlayer();
+    p.inventory.push("throwing-knife");
     purchase(p, "throwing-knife", 3);
     equip(p, "throwing-knife", "belt1");
     equip(p, "throwing-knife", "belt2");

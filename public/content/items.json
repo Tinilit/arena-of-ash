@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "revision": "2026-11-19-armor-and-combat",
+  "revision": "2026-11-19-autobattle-and-trident",
   "items": [
     {
       "id": "wood",
@@ -204,6 +204,57 @@
       "armor": 8,
       "visual": "cuirass",
       "description": "Ridged breastplate with a reinforced waist and fauld."
+    },
+    {
+      "id": "chainmail",
+      "name": "Riveted Chainmail",
+      "slot": "chest",
+      "price": 95,
+      "attack": 0,
+      "armor": 4,
+      "visual": "chainmail",
+      "description": "Interlinked steel rings over a padded leather lining."
+    },
+    {
+      "id": "legionary-helm",
+      "name": "Roman Legionary Helm",
+      "slot": "helmet",
+      "price": 155,
+      "attack": 0,
+      "armor": 6,
+      "visual": "legionary-helm",
+      "description": "Steel bowl, cheek pieces, neck guard and a horsehair crest."
+    },
+    {
+      "id": "trident",
+      "name": "Two-handed War Trident",
+      "slot": "weapon",
+      "price": 175,
+      "attack": 15,
+      "armor": 0,
+      "visual": "trident",
+      "weaponType": "spear",
+      "hands": 2,
+      "description": "Two hands. Long shaft and three tines for driving thrusts.",
+      "hitbox": {
+        "startY": -195,
+        "endY": -144,
+        "radius": 17
+      }
+    },
+    {
+      "id": "speed-potion",
+      "name": "Potion of Haste",
+      "slot": "utility",
+      "price": 55,
+      "attack": 0,
+      "armor": 0,
+      "visual": "speed-potion",
+      "use": "drink",
+      "effect": "haste",
+      "durationMs": 10000,
+      "speedMultiplier": 2,
+      "description": "Belt potion. Double action and movement speed for 10 seconds."
     }
   ]
 }

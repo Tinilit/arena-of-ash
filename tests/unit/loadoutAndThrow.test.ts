@@ -24,6 +24,7 @@ describe("anatomical loadout", () => {
     const p = createPlayer();
     expect(p.equipment.belt1).toBeUndefined();
     expect(p.equipment.belt2).toBeUndefined();
+    p.inventory.push("throwing-knife", "throwing-axe");
     equip(p, "throwing-knife", "belt1");
     equip(p, "throwing-axe", "belt2");
     purchase(p, "rust");
@@ -47,6 +48,7 @@ describe("anatomical loadout", () => {
     expect(p.equipment.rightHand).toBeUndefined();
     expect(primaryHand(p)).toBe("front");
     expect(primaryWeapon(p)?.id).toBe("wood");
+    p.inventory.push("throwing-knife", "throwing-axe");
     equip(p, "throwing-knife", "belt2");
     expect(p.equipment.belt1).toBeUndefined();
     expect(

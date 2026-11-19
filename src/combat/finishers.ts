@@ -118,14 +118,14 @@ export class FinisherController {
     b.pushVx = b.vx = b.vy = 0;
     return true;
   }
-  update(delta: number) {
+  update(delta: number, speed: (f: ArenaFighter) => number = () => 1) {
     const h = this.binding;
     if (!h) return;
     if (h.actor.hp <= 0 || h.target.hp <= 0) {
       this.end();
       return;
     }
-    h.elapsed += delta;
+    h.elapsed += delta * speed(h.actor);
     h.actor.x =
       h.startX + (h.anchor - h.startX) * ease(h.elapsed / finishRules.approach);
     h.actor.facing = h.facing;

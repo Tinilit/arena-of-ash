@@ -18,14 +18,22 @@ function sample(keys: Key[], phase: number) {
   return a.slice(1).map((v, i) => v + (b[i + 1] - v) * t);
 }
 export const twoHandDuration = (weapon: Item) =>
-  weapon.weaponType === "hammer"
-    ? 1350
-    : weapon.weaponType === "axe"
-      ? 1250
-      : 1150;
+  weapon.weaponType === "spear"
+    ? 1250
+    : weapon.weaponType === "hammer"
+      ? 1350
+      : weapon.weaponType === "axe"
+        ? 1250
+        : 1150;
 /** Keep both exact grip points within the fixed 40/34 arm chains. */
-function pairedGrip(base: Pose, x: number, y: number, angle: number): Pose {
-  const offset = rotate({ x: 0, y: -24 }, angle);
+function pairedGrip(
+  base: Pose,
+  x: number,
+  y: number,
+  angle: number,
+  spacing = 24,
+): Pose {
+  const offset = rotate({ x: 0, y: -spacing }, angle);
   const dx = skeleton.nearShoulderX - skeleton.farShoulderX;
   for (let i = 0; i < 64; i++) {
     const previousX = x,
@@ -48,6 +56,7 @@ function pairedGrip(base: Pose, x: number, y: number, angle: number): Pose {
   return {
     ...base,
     twoHanded: 1,
+    supportGripDistance: spacing,
     farHandX: x,
     farHandY: y,
     farWrist: 0.1,
@@ -67,9 +76,34 @@ export function twoHandPose(
   const relaxed = clamp(
     ((base.weaponGrip ?? Math.PI / 2) - Math.PI / 2) / (Math.PI / 4),
   );
-  const idle: Key = [0, 44, 52, 0.75];
+  const polearm = weapon.weaponType === "spear";
+  const idle: Key = polearm ? [0, 26, 49, 1.45] : [0, 44, 52, 0.75];
   let grip = idle.slice(1);
-  if (action === "quick") {
+  if (polearm && action === "quick") {
+    grip = sample(
+      [
+        idle,
+        [0.33, 10, 42, 1.45],
+        [0.5, 64, 8, 1.5],
+        [0.64, 64, 8, 1.5],
+        [0.85, 35, 38, 1.45],
+        [1, ...idle.slice(1)] as Key,
+      ],
+      phase,
+    );
+  } else if (polearm && action === "finish") {
+    grip = sample(
+      [
+        idle,
+        [0.3, 60, -16, 0.1],
+        [0.5, 60, 5, 1.4],
+        [0.68, 40, 20, 2.85],
+        [0.8, 40, 20, 2.85],
+        [1, ...idle.slice(1)] as Key,
+      ],
+      phase,
+    );
+  } else if (action === "quick") {
     const hammer = weapon.weaponType === "hammer",
       axe = weapon.weaponType === "axe";
     grip = sample(
@@ -115,7 +149,7 @@ export function twoHandPose(
       phase,
     );
   }
-  const result = pairedGrip(base, grip[0], grip[1], grip[2]);
+  const result = pairedGrip(base, grip[0], grip[1], grip[2], polearm ? 52 : 24);
   const carry = action ? 0 : ease(relaxed);
   result.shoulderCarry = carry;
   if (carry > 0) {
@@ -131,7 +165,12 @@ export function twoHandPose(
   }
   if (action) {
     const weight = ease(phase / 0.2) * ease((1 - phase) / 0.18);
-    if (action === "quick") {
+    if (polearm && action === "quick") {
+      const coil = ease(phase / 0.33) * ease((0.5 - phase) / 0.17),
+        drive = ease((phase - 0.33) / 0.17) * ease((1 - phase) / 0.2);
+      result.rootX = (base.rootX ?? 0) - 7 * coil + 12 * drive;
+      result.torso = (base.torso ?? 0) - 0.06 * coil + 0.08 * drive;
+    } else if (action === "quick") {
       const coil = ease(phase / 0.32) * ease((0.5 - phase) / 0.18),
         drive = ease((phase - 0.32) / 0.25) * ease((1 - phase) / 0.18);
       result.torso = (base.torso ?? 0) - 0.17 * coil + 0.14 * drive;

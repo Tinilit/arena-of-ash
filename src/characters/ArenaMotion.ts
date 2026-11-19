@@ -117,7 +117,8 @@ export class ArenaMotion {
       this.falling = false;
       this.movementName = "";
     }
-    const running = Math.abs(f.vx) > 115,
+    const locomotionVx = f.vx / (f.timeScale ?? 1);
+    const running = Math.abs(locomotionVx) > 115,
       backwards = f.vx * f.facing < 0;
     const name =
       Math.abs(f.vx) < 0.01 || f.hop
@@ -146,7 +147,7 @@ export class ArenaMotion {
       name === "staggerStep"
         ? -200
         : movementSpeeds[name as keyof typeof movementSpeeds];
-    const rate = speed ? Math.abs(f.vx / speed) : 1;
+    const rate = speed ? Math.abs(locomotionVx / speed) : 1;
     const base = this.movement.update(delta * rate);
     base.farWeaponGrip =
       this.primary === "rear" ? base.weaponGrip : (3 * Math.PI) / 4;

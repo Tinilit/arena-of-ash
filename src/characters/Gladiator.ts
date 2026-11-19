@@ -594,7 +594,10 @@ export class Gladiator {
             ? {
                 ...this.handWeapons.rear
                   .getWorldTransformMatrix()
-                  .transformPoint(0, -24),
+                  .transformPoint(
+                    0,
+                    -(this.displayedPose.supportGripDistance ?? 24),
+                  ),
               }
             : null,
       },
@@ -691,7 +694,8 @@ export class Gladiator {
     return {
       blade: blades[this.primaryHand] ?? null,
       shove:
-        (this.displayedPose.twoHanded ?? 0) > 0.5
+        (this.displayedPose.twoHanded ?? 0) > 0.5 ||
+        (this.displayedPose.rangedHold ?? 0) > 0.5
           ? capsule(point("farHand"), point("nearHand"), 12)
           : undefined,
       grips: { front: point("nearHand"), rear: point("farHand") },

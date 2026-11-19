@@ -17,11 +17,12 @@ const visuals: Record<Slot, readonly string[]> = {
     "war-hammer",
     "battle-axe",
     "crossbow",
+    "trident",
   ],
-  helmet: ["cap", "viking", "closed-helm"],
-  chest: ["leather", "plate", "cuirass"],
+  helmet: ["cap", "viking", "closed-helm", "legionary-helm"],
+  chest: ["leather", "plate", "cuirass", "chainmail"],
   shield: ["shield", "tower"],
-  utility: ["throwing-knife", "throwing-axe", "healing-potion"],
+  utility: ["throwing-knife", "throwing-axe", "healing-potion", "speed-potion"],
 };
 // Starter and opponent loadouts need these IDs and slots to remain available.
 const required: Record<string, Slot> = {
@@ -123,9 +124,13 @@ export function parseCatalog(
     if ((v.weaponType === "hammer" || v.weaponType === "axe") && v.hands !== 2)
       throw Error("Heavy axes and hammers require two hands");
     if (
-      ["greatsword", "war-hammer", "battle-axe", "crossbow"].includes(
-        String(v.visual),
-      ) &&
+      [
+        "greatsword",
+        "war-hammer",
+        "battle-axe",
+        "crossbow",
+        "trident",
+      ].includes(String(v.visual)) &&
       v.hands !== 2
     )
       throw Error("Two-handed visuals require both hands");
@@ -136,7 +141,10 @@ export function parseCatalog(
       throw Error("Heavy weapon animation must match its fallback visual");
     if ((v.weaponType === "crossbow") !== (v.visual === "crossbow"))
       throw Error("Crossbow animation must match its visual");
-    const spearVisual = v.visual === "spear" || v.visual === "war-spear";
+    const spearVisual =
+      v.visual === "spear" ||
+      v.visual === "war-spear" ||
+      v.visual === "trident";
     if (slot === "weapon" && (v.weaponType === "spear") !== spearVisual)
       throw Error("Weapon animation must match its fallback visual");
     if (
@@ -144,8 +152,24 @@ export function parseCatalog(
       (slot !== "utility" || !["throw", "drink"].includes(String(v.use)))
     )
       throw Error("Invalid item use");
-    if ((v.use === "drink") !== (v.heal !== undefined))
-      throw Error("Drinkable items must define healing");
+    if (
+      v.effect !== undefined &&
+      (v.effect !== "haste" || slot !== "utility" || v.use !== "drink")
+    )
+      throw Error("Unsupported consumable effect");
+    if (v.effect === "haste") {
+      if (
+        v.heal !== undefined ||
+        v.durationMs !== 10000 ||
+        v.speedMultiplier !== 2
+      )
+        throw Error("Haste requires a ten-second double-speed effect");
+    } else if (
+      (v.use === "drink") !== (v.heal !== undefined) ||
+      v.durationMs !== undefined ||
+      v.speedMultiplier !== undefined
+    )
+      throw Error("Drinkable items must define healing or haste");
     let hitbox: Item["hitbox"];
     if (v.hitbox !== undefined) {
       if (slot !== "weapon" && v.use !== "throw")
@@ -170,6 +194,9 @@ export function parseCatalog(
       ...(v.hands === undefined ? {} : { hands: v.hands as 1 | 2 }),
       ...(v.use === undefined ? {} : { use: v.use as Item["use"] }),
       ...(v.heal === undefined ? {} : { heal: number(v.heal, 1, 100, true) }),
+      ...(v.effect === "haste"
+        ? { effect: "haste" as const, durationMs: 10000, speedMultiplier: 2 }
+        : {}),
       ...(v.weaponType === undefined
         ? {}
         : { weaponType: v.weaponType as Item["weaponType"] }),

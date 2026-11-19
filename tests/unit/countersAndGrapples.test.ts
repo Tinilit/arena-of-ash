@@ -40,6 +40,8 @@ describe("reactive enemy backsteps", () => {
         () => 1,
         () => 1,
         roll,
+        () => 1,
+        { advanced: false },
       );
     b.advance(0, [{ attack: "quick" }, {}]);
     expect(ai.update(0, b.enemy, b.player).hop).toBeUndefined();
@@ -66,6 +68,8 @@ describe("reactive enemy backsteps", () => {
         () => 1,
         () => 1,
         roll,
+        () => 1,
+        { advanced: false },
       );
     b.advance(0, [{ attack: "quick" }, {}]);
     advance(b, 140);
@@ -83,6 +87,8 @@ describe("reactive enemy backsteps", () => {
         () => 1,
         () => 1,
         wallRoll,
+        () => 1,
+        { advanced: false },
       ).update(140, wall.enemy, wall.player).hop,
     ).toBeUndefined();
     expect(wallRoll).not.toHaveBeenCalled();
