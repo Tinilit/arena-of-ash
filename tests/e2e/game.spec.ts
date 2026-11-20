@@ -1982,12 +1982,20 @@ test("a seeded kick knocks down on contact, holds one second and rises through a
   page,
 }) => {
   await savedFixture(page, createPlayer());
+  await page.clock.install();
   await page.goto("/?seed=5&renderer=canvas&manual=1");
   await scene(page, "MainMenuScene");
-  await click(page, "battle");
+  // Freeze in camp so protocol latency cannot advance a live fight or overtake
+  // a host-clock deadline. Start combat using only the controlled browser clock.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
+  const button = (await snapshot(page)).buttons.battle;
+  const bounds = await page.locator("canvas").boundingBox();
+  await page.mouse.click(
+    bounds!.x + (button.x * bounds!.width) / 1280,
+    bounds!.y + (button.y * bounds!.height) / 720,
+  );
+  await page.clock.runFor(50);
   await scene(page, "ArenaScene");
-  await page.clock.install();
-  await page.clock.pauseAt(new Date(Date.now() + 100));
   await page.keyboard.down("d");
   for (let i = 0; i < 60; i++) {
     const s = (await snapshot(page)).battle!;
@@ -2064,7 +2072,7 @@ test("F during a jump performs a physical flying kick and lands normally", async
   await click(page, "battle");
   await scene(page, "ArenaScene");
   await page.clock.install();
-  await page.clock.pauseAt(new Date(Date.now() + 100));
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
   await page.keyboard.down("d");
   for (let i = 0; i < 70; i++) {
     const b = (await snapshot(page)).battle!;
@@ -2206,7 +2214,7 @@ test("simultaneous hand inputs produce two independent physical weapon hits", as
   await launch(page);
   await click(page, "battle");
   await page.clock.install();
-  await page.clock.pauseAt(new Date(Date.now() + 100));
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
   await page.keyboard.down("d");
   for (let i = 0; i < 70; i++) {
     const b = (await snapshot(page)).battle!;
