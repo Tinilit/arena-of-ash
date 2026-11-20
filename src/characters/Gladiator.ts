@@ -1,3 +1,4 @@
+import { faceExpression } from "./faceExpression";
 import { shieldCarryPose } from "./shieldMotion";
 import { drawFace } from "../rendering/painFace";
 import { armorDamage, type ArmorSlot } from "../combat/armor";
@@ -77,6 +78,8 @@ export class Gladiator {
   private equippedWeapon?: Item;
   private face!: Phaser.GameObjects.Graphics;
   private painRemaining = 0;
+  private rageRemaining = 0;
+  private rageActivationRemaining = 0;
   private shieldArt?: Phaser.GameObjects.Container;
   private shieldId?: string;
   private shieldProfile = { x: 0, top: -4, bottom: 22, radius: 32 };
@@ -350,11 +353,18 @@ export class Gladiator {
     }
   }
   syncArena(f: ArenaFighter) {
-    const pain = f.painRemaining ?? 0;
-    if (pain !== this.painRemaining) {
-      this.painRemaining = pain;
-      drawFace(this.face, pain);
-    }
+    const pain = f.painRemaining ?? 0,
+      rage = f.rageRemaining ?? 0,
+      activation = f.rageActivationRemaining ?? 0;
+    if (
+      pain !== this.painRemaining ||
+      rage > 0 !== this.rageRemaining > 0 ||
+      activation !== this.rageActivationRemaining
+    )
+      drawFace(this.face, pain, rage, activation);
+    this.painRemaining = pain;
+    this.rageRemaining = rage;
+    this.rageActivationRemaining = activation;
     for (const slot of ["helmet", "body"] as const) {
       const id = f.model.equipment[slot];
       if (id === this.armorIds[slot]) continue;
@@ -493,7 +503,7 @@ export class Gladiator {
           ? crossbowPose(p)
           : twoHandPose(p, sharedWeapon);
     const shield = item(this.shieldId ?? "");
-    if (shield) p = shieldCarryPose(p, shield);
+    if (shield && !p.shieldCarryReady) p = shieldCarryPose(p, shield);
     this.displayedPose = { ...p };
     this.displayedAnimation = animation;
     const solved = groundedPose(p);
@@ -712,6 +722,11 @@ export class Gladiator {
         torso: frame("torso"),
       },
       painRemaining: this.painRemaining,
+      expression: faceExpression(
+        this.painRemaining,
+        this.rageRemaining,
+        this.rageActivationRemaining,
+      ),
       shield: Boolean(this.shieldArt?.visible),
       shieldAttachment: this.shieldArt
         ? {

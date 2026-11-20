@@ -29,7 +29,7 @@ Every completed victory, defeat or draw grants **one exclusive post-battle choic
 - **Learn a Skill:** choose one of two random eligible abilities; learning is immediate. Offers persist across reloads.
 - **Visit Shop:** buy equipment, bulk consumables and sell unequipped copies through the shop's equipment screen. Closing the shop ends this visit.
 
-The shop is accessible only through this choice. Camp's Skills button is a read-only collection. After all currently available skills are learned, only Visit Shop remains. The decision, selected branch and its consumption are saved immediately. Reload resumes the decision/training/shop visit; it never grants another reward or skill. Escape during an unfinished fight gives neither reward nor choice.
+The shop is accessible only through this choice. Gladiator shows only learned skills; Camp has no separate Skills button. After all currently available skills are learned, only Visit Shop remains. The decision, selected branch and its consumption are saved immediately. Reload resumes the decision/training/shop visit; it never grants another reward or skill. Escape during an unfinished fight gives neither reward nor choice.
 
 Victory grants 50 gold and advances the ladder; defeat/draw grant 10 gold without advancement. Victory keeps the arena open for grounded equipment collection until Continue. Defeat/draw proceed automatically after the short presentation. The 18-encounter ladder has a fixed boss after each five challengers; further wins unlock elite exhibition fights.
 
@@ -49,7 +49,7 @@ The arena legend follows the gladiator's learned skills. Combat uses the mouse a
 | F/3                  | Ground or airborne front kick                  | Kicking                                          |
 | H, A/D, H            | Lift, carry/turn, throw opponent               | Wrestling                                        |
 | X                    | Bind and execute a grounded opponent           | Execution                                        |
-| C                    | Timed parry, counter-shove and possible disarm | Parrying                                         |
+| C                    | Timed parry, shove or a chance counter, disarm | Parrying                                         |
 | Ctrl+hand attack     | Throw that hand's weapon                       | Throwing Weapons                                 |
 | Q/E                  | Use the corresponding belt slot                | Throwing Weapons / Alchemy by item               |
 | V                    | Two-handed shaft shove                         | Heavy Weapons                                    |
@@ -85,3 +85,7 @@ The logical area is 1280×720 with FIT scaling. Physical canvas/text density ada
 See [architecture](docs/ARCHITECTURE.md), [game design](docs/GAME_DESIGN.md), [skill progression](docs/SKILL_PROGRESSION.md), [real-time combat](docs/REALTIME_COMBAT.md), [animation](docs/ANIMATION_SYSTEM.md) and [deployment](docs/DEPLOYMENT.md). GitHub Pages deploys validated pushes to `main` with `/arena-of-ash/` as the base path.
 
 Development-only seeded Canvas rendering and read-only `window.__arena.snapshot()` support repeatable browser tests; production exposes no diagnostic API. Existing mechanics fixtures explicitly learn the original abilities plus Heavy Armor; separate basic-player scenarios exercise actual zero-skill restrictions and the complete choice flow. No production permission bypass exists. Artwork remains procedural; there is no audio, account system or backend. The Phaser bundle retains its existing size warning.
+
+The shop's **Only items my skills allow** checkbox hides skill-locked equipment and consumables before paging. It stays selected across categories, quantities, purchases and inventory visits.
+
+Battle Rage plays a short brace and roar; red eyes and an angry snarl last for its eight-second buff. Shield hands return smoothly to a forward carry after drinks. Counterstrike has a separate 20% roll per eligible successful parry; its armed hit replaces the palm shove, while misses on the roll retain the ordinary zero-damage shove.

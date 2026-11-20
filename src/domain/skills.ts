@@ -152,8 +152,8 @@ export const skills: readonly Skill[] = [
     id: 16,
     name: "Counterstrike",
     description:
-      "Follow a successful parry with a quick physical counterattack.",
-    enables: "Automatic armed riposte",
+      "20% chance after a successful parry: counterattack instead of shoving.",
+    enables: "20% armed riposte · Replaces the shove",
     requires: 6,
   },
   {
@@ -256,6 +256,7 @@ export function sanitizeEquipment(p: Player) {
 }
 export const skillBalance = {
   rageDuration: 8000,
+  rageActivation: 620,
   rageSpeed: 1.3,
   rageDamage: 1.2,
   rageArmor: 0.75,
@@ -264,6 +265,7 @@ export const skillBalance = {
   supermanMinDistance: 175,
   bashDuration: 700,
   counterSpeed: 300,
+  counterChance: 0.2,
   supermanDamage: 1.4,
   supermanSpeed: 380,
   supermanJump: 390,

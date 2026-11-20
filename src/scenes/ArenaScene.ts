@@ -106,6 +106,7 @@ export class ArenaScene extends BaseScene {
         hammerPush: seeded(seed ^ 0x65c2),
         drop: seeded(seed ^ 0x5e17),
         deflect: seeded(seed ^ 0xd3f1),
+        counter: seeded(seed ^ 0x8cd2),
       },
     );
     this.battle.hitStop.configure(true, 200);

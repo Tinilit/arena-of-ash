@@ -7,9 +7,9 @@ export function shieldCarryPose(p: Pose, shield: Item): Pose {
     p.grappling ||
     p.bodyFloor ||
     p.held ||
-    p.farThrow ||
-    p.throwPreview ||
-    p.drinkPreview ||
+    (p.farThrow ?? 0) > 0.5 ||
+    (p.throwPreview ?? 0) > 0.5 ||
+    (p.drinkPreview ?? 0) > 0.5 ||
     p.farShove
   )
     return p;
@@ -20,9 +20,9 @@ export function shieldCarryPose(p: Pose, shield: Item): Pose {
       : 54;
   return {
     ...p,
-    farHandX: -24,
+    farHandX: 54,
     farHandY: Math.min(
-      58,
+      42,
       -skeleton.pelvisY - skeleton.shoulderY - bottom - 12 - (p.rootY ?? 0),
     ),
     farWrist: 0,

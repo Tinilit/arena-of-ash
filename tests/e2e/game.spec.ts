@@ -3265,7 +3265,6 @@ test("camp, character and active arena expose no demonstration or combat action 
     "character",
     "ladder",
     "reset",
-    "skills",
   ]);
   await click(page, "character");
   s = await snapshot(page);

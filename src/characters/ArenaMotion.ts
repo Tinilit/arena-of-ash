@@ -1,7 +1,7 @@
 import { shieldCarryPose } from "./shieldMotion";
-import { hasSkill, skill } from "../domain/skills";
+import { hasSkill, skill, skillBalance } from "../domain/skills";
 import { item } from "../data/catalog";
-import { kipUpPose } from "./skillMotion";
+import { ragePose, kipUpPose } from "./skillMotion";
 import { meleeAimPose, meleePitch } from "./meleeAim";
 import { rangedPitch } from "../combat/aim";
 import { Animator, type Pose } from "./animation";
@@ -185,6 +185,31 @@ export class ArenaMotion {
     } else if (f.landed < 180)
       base.rootY = (base.rootY ?? 0) + 7 * Math.sin((Math.PI * f.landed) / 180);
     const active = activeActions(f);
+    // Runtime props belong only to a live action, never to an idle return blend.
+    base.drinkPreview = 0;
+    base.throwPreview = 0;
+    base.farThrow = base.nearThrow = 0;
+    const shield = item(f.model.equipment.rightHand ?? "");
+    if (shield?.slot === "shield") {
+      Object.assign(base, shieldCarryPose(base, shield));
+      base.shieldCarryReady = 1;
+    }
+    if (
+      (f.rageActivationRemaining ?? 0) > 0 &&
+      !active.length &&
+      !f.parry &&
+      !f.grapple &&
+      !f.reaction
+    ) {
+      Object.assign(
+        base,
+        ragePose(
+          base,
+          skillBalance.rageActivation - f.rageActivationRemaining!,
+        ),
+      );
+      this.name = "rage";
+    }
     for (const hand of ["front", "rear"] as const) {
       if (active.some((a) => a.hand === hand)) {
         delete this.returning[hand];
@@ -363,7 +388,7 @@ export class ArenaMotion {
           base,
           f.parry.elapsed,
           weaponForHand(f.model, "rear") ? "rear" : "front",
-          f.parry.shoveAge,
+          f.counterPending ? undefined : f.parry.shoveAge,
         ),
       );
       this.name = "parry";
@@ -431,9 +456,6 @@ export class ArenaMotion {
             ? "throwOpponent"
             : "liftOpponent";
     }
-    const shield = item(f.model.equipment.rightHand ?? "");
-    if (shield?.slot === "shield")
-      Object.assign(base, shieldCarryPose(base, shield));
     if (f.bodyAction?.name === "superman") {
       const t = f.bodyAction.elapsed / f.bodyAction.duration;
       base.torso = 0.18 * Math.sin(Math.PI * t);

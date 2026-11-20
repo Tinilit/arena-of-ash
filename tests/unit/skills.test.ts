@@ -50,7 +50,10 @@ function battle(ids: typeof allSkillIds = []) {
   const p = grant(createPlayer(), ...ids),
     e = createPlayer();
   e.id = "enemy";
-  return new RealtimeBattle(p, e, () => 0.99, { disarm: () => 0.99 });
+  return new RealtimeBattle(p, e, () => 0.99, {
+    disarm: () => 0.99,
+    counter: () => 0,
+  });
 }
 const capsule = (x = 500, y = 400) => ({
   a: { x, y },
@@ -393,7 +396,7 @@ describe("new physical skill mechanics", () => {
     expect(b.player.guard).toBe(false);
     expect(b.player.bashCooldown ?? 0).toBe(0);
   });
-  it("a successful learned parry automatically launches a physical counterstrike after its shove", () => {
+  it("a successful learned parry launches a rolled physical counterstrike instead of its shove", () => {
     const b = battle([6, 16]);
     b.player.x = 500;
     b.enemy.x = 580;
@@ -406,7 +409,7 @@ describe("new physical skill mechanics", () => {
     expect(b.resolve(g)[0].parried).toBe(true);
     b.advance(150, [{}, {}]);
     expect(b.player.handActions.rear?.name).toBe("counter");
-    expect(Math.abs(b.enemy.pushVx)).toBeGreaterThan(0);
+    expect(b.enemy.pushVx).toBe(0);
     b.player.handActions.rear!.elapsed = 200;
     g[0].blade = capsule(700);
     g[0].blades = { rear: capsule(700) };

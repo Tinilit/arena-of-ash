@@ -2,7 +2,7 @@
 
 `main.ts` owns one Phaser game and destroys it on hot replacement. `app/config.ts` defines a 1280×720 logical area with FIT scaling, WebGL preference/Canvas fallback, and eight scenes. Boot loads `Services` into the Phaser registry; it owns the player and SaveStore. Appearance is fixed to Ash Vanguard and motion to Grounded, independently of any obsolete browser preference values.
 
-Scene flow: Boot resumes the saved progression route. Camp opens Arena, Character, the ladder or a read-only skill collection. Arena outcomes create a durable Result decision: immediate SkillScene selection from two saved random offers or an exclusive ShopScene visit, then camp. Victory keeps collection until Continue; defeat/draw present Result automatically. Escape returns to camp and abandons unresolved combat. There is no studio or style-selection scene.
+Scene flow: Boot resumes the saved progression route. Camp opens Arena, Gladiator or the ladder. Gladiator includes only learned skills. Arena outcomes create a durable Result decision: immediate SkillScene selection from two saved random offers or an exclusive ShopScene visit, then camp. Victory keeps collection until Continue; defeat/draw present Result automatically. Escape returns to camp and abandons unresolved combat. There is no studio or style-selection scene.
 
 `domain` defines player identity, inventory, equipment, fixed combat baselines, transactions and opponent progression. The external JSON has 24 default equipment definitions; `data/catalog.ts` exposes the installed session catalog, enemy rank names and rewards. `domain/opponents.ts` generates compatible random loadouts from the active catalog using victory count and an injected RNG. Pure `combat/realtime.ts` owns continuous fighter state, independent hand actions/cooldowns, body actions and knockdown rules, movement, jumping and outcomes. `combat/geometry.ts` handles moving capsule contact; `ArenaAI.ts` chooses movement/actions. None imports Phaser.
 
@@ -34,7 +34,7 @@ Combat geometry carries per-hand blade/fist capsules and per-foot boot capsules.
 
 The pure resolver records `collectedItems` alongside exact-source consumption events. Landed projectiles transition once to pickedUp and transfer ownership, even from enemies. Scene cursors persist each event once. `combat/parry.ts` holds precision timing; contacts drive parry success and a one-second attacker stun, without range-based hit shortcuts. A separate seeded AI stream controls rare weapon throws.
 
-`combat/grapples.ts` owns coupled reach/lift/hold/throw/air states and delegates landing to the existing knockdown recovery. `characters/grappleMotion.ts` supplies the two actors’ poses; captured-body motion bypasses sole-only floor correction until landing. `shootMotion.ts` and `rendering/rangedPreview.ts` implement harmless two-handed shooting previews. Parry success owns its one-shot counter-shove; enemy backstep decisions use an independent RNG stream.
+`combat/grapples.ts` owns coupled reach/lift/hold/throw/air states and delegates landing to the existing knockdown recovery. `characters/grappleMotion.ts` supplies the two actors’ poses; captured-body motion bypasses sole-only floor correction until landing. `shootMotion.ts` and `rendering/rangedPreview.ts` implement harmless two-handed shooting previews. Parry success owns either its one-shot counter-shove or the independently rolled 20% learned weapon riposte; enemy backstep decisions use an independent RNG stream.
 
 ## Skill policy and decisions
 

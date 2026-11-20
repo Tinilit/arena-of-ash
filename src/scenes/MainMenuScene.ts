@@ -1,4 +1,4 @@
-import { activeSkills, hasSkill, skill } from "../domain/skills";
+import { hasSkill, skill } from "../domain/skills";
 import { BaseScene } from "./BaseScene";
 import { label, panel } from "../ui/widgets";
 import { en } from "../ui/strings";
@@ -25,10 +25,9 @@ export class MainMenuScene extends BaseScene {
     this.button("battle", 350, 366, 350, en.battle, () =>
       this.scene.start("ArenaScene"),
     );
-    this.button("character", 260, 430, 170, en.character, () =>
+    this.button("character", 350, 430, 350, en.character, () =>
       this.scene.start("CharacterScene"),
     );
-    this.button("skills", 444, 430, 170, "Skills", () => this.showSkills());
     this.button("reset", 350, 501, 350, en.reset, () => this.confirmReset());
     this.button(
       "ladder",
@@ -120,35 +119,6 @@ export class MainMenuScene extends BaseScene {
       12,
       "#b9aa8d",
     ).setOrigin(0.5);
-  }
-  private showSkills() {
-    this.modalOpen = true;
-    const shade = this.add
-      .rectangle(640, 360, 1280, 720, 0x000000, 0.9)
-      .setInteractive();
-    const title = label(
-      this,
-      640,
-      75,
-      "GLADIATOR SKILLS",
-      30,
-      "#e8bd72",
-    ).setOrigin(0.5);
-    const entries = activeSkills().map((s, i) =>
-      label(
-        this,
-        95 + (i % 2) * 620,
-        130 + Math.floor(i / 2) * 55,
-        `${hasSkill(this.services.player, s.id) ? "✓" : "Locked"} · ${s.name}`,
-        21,
-        hasSkill(this.services.player, s.id) ? "#87c5a0" : "#b9aa8d",
-      ),
-    );
-    const close = this.button("close-skills", 640, 665, 260, "Close", () => {
-      [shade, title, ...entries, close].forEach((o) => o.destroy());
-      delete this.buttons["close-skills"];
-      this.modalOpen = false;
-    });
   }
   override snapshot() {
     return {

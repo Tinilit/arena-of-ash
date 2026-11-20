@@ -1,4 +1,4 @@
-import { itemRequirements, skills } from "../domain/skills";
+import { itemRequirements, skills, hasSkill } from "../domain/skills";
 import { shopAccess } from "../domain/postBattle";
 import { BaseScene } from "./BaseScene";
 import { Gladiator } from "../characters/Gladiator";
@@ -189,25 +189,29 @@ export class CharacterScene extends BaseScene {
     ).setEnabled(page + 1 < pages);
     const st = stats(p);
     label(this, 65, 515, `Health ${st.hp}`, 16);
-    label(
-      this,
-      430,
-      571,
-      "Skill-locked items stay in your backpack. Learn skills after battle.",
-      14,
-      "#b9aa8d",
-    );
-    label(
-      this,
-      430,
-      598,
-      "Empty slots fill first. Select a slot to replace when full.",
-      16,
-    );
+    label(this, 430, 580, "LEARNED SKILLS", 16, "#e8bd72");
+    const learned = skills.filter((s) => hasSkill(p, s.id));
+    if (!learned.length)
+      label(this, 430, 608, "No skills learned yet", 16, "#b9aa8d");
+    let skillX = 430,
+      skillY = 608;
+    for (const s of learned) {
+      const text = label(this, 0, 0, s.name, 14);
+      const width = text.width + 20;
+      if (skillX + width > 1230) {
+        skillX = 430;
+        skillY += 28;
+      }
+      const chip = panel(this, skillX + width / 2, skillY, width, 23);
+      text.setPosition(skillX + 10, skillY).setDepth(1);
+      chip.setDepth(0);
+      skillX += width + 9;
+    }
     this.back();
   }
   override snapshot() {
     return {
+      skills: skills.filter((s) => hasSkill(this.services.player, s.id)),
       backpack: backpack(this.services.player),
       backpackQuantities: Object.fromEntries(
         backpack(this.services.player).map((id) => [

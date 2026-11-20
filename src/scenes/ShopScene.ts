@@ -16,18 +16,29 @@ const PAGE_SIZE = 8;
 export class ShopScene extends BaseScene {
   private category: ShopCategory = "weapons";
   private page = 0;
+  private usableOnly = false;
   constructor() {
     super("ShopScene");
   }
   create(
-    data: { page?: number; amount?: number; category?: ShopCategory } = {},
+    data: {
+      page?: number;
+      amount?: number;
+      category?: ShopCategory;
+      usableOnly?: boolean;
+    } = {},
   ) {
     if (!this.prepare(en.shopTitle)) return;
     const category = shopCategories.includes(data.category!)
       ? data.category!
       : "weapons";
     this.category = category;
-    const stock = shopStock(items, category);
+    this.usableOnly = data.usableOnly ?? this.usableOnly;
+    const stock = shopStock(
+      items,
+      category,
+      this.usableOnly ? this.services.player : undefined,
+    );
     const p = this.services.player,
       pages = Math.max(1, Math.ceil(stock.length / PAGE_SIZE)),
       page = Math.max(0, Math.min(data.page ?? 0, pages - 1)),
@@ -56,6 +67,45 @@ export class ShopScene extends BaseScene {
         32,
       ).setAlpha(n === amount ? 1 : 0.65),
     );
+    const filter = this.button(
+      "shop-usable-only",
+      215,
+      149,
+      300,
+      "",
+      () =>
+        this.scene.restart({
+          category,
+          amount,
+          page: 0,
+          usableOnly: !this.usableOnly,
+        }),
+      24,
+    );
+    const mark = this.add
+      .rectangle(0, 0, 17, 17, 0x1b2022)
+      .setStrokeStyle(1, 0x9f7746);
+    const tick = label(
+      this,
+      0,
+      0,
+      this.usableOnly ? "✓" : "",
+      16,
+      "#e8bd72",
+    ).setOrigin(0.5);
+    filter.add(mark.setPosition(-136, 0));
+    filter.add(tick.setPosition(-136, 0));
+    const caption = label(this, -117, 0, "Only items my skills allow", 15);
+    filter.add(caption);
+    if (!stock.length)
+      label(
+        this,
+        640,
+        330,
+        "No items match your skills in this category",
+        23,
+        "#b9aa8d",
+      ).setOrigin(0.5);
     stock.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).forEach((it, i) => {
       const x = 42 + (i % 2) * 626,
         y = 192 + Math.floor(i / 2) * 108;
@@ -140,10 +190,15 @@ export class ShopScene extends BaseScene {
       shop: {
         category: this.category,
         page: this.page,
+        usableOnly: this.usableOnly,
         itemCategories: Object.fromEntries(
           items.map((item) => [item.id, shopCategory(item)]),
         ),
-        items: shopStock(items, this.category).map((item) => item.id),
+        items: shopStock(
+          items,
+          this.category,
+          this.usableOnly ? this.services.player : undefined,
+        ).map((item) => item.id),
       },
     };
   }

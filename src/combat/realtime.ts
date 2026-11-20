@@ -80,6 +80,7 @@ export interface CombatProcRandom {
   hammerPush?: () => number;
   drop?: () => number;
   deflect?: () => number;
+  counter?: () => number;
 }
 import { twoHandDuration } from "../characters/twoHandMotion";
 export const attackTimings = {
@@ -146,6 +147,7 @@ export interface ArenaFighter extends Fighter {
   speedRemaining?: number;
   timeScale?: number;
   rageRemaining?: number;
+  rageActivationRemaining?: number;
   rageUsed?: boolean;
   secondWindUsed?: boolean;
   bashCooldown?: number;
@@ -182,6 +184,7 @@ export interface ArenaFighter extends Fighter {
     targetId?: string;
     shoveAge?: number;
     pushed?: boolean;
+    counterRolled?: boolean;
     disarmAttempted?: boolean;
   } | null;
   parryCooldown: number;
@@ -330,18 +333,33 @@ export class RealtimeBattle {
     return this.fighters[1];
   }
   private startCounter(f: ArenaFighter) {
-    if (!f.counterPending) return;
+    if (!f.counterPending) return false;
     f.counterPending = false;
     const hand = primaryHand(f.model);
-    if (this.canAttack(f, "counter", hand))
-      f.handActions[hand] = {
-        id: ++this.sequence,
-        name: "counter",
-        hand,
-        elapsed: 0,
-        duration: skillBalance.counterDuration / attackRate(f),
-        hit: false,
-      };
+    if (!this.canAttack(f, "counter", hand)) return false;
+    f.handActions[hand] = {
+      id: ++this.sequence,
+      name: "counter",
+      hand,
+      elapsed: 0,
+      duration: skillBalance.counterDuration / attackRate(f),
+      hit: false,
+    };
+    return true;
+  }
+  private rollCounter(f: ArenaFighter) {
+    if (!f.parry || f.parry.counterRolled) return;
+    f.parry.counterRolled = true;
+    const hand = primaryHand(f.model),
+      weapon = weaponForHand(f.model, hand);
+    if (
+      !hasSkill(f.model, skill.counter) ||
+      !actionAllowed(f.model, "counter", hand) ||
+      (weapon?.weaponType === "crossbow" && (f.rangedCooldown ?? 0) > 0)
+    )
+      return;
+    f.counterPending =
+      (this.procRandom.counter ?? Math.random)() < skillBalance.counterChance;
   }
   canGrapple(f = this.player) {
     return (
@@ -682,6 +700,10 @@ export class RealtimeBattle {
       const command = clocks.active > 0 || delta === 0 ? input[i] : {};
       f.painRemaining = Math.max(0, (f.painRemaining ?? 0) - delta);
       f.rageRemaining = Math.max(0, (f.rageRemaining ?? 0) - delta);
+      f.rageActivationRemaining = Math.max(
+        0,
+        (f.rageActivationRemaining ?? 0) - delta,
+      );
 
       if (
         command.rage &&
@@ -694,6 +716,7 @@ export class RealtimeBattle {
       ) {
         f.rageUsed = true;
         f.rageRemaining = skillBalance.rageDuration;
+        f.rageActivationRemaining = skillBalance.rageActivation;
         f.relaxed = false;
       }
       if (
@@ -738,12 +761,15 @@ export class RealtimeBattle {
             const target = this.fighters.find(
               (t) => t.model.id === f.parry?.targetId,
             );
-            if (target && target.hp > 0 && !target.knockdown)
-              target.pushVx = f.facing * arenaRules.kickImpulse;
+            let countered = false;
             if (f.counterPending) {
+              const parry = f.parry;
               f.parry = null;
-              this.startCounter(f);
+              countered = this.startCounter(f);
+              if (!countered) f.parry = parry;
             }
+            if (!countered && target && target.hp > 0 && !target.knockdown)
+              target.pushVx = f.facing * arenaRules.kickImpulse;
           }
         }
         if (
@@ -1353,8 +1379,7 @@ export class RealtimeBattle {
           .find(Boolean);
         if (collision) {
           const attackerId = p.ownerId;
-          if (hasSkill(defender.model, skill.counter))
-            defender.counterPending = true;
+          this.rollCounter(defender);
           deflectBolt(
             p,
             collision.point,
@@ -1451,8 +1476,7 @@ export class RealtimeBattle {
         e.damage = 0;
         e.knockdown = false;
         defender.parry.succeeded = true;
-        if (hasSkill(defender.model, skill.counter))
-          defender.counterPending = true;
+        this.rollCounter(defender);
         defender.parry.targetId = attacker.model.id;
         defender.parry.shoveAge ??= 0;
         if (e.kind === "weapon" && !defender.parry.disarmAttempted) {

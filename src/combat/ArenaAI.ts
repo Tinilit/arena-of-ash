@@ -497,6 +497,18 @@ export class ArenaAI {
             : -Math.sign(this.recoveryGoal - self.x),
       };
     }
+    if (
+      this.options.advanced !== false &&
+      (self.rageActivationRemaining ?? 0) > 0 &&
+      !self.grapple &&
+      !self.finisher &&
+      !self.knockdown &&
+      !self.stun &&
+      !self.reaction
+    ) {
+      this.lastDecision = "rage";
+      return { move: 0 };
+    }
     if (this.options.advanced !== false && self.action?.name === "drink") {
       this.lastDecision = "drink";
       return { move: gap < 300 ? -toward : 0, run: true };
