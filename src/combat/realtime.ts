@@ -1,5 +1,5 @@
+import { HitStop } from "./hitStop";
 import {
-  enemySkills,
   hasSkill,
   sanitizeEquipment,
   skill,
@@ -151,6 +151,8 @@ export interface ArenaFighter extends Fighter {
   bashCooldown?: number;
   counterPending?: boolean;
   animationDelta?: number;
+  handAnimationDelta?: Record<Hand, number>;
+  painRemaining?: number;
   x: number;
   y: number;
   vx: number;
@@ -304,6 +306,7 @@ export class RealtimeBattle {
     slot?: EquipmentSlot;
     projectileId: number;
   }[] = [];
+  readonly hitStop = new HitStop();
   private sequence = 0;
   private finishers = new FinisherController();
   private grapples = new GrappleController();
@@ -318,9 +321,7 @@ export class RealtimeBattle {
   ) {
     this.fighters = [actor(player, 370, 1), actor(enemy, 910, -1)];
     sanitizeEquipment(this.player.model);
-    this.enemy.model.skills = [
-      ...new Set([...(enemy.skills ?? []), ...enemySkills]),
-    ];
+    sanitizeEquipment(this.enemy.model);
   }
   get player() {
     return this.fighters[0];
@@ -357,9 +358,21 @@ export class RealtimeBattle {
     name: ArenaAction,
     hand: Hand = primaryHand(f.model),
   ) {
-    if (!actionAllowed(f.model, name, hand)) return false;
+    if (
+      !actionAllowed(f.model, name, hand) ||
+      this.hitStop.blocked(f.model.id, hand)
+    )
+      return false;
     if (name === "bash" && (f.bashCooldown ?? 0) > 0) return false;
-    if (name === "superman" && (f.y !== 0 || f.vy !== 0 || f.hop)) return false;
+    if (
+      name === "superman" &&
+      (f.y !== 0 ||
+        f.vy !== 0 ||
+        f.hop ||
+        Math.abs(this.fighters.find((t) => t !== f)!.x - f.x) <
+          skillBalance.supermanMinDistance * (f.model.combatProfile?.size ?? 1))
+    )
+      return false;
     if (name === "finish")
       return (
         this.state === "Fighting" &&
@@ -652,7 +665,12 @@ export class RealtimeBattle {
       ArenaInput,
     ];
     this.fighters.forEach((f, i) =>
-      this.grapples.command(this.state, f, this.fighters[1 - i], input[i]),
+      this.grapples.command(
+        this.state,
+        f,
+        this.fighters[1 - i],
+        this.hitStop.blocked(f.model.id) ? {} : input[i],
+      ),
     );
     const dt = delta / 1000;
     this.projectiles.forEach((p) =>
@@ -660,7 +678,9 @@ export class RealtimeBattle {
     );
     const before = this.fighters.map((f) => f.x);
     this.fighters.forEach((f, i) => {
-      const command = input[i];
+      const clocks = this.hitStop.step(f.model.id, delta);
+      const command = clocks.active > 0 || delta === 0 ? input[i] : {};
+      f.painRemaining = Math.max(0, (f.painRemaining ?? 0) - delta);
       f.rageRemaining = Math.max(0, (f.rageRemaining ?? 0) - delta);
 
       if (
@@ -682,12 +702,30 @@ export class RealtimeBattle {
         Number.isFinite(command.aim.y)
       )
         f.aim = { ...command.aim };
-      const actorDelta = delta + Math.min(delta, f.speedRemaining ?? 0);
+      const scaledDelta = (active: number) =>
+        active +
+        Math.max(0, Math.min(delta, f.speedRemaining ?? 0) - (delta - active));
+      const actorDelta = scaledDelta(clocks.active);
+      f.handAnimationDelta = {
+        front: scaledDelta(clocks.hands.front),
+        rear: scaledDelta(clocks.hands.rear),
+      };
       f.timeScale = delta > 0 ? actorDelta / delta : fighterSpeed(f);
       f.animationDelta = actorDelta;
       f.bashCooldown = Math.max(0, (f.bashCooldown ?? 0) - actorDelta);
       f.speedRemaining = Math.max(0, (f.speedRemaining ?? 0) - delta);
       const dt = actorDelta / 1000;
+      // Count pain recovery during the paused portion of even a partial step.
+      const paused = delta - clocks.active;
+      if (paused > 0) {
+        f.stun = Math.max(0, f.stun - paused);
+        if ((f.painRemaining ?? 0) > 0 || f.reaction?.kind === "hit") {
+          f.bodyCooldown = Math.max(0, f.bodyCooldown - paused);
+          for (const hand of ["front", "rear"] as const)
+            f.handCooldowns[hand] = Math.max(0, f.handCooldowns[hand] - paused);
+        }
+      }
+      if (actorDelta === 0 && delta > 0) return;
       f.landed += actorDelta;
       f.grappleCooldown = Math.max(0, (f.grappleCooldown ?? 0) - actorDelta);
       f.parryCooldown = Math.max(0, f.parryCooldown - actorDelta);
@@ -723,7 +761,10 @@ export class RealtimeBattle {
       f.rangedCooldown = Math.max(0, (f.rangedCooldown ?? 0) - actorDelta);
       f.bodyCooldown = Math.max(0, f.bodyCooldown - actorDelta);
       for (const hand of ["front", "rear"] as const)
-        f.handCooldowns[hand] = Math.max(0, f.handCooldowns[hand] - actorDelta);
+        f.handCooldowns[hand] = Math.max(
+          0,
+          f.handCooldowns[hand] - f.handAnimationDelta![hand],
+        );
       if (f.reaction) {
         f.reaction.elapsed += actorDelta;
         if (f.reaction.elapsed >= f.reaction.duration) f.reaction = null;
@@ -748,7 +789,7 @@ export class RealtimeBattle {
       for (const hand of ["front", "rear"] as const) {
         const swing = f.handActions[hand];
         if (!swing) continue;
-        swing.elapsed += actorDelta;
+        swing.elapsed += f.handAnimationDelta![hand];
         if (swing.elapsed >= swing.duration) {
           f.handCooldowns[hand] =
             (twoHandWeapon(f.model) && swing.name === "quick" ? 400 : 280) /
@@ -1212,6 +1253,7 @@ export class RealtimeBattle {
         const defenderShield = this.fighters[other];
         let shieldBlocked = false;
         if (
+          actionAllowed(defenderShield.model, "guard") &&
           defenderShield.guard &&
           geometry[other].shield &&
           (f.x - defenderShield.x) * defenderShield.facing >= 0
@@ -1354,7 +1396,12 @@ export class RealtimeBattle {
       }
       let shieldBlocked = false;
       const shield = geometry[target].shield;
-      if (defender.guard && shield && p.vx * defender.facing < 0) {
+      if (
+        actionAllowed(defender.model, "guard") &&
+        defender.guard &&
+        shield &&
+        p.vx * defender.facing < 0
+      ) {
         const intercepted = sweptContact(
           projectileShape(p, true),
           projectileShape(p),
@@ -1489,6 +1536,19 @@ export class RealtimeBattle {
         }
       }
       defender.hp = Math.max(0, defender.hp - e.damage);
+      if (e.damage > 0) {
+        defender.painRemaining = 420;
+        const source = this.fighters.find((f) => f.model.id === e.attackerId)!;
+        this.hitStop.impact(
+          source.model.id,
+          defender.model.id,
+          e.hand ?? "rear",
+          Boolean(
+            weaponForHand(source.model, "rear") &&
+            weaponForHand(source.model, "front"),
+          ),
+        );
+      }
       if (
         e.kind !== "finisher" &&
         e.damage > 0 &&

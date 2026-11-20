@@ -22,22 +22,22 @@ Install the browser with `PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install --wi
 
 ## Progression
 
-A new gladiator owns only a Wooden Sword, has 100 gold, empty belt slots and **zero advanced skills**. Basic movement, running, jumps/hops, one one-handed melee weapon, stance changes, ordinary armor, inventory and pickups are available immediately. There are no levels, XP, attributes, stamina or skill upgrades.
+A new gladiator owns only a Wooden Sword, has 100 gold, empty belt slots and **zero advanced skills**. Basic movement, running, jumps/hops, one one-handed melee weapon, stance changes, light armor, inventory and pickups are available immediately. There are no levels, XP, attributes, stamina or skill upgrades.
 
 Every completed victory, defeat or draw grants **one exclusive post-battle choice**:
 
-- **Learn a Skill:** choose and confirm one of 17 permanent combat abilities. Learned skills cannot be selected again; unmet prerequisites remain visible.
+- **Learn a Skill:** choose one of two random eligible abilities; learning is immediate. Offers persist across reloads.
 - **Visit Shop:** buy equipment, bulk consumables and sell unequipped copies through the shop's equipment screen. Closing the shop ends this visit.
 
-The shop is accessible only through this choice. Camp's Skills button is a read-only collection. After all 17 skills are learned, only Visit Shop remains. The decision, selected branch and its consumption are saved immediately. Reload resumes the decision/training/shop visit; it never grants another reward or skill. Escape during an unfinished fight gives neither reward nor choice.
+The shop is accessible only through this choice. Camp's Skills button is a read-only collection. After all currently available skills are learned, only Visit Shop remains. The decision, selected branch and its consumption are saved immediately. Reload resumes the decision/training/shop visit; it never grants another reward or skill. Escape during an unfinished fight gives neither reward nor choice.
 
 Victory grants 50 gold and advances the ladder; defeat/draw grant 10 gold without advancement. Victory keeps the arena open for grounded equipment collection until Continue. Defeat/draw proceed automatically after the short presentation. The 18-encounter ladder has a fixed boss after each five challengers; further wins unlock elite exhibition fights.
 
-See [all 17 skills, prerequisites, balance and persistence](docs/SKILL_PROGRESSION.md).
+See [skills, prerequisites, balance and persistence](docs/SKILL_PROGRESSION.md).
 
 ## Controls
 
-The arena legend follows the gladiator's learned skills. Combat uses the mouse and keyboard, without action buttons.
+The arena legend follows the gladiator's learned skills. Combat uses the mouse and keyboard. The live Hit pause controls toggle the optional 200 ms impact pause and adjust its duration without stopping Auto Battle.
 
 | Input                | Action                                         | Requirement                                      |
 | -------------------- | ---------------------------------------------- | ------------------------------------------------ |
@@ -52,8 +52,7 @@ The arena legend follows the gladiator's learned skills. Combat uses the mouse a
 | C                    | Timed parry, counter-shove and possible disarm | Parrying                                         |
 | Ctrl+hand attack     | Throw that hand's weapon                       | Throwing Weapons                                 |
 | Q/E                  | Use the corresponding belt slot                | Throwing Weapons / Alchemy by item               |
-| Hold S               | Physically block attacks from the front        | Shield Mastery + equipped shield                 |
-| V                    | Two-handed shaft shove / shield bash           | Heavy Weapons / Shield Bash by equipment         |
+| V                    | Two-handed shaft shove                         | Heavy Weapons                                    |
 | Z                    | Battle Rage, once per fight                    | Battle Rage                                      |
 | T                    | Forward jumping weapon strike                  | Superman Punch + one-handed melee weapon         |
 | B                    | Resume / stop Auto Battle                      | Basic                                            |
@@ -61,7 +60,7 @@ The arena legend follows the gladiator's learned skills. Combat uses the mouse a
 
 Kip-Up, Berserker, Counterstrike and Second Wind are automatic learned abilities. Shield Bash requires Shield Mastery; Counterstrike requires Parrying. These are the only skill prerequisites. Crossbows require Marksmanship, independently of Heavy Weapons. Two-handed melee weapons require Heavy Weapons. Either hand input uses the same reserved two-handed weapon; one-handed attacks remain independent after Dual Wielding.
 
-Auto Battle starts enabled and follows the player's actual skills, equipment and consumables. Enemies retain their established abilities independently. Any gameplay key/button takes manual control; mouse movement only aims. Alt/Meta shortcuts preserve the mode. Focus loss releases held input while combat continues through headless background updates, including when RAF stops.
+Auto Battle starts enabled and follows the player's actual skills, equipment and consumables. Enemies receive the same number of skills as the player and wear compatible equipment. Auto Battle schedules a usable skill after 1–3 accepted normal attacks; defensive reactions and useful drinks retain priority. Any gameplay key/button takes manual control; mouse movement only aims. Alt/Meta shortcuts preserve the mode. Focus loss releases held input while combat continues through headless background updates, including when RAF stops.
 
 ## Equipment, combat and saves
 
@@ -69,7 +68,7 @@ The default runtime catalog has 24 items in **Weapons, Armor and Misc**. Item ca
 
 Belt slots hold one copy each; consumable bundles of 1/5/10 accumulate in the backpack. Releasing a throw or sipping a potion consumes one copy and saves immediately. Interrupted wind-ups preserve it. G can recover landed thrown equipment, including enemy weapons, into an eligible empty slot or the backpack. Spare copies never refill battle slots automatically. Used potions and unrecovered equipment remain spent. Selling trades only an unequipped copy for half its purchase price, rounded down.
 
-Combat retains 120 Hz simulation and actual swept weapon/projectile contact with the articulated body. Ordinary damage is the weapon's complete raw attack minus total worn helmet/body armor, floored at zero. Explicit learned skill modifiers are deterministic. Kicks and shaft shoves deal zero HP damage; valid bound executions are the guaranteed-impact exception. A shield blocks only when its rendered surface intercepts a frontal attack. Idle weapons and missed attacks deal no damage.
+Combat retains 120 Hz simulation and actual swept weapon/projectile contact with the articulated body. Ordinary damage is the weapon's complete raw attack minus total worn helmet/body and rear-shield armor, floored at zero. Explicit learned skill modifiers are deterministic. Kicks and shaft shoves deal zero HP damage; valid bound executions are the guaranteed-impact exception. The rear-hand Arena Buckler (+3) and Tower Shield (+6) provide passive armor only. Shield Mastery unlocks them; heavy gear additionally requires Heavy Armor. Idle weapons and missed attacks deal no damage.
 
 Head contacts wear the helmet; torso/limb contacts wear chest armor. Subtle cracks appear after 55% wear. Broken copies fly off and disappear permanently; surviving armor repairs after combat/exit/reload. Numeric popups show resolved damage.
 
@@ -85,4 +84,4 @@ The logical area is 1280×720 with FIT scaling. Physical canvas/text density ada
 
 See [architecture](docs/ARCHITECTURE.md), [game design](docs/GAME_DESIGN.md), [skill progression](docs/SKILL_PROGRESSION.md), [real-time combat](docs/REALTIME_COMBAT.md), [animation](docs/ANIMATION_SYSTEM.md) and [deployment](docs/DEPLOYMENT.md). GitHub Pages deploys validated pushes to `main` with `/arena-of-ash/` as the base path.
 
-Development-only seeded Canvas rendering and read-only `window.__arena.snapshot()` support repeatable browser tests; production exposes no diagnostic API. Existing mechanics fixtures explicitly learn the original ten abilities; separate basic-player scenarios exercise actual zero-skill restrictions and the complete choice flow. No production permission bypass exists. Artwork remains procedural; there is no audio, account system or backend. The Phaser bundle retains its existing size warning.
+Development-only seeded Canvas rendering and read-only `window.__arena.snapshot()` support repeatable browser tests; production exposes no diagnostic API. Existing mechanics fixtures explicitly learn the original abilities plus Heavy Armor; separate basic-player scenarios exercise actual zero-skill restrictions and the complete choice flow. No production permission bypass exists. Artwork remains procedural; there is no audio, account system or backend. The Phaser bundle retains its existing size warning.

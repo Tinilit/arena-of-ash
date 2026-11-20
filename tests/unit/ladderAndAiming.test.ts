@@ -1,3 +1,4 @@
+import { allSkillIds } from "../../src/domain/skills";
 import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { beforeEach, describe, expect, it } from "vitest";
 import live from "../../public/content/items.json";
@@ -46,12 +47,15 @@ describe("eighteen-fight arena ladder", () => {
     expect(bossAt(23)).toBeUndefined();
   });
   it.each([5, 11, 17])(
-    "spawns the named fixed encounter after %s wins regardless of spawn RNG",
+    "preserves the fixed loadout with a full skill budget after %s wins",
     (wins) => {
       const p = createPlayer();
       p.progress = wins;
+      p.skills = [...allSkillIds];
       const boss = bossAt(wins)!;
-      expect(opponent(p, () => 0)).toEqual(opponent(p, () => 0.99));
+      expect(opponent(p, () => 0).equipment).toEqual(
+        opponent(p, () => 0.99).equipment,
+      );
       const enemy = opponent(p);
       expect(enemy.name).toBe(boss.name);
       expect(opponentName(wins)).toBe(boss.name);
@@ -73,14 +77,17 @@ describe("eighteen-fight arena ladder", () => {
     }
   });
   it("applies attack and movement specialties independently and composes with haste", () => {
-    const fast = new RealtimeBattle(createPlayer(), createBoss(bosses[0], 5));
+    const fast = new RealtimeBattle(
+      createPlayer(),
+      createBoss(bosses[0], 5, [...allSkillIds]),
+    );
     fast.advance(0, [{}, { attack: "quick" }]);
     expect(fast.enemy.action!.duration).toBe(
       attackTimings.quick.duration / 1.25,
     );
     const mobile = new RealtimeBattle(
       createPlayer(),
-      createBoss(bosses[2], 17),
+      createBoss(bosses[2], 17, [...allSkillIds]),
     );
     mobile.enemy.speedRemaining = 10000;
     const x = mobile.enemy.x;
@@ -90,7 +97,7 @@ describe("eighteen-fight arena ladder", () => {
     expect(mobile.player.timeScale).toBe(1);
   });
   it.each([0, 1, 2])("lets boss %s actively choose its belt gear", (index) => {
-    const enemy = createBoss(bosses[index], index * 6 + 5);
+    const enemy = createBoss(bosses[index], index * 6 + 5, [...allSkillIds]);
     const b = new RealtimeBattle(createPlayer(), enemy);
     b.enemy.hp = stats(enemy).hp * 0.5;
     const ai = new ArenaAI(
@@ -220,7 +227,10 @@ describe("mouse-directed crossbow shots", () => {
     expect(b.enemy.knockdown?.phase).toBe("down");
   });
   it("lets ranged AI target a downed body and turns toward a target behind the shooter", () => {
-    const b = new RealtimeBattle(createPlayer(), createBoss(bosses[2], 17));
+    const b = new RealtimeBattle(
+      createPlayer(),
+      createBoss(bosses[2], 17, [...allSkillIds]),
+    );
     b.player.knockdown = { phase: "down", elapsed: 0 };
     const ai = new ArenaAI(
       () => 0.99,

@@ -1,3 +1,5 @@
+import { shieldCarryPose } from "./shieldMotion";
+import { drawFace } from "../rendering/painFace";
 import { armorDamage, type ArmorSlot } from "../combat/armor";
 import { crossbowPose } from "./crossbowMotion";
 import { setCrossbowState } from "../rendering/crossbow";
@@ -73,6 +75,8 @@ export class Gladiator {
   private potion!: Phaser.GameObjects.Container;
   private guns!: ReturnType<typeof rangedPreview>[];
   private equippedWeapon?: Item;
+  private face!: Phaser.GameObjects.Graphics;
+  private painRemaining = 0;
   private shieldArt?: Phaser.GameObjects.Container;
   private shieldId?: string;
   private shieldProfile = { x: 0, top: -4, bottom: 22, radius: 32 };
@@ -148,6 +152,9 @@ export class Gladiator {
       this.armorIds.body = model.equipment.body;
     }
     const head = joint("head", torso, 0, skeleton.headY, "head");
+    this.face = scene.add.graphics().setName("face-expression");
+    drawFace(this.face, 0);
+    head.add(this.face);
     if (model.equipment.helmet) {
       this.armorArt.helmet = drawGear(
         scene,
@@ -269,7 +276,7 @@ export class Gladiator {
     this.update(0);
   }
   private syncShield(model: Player) {
-    const def = item(model.equipment.leftHand ?? "");
+    const def = item(model.equipment.rightHand ?? "");
     const id = def?.slot === "shield" ? def.id : undefined;
     if (id === this.shieldId) return;
     this.shieldArt?.destroy();
@@ -293,7 +300,7 @@ export class Gladiator {
         radius,
       };
       this.shieldArt = drawGear(this.scene, def).setName("held-shield");
-      this.handMounts.front.addAt(this.shieldArt, 0);
+      this.joints.pelvis.addAt(this.shieldArt, 0);
     }
   }
   update(delta: number) {
@@ -343,6 +350,11 @@ export class Gladiator {
     }
   }
   syncArena(f: ArenaFighter) {
+    const pain = f.painRemaining ?? 0;
+    if (pain !== this.painRemaining) {
+      this.painRemaining = pain;
+      drawFace(this.face, pain);
+    }
     for (const slot of ["helmet", "body"] as const) {
       const id = f.model.equipment[slot];
       if (id === this.armorIds[slot]) continue;
@@ -356,7 +368,10 @@ export class Gladiator {
           slot === "body" ? skeleton.torsoArtY : 0,
         );
         this.attachCracks(slot, art);
-        this.joints[slot === "body" ? "torso" : "head"].addAt(art, 1);
+        this.joints[slot === "body" ? "torso" : "head"].addAt(
+          art,
+          slot === "body" ? 1 : 2,
+        );
         this.armorArt[slot] = art;
       }
     }
@@ -477,6 +492,8 @@ export class Gladiator {
         sharedWeapon.weaponType === "crossbow"
           ? crossbowPose(p)
           : twoHandPose(p, sharedWeapon);
+    const shield = item(this.shieldId ?? "");
+    if (shield) p = shieldCarryPose(p, shield);
     this.displayedPose = { ...p };
     this.displayedAnimation = animation;
     const solved = groundedPose(p);
@@ -485,12 +502,6 @@ export class Gladiator {
     const drinking = (p.drinkPreview ?? 0) > 0.5;
     const shooting = (p.shootPreview ?? 0) > 0.5;
     const grappling = (p.grappling ?? 0) > 0.5;
-    if (this.shieldArt)
-      this.shieldArt
-        .setRotation(
-          -solved.nearArm.angle - solved.nearArm.bend - solved.nearArm.wrist,
-        )
-        .setVisible(!grappling);
     this.root.setDepth((p.carried ?? 0) > 0 ? 5 : 0);
     this.shadow.setVisible(!(p.held ?? 0));
     for (const hand of ["rear", "front"] as const) {
@@ -612,6 +623,16 @@ export class Gladiator {
     const handPosition = this.joints.farHand
       .getWorldTransformMatrix()
       .transformPoint(0, 0);
+    if (this.shieldArt) {
+      const position = this.joints.pelvis
+        .getWorldTransformMatrix()
+        .applyInverse(handPosition.x, handPosition.y);
+      this.shieldArt
+        .setPosition(position.x, position.y)
+        .setRotation(-solved.root.rotation)
+        .setVisible(true);
+      this.joints.pelvis.sendToBack(this.shieldArt);
+    }
     const localGun = this.joints.frontTorso
       .getWorldTransformMatrix()
       .applyInverse(handPosition.x, handPosition.y);
@@ -690,11 +711,14 @@ export class Gladiator {
         waist: frame("pelvis"),
         torso: frame("torso"),
       },
+      painRemaining: this.painRemaining,
       shield: Boolean(this.shieldArt?.visible),
       shieldAttachment: this.shieldArt
         ? {
             ...this.shieldArt.getWorldTransformMatrix().transformPoint(0, 0),
-            behindBody: true,
+            behindBody: this.joints.pelvis.list[0] === this.shieldArt,
+            hand: "rear",
+            farthest: this.joints.pelvis.list[0] === this.shieldArt,
           }
         : null,
       weapons: this.weapons.map((weapon) => {

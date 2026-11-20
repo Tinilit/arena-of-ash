@@ -1,3 +1,4 @@
+import { opponent } from "../../src/domain/progression";
 import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { describe, it, expect } from "vitest";
 import {
@@ -18,7 +19,6 @@ import { ArenaMotion } from "../../src/characters/ArenaMotion";
 import { Animator } from "../../src/characters/animation";
 import { equipmentMotion } from "../../src/characters/equipmentMotion";
 
-import { opponent } from "../../src/domain/progression";
 import { item } from "../../src/data/catalog";
 import { parseCatalog } from "../../src/content/schema";
 import catalog from "../fixtures/catalog.json";
@@ -32,7 +32,11 @@ const geometry = (bladeX = 0, bodyX = 0): CombatGeometry => ({
   blade: capsule(bladeX),
   body: [capsule(bodyX)],
 });
-const make = () => new RealtimeBattle(createPlayer(), opponent(createPlayer()));
+const make = () => {
+  const e = createPlayer();
+  e.id = "enemy";
+  return new RealtimeBattle(createPlayer(), e);
+};
 const begin = (b: RealtimeBattle, heavy = false) =>
   b.advance(0, [{ attack: heavy ? "heavy" : "quick" }, {}]);
 const active = (b: RealtimeBattle) => b.advance(550, [{}, {}]);

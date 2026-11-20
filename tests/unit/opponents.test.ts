@@ -61,6 +61,7 @@ describe("random progressive enemy equipment", () => {
       e = opponent(p, () => 0);
     const b = new RealtimeBattle(p, e),
       ai = new ArenaAI(() => 0.8);
+    ai.cadence.threshold = 3;
     expect(e.equipment.leftHand).toBeTruthy();
     b.enemy.x = b.player.x + 100;
     b.advance(0, [{}, { attack: "quick", hand: "rear" }]);

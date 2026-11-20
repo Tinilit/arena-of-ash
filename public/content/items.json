@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "revision": "2026-11-20-skill-progression-and-shields",
+  "revision": "equipment-classes-passive-shields",
   "items": [
     {
       "id": "wood",
@@ -9,7 +9,8 @@
       "price": 15,
       "attack": 13,
       "armor": 0,
-      "visual": "wood"
+      "visual": "wood",
+      "equipmentClass": "light"
     },
     {
       "id": "rust",
@@ -18,7 +19,8 @@
       "price": 40,
       "attack": 16,
       "armor": 0,
-      "visual": "rust"
+      "visual": "rust",
+      "equipmentClass": "light"
     },
     {
       "id": "iron",
@@ -27,7 +29,8 @@
       "price": 100,
       "attack": 21,
       "armor": 0,
-      "visual": "iron"
+      "visual": "iron",
+      "equipmentClass": "light"
     },
     {
       "id": "spear",
@@ -38,7 +41,8 @@
       "armor": 0,
       "visual": "spear",
       "weaponType": "spear",
-      "description": "Wooden haft and a socketed practice head."
+      "description": "Wooden haft and a socketed practice head.",
+      "equipmentClass": "light"
     },
     {
       "id": "leather",
@@ -47,7 +51,8 @@
       "price": 45,
       "attack": 0,
       "armor": 2,
-      "visual": "leather"
+      "visual": "leather",
+      "equipmentClass": "light"
     },
     {
       "id": "plate",
@@ -56,7 +61,8 @@
       "price": 120,
       "attack": 0,
       "armor": 5,
-      "visual": "plate"
+      "visual": "plate",
+      "equipmentClass": "heavy"
     },
     {
       "id": "cap",
@@ -65,7 +71,8 @@
       "price": 35,
       "attack": 0,
       "armor": 1,
-      "visual": "cap"
+      "visual": "cap",
+      "equipmentClass": "light"
     },
     {
       "id": "war-spear",
@@ -76,7 +83,8 @@
       "armor": 0,
       "visual": "war-spear",
       "weaponType": "spear",
-      "description": "Leaf head, long haft and piercing thrusts."
+      "description": "Leaf head, long haft and piercing thrusts.",
+      "equipmentClass": "light"
     },
     {
       "id": "viking",
@@ -86,7 +94,8 @@
       "attack": 0,
       "armor": 3,
       "visual": "viking",
-      "description": "Horned fantasy helm with a nasal guard."
+      "description": "Horned fantasy helm with a nasal guard.",
+      "equipmentClass": "heavy"
     },
     {
       "id": "throwing-knife",
@@ -137,7 +146,8 @@
         "startY": -150,
         "endY": -38,
         "radius": 7
-      }
+      },
+      "equipmentClass": "heavy"
     },
     {
       "id": "war-hammer",
@@ -154,7 +164,8 @@
         "startY": -147,
         "endY": -113,
         "radius": 18
-      }
+      },
+      "equipmentClass": "heavy"
     },
     {
       "id": "battle-axe",
@@ -171,7 +182,8 @@
         "startY": -146,
         "endY": -101,
         "radius": 18
-      }
+      },
+      "equipmentClass": "heavy"
     },
     {
       "id": "crossbow",
@@ -183,7 +195,8 @@
       "visual": "crossbow",
       "weaponType": "crossbow",
       "hands": 2,
-      "description": "Both hands. Fires a bolt, then automatically reloads."
+      "description": "Both hands. Fires a bolt, then automatically reloads.",
+      "equipmentClass": "light"
     },
     {
       "id": "closed-helm",
@@ -193,7 +206,8 @@
       "attack": 0,
       "armor": 5,
       "visual": "closed-helm",
-      "description": "Enclosed visor, eye slit and a reinforced steel bevor."
+      "description": "Enclosed visor, eye slit and a reinforced steel bevor.",
+      "equipmentClass": "heavy"
     },
     {
       "id": "cuirass",
@@ -203,7 +217,8 @@
       "attack": 0,
       "armor": 8,
       "visual": "cuirass",
-      "description": "Ridged breastplate with a reinforced waist and fauld."
+      "description": "Ridged breastplate with a reinforced waist and fauld.",
+      "equipmentClass": "heavy"
     },
     {
       "id": "chainmail",
@@ -213,7 +228,8 @@
       "attack": 0,
       "armor": 4,
       "visual": "chainmail",
-      "description": "Interlinked steel rings over a padded leather lining."
+      "description": "Interlinked steel rings over a padded leather lining.",
+      "equipmentClass": "heavy"
     },
     {
       "id": "legionary-helm",
@@ -223,7 +239,8 @@
       "attack": 0,
       "armor": 6,
       "visual": "legionary-helm",
-      "description": "Steel bowl, cheek pieces, neck guard and a horsehair crest."
+      "description": "Steel bowl, cheek pieces, neck guard and a horsehair crest.",
+      "equipmentClass": "heavy"
     },
     {
       "id": "trident",
@@ -240,7 +257,8 @@
         "startY": -195,
         "endY": -144,
         "radius": 17
-      }
+      },
+      "equipmentClass": "heavy"
     },
     {
       "id": "speed-potion",
@@ -262,9 +280,10 @@
       "slot": "shield",
       "price": 65,
       "attack": 0,
-      "armor": 0,
+      "armor": 3,
       "visual": "shield",
-      "description": "Held shield. Requires Shield Mastery."
+      "description": "Rear-hand passive armor. No blocking or shield attacks.",
+      "equipmentClass": "light"
     },
     {
       "id": "tower",
@@ -272,9 +291,10 @@
       "slot": "shield",
       "price": 130,
       "attack": 0,
-      "armor": 0,
+      "armor": 6,
       "visual": "tower",
-      "description": "Large blocking surface. Requires Shield Mastery."
+      "description": "Rear-hand passive armor. No blocking or shield attacks.",
+      "equipmentClass": "heavy"
     }
   ]
 }

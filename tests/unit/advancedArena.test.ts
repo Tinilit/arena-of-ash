@@ -57,12 +57,14 @@ function steps(
   }
 }
 function ai(roll = 0.99) {
-  return new ArenaAI(
+  const brain = new ArenaAI(
     () => 0.8,
     () => 0.99,
     () => 0.99,
     () => roll,
   );
+  brain.cadence.attacks = 3;
+  return brain;
 }
 function drop(b: RealtimeBattle, x: number, id = "rust"): Projectile {
   const def = item(id)!;
@@ -204,9 +206,9 @@ describe("symmetric advanced AI", () => {
     expect(attempts).toBe(28);
   });
   it.each([
-    [0, "grapple"],
+    [0, "kick"],
     [0.3, "kick"],
-    [0.9, "quick"],
+    [0.9, "grapple"],
   ] as const)(
     "chooses and starts a valid close action at roll %s",
     (roll, action) => {
@@ -221,11 +223,14 @@ describe("symmetric advanced AI", () => {
   it("uses both hop directions, two-handed shoves, finishers and belt items", () => {
     const b = battle();
     b.enemy.x = 650;
+    const learned = b.enemy.model.skills;
+    b.enemy.model.skills = [];
     expect(ai(0.2).update(1000, b.enemy, b.player).hop).toBe(1);
+    b.enemy.model.skills = learned;
     b.enemy.x = 500;
     b.enemy.model.inventory.push("trident");
     b.enemy.model.equipment.rightHand = "trident";
-    expect(ai(0.6).update(1000, b.enemy, b.player).attack).toBe("shove");
+    expect(ai(0.99).update(1000, b.enemy, b.player).attack).toBe("shove");
     b.player.knockdown = { phase: "down", elapsed: 0 };
     expect(ai().update(1000, b.enemy, b.player).attack).toBe("finish");
     b.player.knockdown = null;

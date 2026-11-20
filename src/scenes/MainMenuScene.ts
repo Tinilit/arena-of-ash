@@ -1,4 +1,4 @@
-import { skills, hasSkill, skill } from "../domain/skills";
+import { activeSkills, hasSkill, skill } from "../domain/skills";
 import { BaseScene } from "./BaseScene";
 import { label, panel } from "../ui/widgets";
 import { en } from "../ui/strings";
@@ -134,7 +134,7 @@ export class MainMenuScene extends BaseScene {
       30,
       "#e8bd72",
     ).setOrigin(0.5);
-    const entries = skills.map((s, i) =>
+    const entries = activeSkills().map((s, i) =>
       label(
         this,
         95 + (i % 2) * 620,

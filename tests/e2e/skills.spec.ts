@@ -1,3 +1,4 @@
+import type { CombatGeometry } from "../../src/combat/geometry";
 import { test, expect, type Page } from "@playwright/test";
 import { createPlayer, type Player } from "../../src/domain/model";
 import { allSkillIds } from "../../src/domain/skills";
@@ -5,12 +6,19 @@ import live from "../../public/content/items.json" with { type: "json" };
 import type { ArenaFighter, ContactEvent } from "../../src/combat/realtime";
 interface State {
   scene: string;
+  geometry?: CombatGeometry[];
   player: Player;
   lockedSkill?: string;
+  hitStop?: { enabled: boolean; duration: number };
   autoBattle?: boolean;
   buttons: Record<string, { x: number; y: number }>;
   skills?: { id: number; status: string }[];
-  rigs?: { animation: string; shield: boolean }[];
+  rigs?: {
+    animation: string;
+    shield: boolean;
+    painRemaining: number;
+    shieldAttachment?: { hand: string; farthest: boolean };
+  }[];
   battle?: {
     player: ArenaFighter;
     enemy: ArenaFighter;
@@ -113,48 +121,31 @@ test("fresh gladiator has basic combat only, locked notifications, no free shop 
   expect((await snapshot(page)).player.postBattle).toBeUndefined();
   expect((await snapshot(page)).player.rewarded).toEqual([]);
 });
-test("post-victory training displays 17 skills, prerequisites and confirmation, and survives reload without duplicates", async ({
+test("training offers two stable random skills and learns immediately without confirmation", async ({
   page,
 }) => {
   await load(page, afterBattle());
   await expectScene(page, "ResultScene");
-  await page.reload();
-  await expectScene(page, "ResultScene");
+  const offers = (await snapshot(page)).player.postBattle!.offers!;
+  expect(offers).toHaveLength(2);
   await click(page, "learn-skill");
   await expectScene(page, "SkillScene");
-  let s = await snapshot(page);
-  expect(s.skills).toHaveLength(17);
-  expect(
-    s.skills!.filter((s) => s.status === "locked").map((s) => s.id),
-  ).toEqual([14, 16]);
+  expect((await snapshot(page)).skills!.map((s) => s.id)).toEqual(offers);
   await page.screenshot({
-    path: "test-results/screenshots/skill-selection-grid.png",
+    path: "test-results/screenshots/two-random-skills.png",
   });
-  await click(page, "skill-14");
-  expect((await snapshot(page)).buttons["confirm-skill"]).toBeUndefined();
-  await click(page, "skill-3");
-  await click(page, "cancel-skill");
-  expect((await snapshot(page)).player.skills).toEqual([]);
   await page.reload();
   await expectScene(page, "SkillScene");
-  await click(page, "skill-3");
-  await page.screenshot({
-    path: "test-results/screenshots/skill-learn-confirmation.png",
-  });
-  await click(page, "confirm-skill");
+  expect((await snapshot(page)).skills!.map((s) => s.id)).toEqual(offers);
+  await click(page, `skill-${offers[0]}`);
   await expectScene(page, "MainMenuScene");
+  expect((await snapshot(page)).buttons["confirm-skill"]).toBeUndefined();
   await page.reload();
   await expectScene(page, "MainMenuScene");
-  s = await snapshot(page);
-  expect(s.player.skills).toEqual([3]);
+  const s = await snapshot(page);
+  expect(s.player.skills).toEqual([offers[0]]);
   expect(s.player.postBattle?.completed).toBe(true);
   expect(s.player.rewarded).toEqual(["completed-battle"]);
-  expect(s.buttons.shop).toBeUndefined();
-  await click(page, "battle");
-  await page.keyboard.press("f");
-  await expect
-    .poll(async () => (await snapshot(page)).battle?.player.action?.name)
-    .toBe("kick");
 });
 test("post-defeat shop visit is exclusive, survives reload, supports sales, and closes permanently", async ({
   page,
@@ -206,7 +197,7 @@ test("old saves keep possessions but migrate to zero skills and unequip restrict
   expect(s.player.gold).toBe(756);
   expect(s.player.progress).toBe(7);
   expect(s.player.inventory).toContain("crossbow");
-  expect(s.player.equipment).toEqual({ body: "cuirass" });
+  expect(s.player.equipment).toEqual({});
   await click(page, "character");
   await click(page, "equip-crossbow");
   expect((await snapshot(page)).player.equipment.rightHand).toBeUndefined();
@@ -231,15 +222,15 @@ test("all skills learned leaves only a shop choice, and reset clears the entire 
   expect((await snapshot(page)).player.postBattle).toBeUndefined();
   expect((await snapshot(page)).player.inventory).toEqual(["wood"]);
 });
-test("learned active skills animate a real shield, rage and a forward aerial weapon strike", async ({
+test("passive rear shield stays behind the body and active skills retain weapon use", async ({
   page,
 }) => {
   const p = createPlayer();
   p.skills = [...allSkillIds];
   p.inventory.push("shield", "cuirass", "closed-helm");
   p.equipment = {
-    rightHand: "wood",
-    leftHand: "shield",
+    rightHand: "shield",
+    leftHand: "wood",
     body: "cuirass",
     helmet: "closed-helm",
   };
@@ -251,9 +242,13 @@ test("learned active skills animate a real shield, rage and a forward aerial wea
   expect((await snapshot(page)).rigs![0].shield).toBe(true);
   await page.keyboard.down("s");
   await page.clock.runFor(120);
-  expect((await snapshot(page)).battle!.player.guard).toBe(true);
+  expect((await snapshot(page)).battle!.player.guard).toBe(false);
+  expect((await snapshot(page)).rigs![0].shieldAttachment).toMatchObject({
+    hand: "rear",
+    farthest: true,
+  });
   await page.screenshot({
-    path: "test-results/screenshots/shield-block-pose.png",
+    path: "test-results/screenshots/passive-rear-shield.png",
   });
   await page.keyboard.up("s");
   await page.keyboard.press("Control+z");
@@ -273,4 +268,71 @@ test("learned active skills animate a real shield, rage and a forward aerial wea
   await page.screenshot({
     path: "test-results/screenshots/superman-weapon-strike.png",
   });
+});
+
+test("live hit-pause settings do not take control or queue attacks", async ({
+  page,
+}) => {
+  await load(page);
+  await page.goto("/?seed=42&renderer=canvas");
+  await expectScene(page, "MainMenuScene");
+  await click(page, "battle");
+  await expectScene(page, "ArenaScene");
+  expect((await snapshot(page)).autoBattle).toBe(true);
+  expect((await snapshot(page)).hitStop).toEqual({
+    enabled: true,
+    duration: 200,
+  });
+  await click(page, "hit-stop-more");
+  expect((await snapshot(page)).hitStop?.duration).toBe(250);
+  await click(page, "hit-stop-toggle");
+  expect((await snapshot(page)).hitStop?.enabled).toBe(false);
+  expect((await snapshot(page)).autoBattle).toBe(true);
+  await click(page, "hit-stop-less");
+  expect((await snapshot(page)).hitStop?.duration).toBe(200);
+  await page.screenshot({
+    path: "test-results/screenshots/live-hit-pause-controls.png",
+  });
+});
+
+test("tower shield retains its rear wrist attachment and farthest layer during movement and jumps", async ({
+  page,
+}) => {
+  const p = createPlayer();
+  p.skills = [10, 18];
+  p.inventory.push("tower");
+  p.equipment = { rightHand: "tower", leftHand: "wood" };
+  await page.clock.install();
+  await load(page, p);
+  await expectScene(page, "MainMenuScene");
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10000));
+  await click(page, "battle");
+  await page.clock.runFor(40);
+  for (const stage of ["stand", "walk", "jump"] as const) {
+    if (stage === "walk") {
+      await page.keyboard.down("d");
+      await page.clock.runFor(200);
+      await page.keyboard.up("d");
+    }
+    if (stage === "jump") {
+      await page.keyboard.press("Space");
+      await page.clock.runFor(180);
+    }
+    const s = await snapshot(page);
+    expect(s.battle!.player.model.equipment).toEqual({
+      rightHand: "tower",
+      leftHand: "wood",
+    });
+    expect(s.rigs![0].shieldAttachment).toMatchObject({
+      hand: "rear",
+      farthest: true,
+    });
+    const surface = s.geometry![0].shield!;
+    expect(Math.max(surface.a.y, surface.b.y) + surface.radius).toBeLessThan(
+      551,
+    );
+    await page.screenshot({
+      path: `test-results/screenshots/tower-shield-${stage}.png`,
+    });
+  }
 });

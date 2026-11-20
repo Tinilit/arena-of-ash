@@ -1,4 +1,5 @@
-import { hasSkill, skill } from "../domain/skills";
+import { SkillCadence } from "./skillCadence";
+import { hasSkill, skill, skillBalance } from "../domain/skills";
 import { permittedInput, actionAllowed } from "./skillRules";
 import { stats } from "../domain/progression";
 import { aimAtFighter } from "./aim";
@@ -14,6 +15,7 @@ import type { Random } from "../utils/random";
 import type { Hand } from "../domain/model";
 import { activeActions, type ArenaFighter, type ArenaInput } from "./realtime";
 export class ArenaAI {
+  readonly cadence: SkillCadence;
   lastDecision = "approach";
   recoveryTargetId?: number;
   private recoveryGoal?: number;
@@ -37,7 +39,9 @@ export class ArenaAI {
     private dodgeRandom: Random = Math.random,
     private tacticsRandom: Random = Math.random,
     private options: { advanced?: boolean } = {},
-  ) {}
+  ) {
+    this.cadence = new SkillCadence(tacticsRandom);
+  }
   setAdvanced(enabled: boolean) {
     this.options.advanced = enabled;
   }
@@ -189,7 +193,43 @@ export class ArenaAI {
       this.lastDecision = "grapple";
       return { grapple: gap <= 105, move: gap <= 105 ? 0 : toward, run: true };
     }
-    if (!this.ready(self) || this.tacticalCooldown > 0) return undefined;
+    if (!this.ready(self)) return undefined;
+    for (const belt of ["belt1", "belt2"] as const) {
+      const def = item(self.model.equipment[belt] ?? "");
+      if (
+        !this.drinkCooldown &&
+        def?.use === "drink" &&
+        permittedInput(self.model, { belt }).belt &&
+        ((def.heal && self.hp < stats(self.model).hp * 0.65) ||
+          (def.effect === "haste" && !self.speedRemaining))
+      ) {
+        this.drinkCooldown = 6000;
+        this.lastDecision = "drink";
+        return { belt, move: gap < 200 ? -toward : 0 };
+      }
+    }
+    if (
+      target.knockdown?.phase === "down" &&
+      armed &&
+      actionAllowed(
+        self.model,
+        "finish",
+        weaponForHand(self.model, "rear") ? "rear" : "front",
+      ) &&
+      gap < 260
+    )
+      return {
+        attack: "finish",
+        hand: weaponForHand(self.model, "rear") ? "rear" : "front",
+        move: toward,
+      };
+    if (!this.cadence.due) return undefined;
+    const scheduled = this.scheduledSkill(self, target);
+    if (scheduled) {
+      this.lastDecision = "skill-cycle";
+      return scheduled;
+    }
+    if (this.tacticalCooldown > 0) return undefined;
     if (hasSkill(self.model, skill.rage) && !self.rageUsed && gap < 220)
       return { rage: true };
     if (
@@ -204,7 +244,9 @@ export class ArenaAI {
         "superman",
         weaponForHand(self.model, "rear") ? "rear" : "front",
       ) &&
-      gap > 170 &&
+      gap >=
+        skillBalance.supermanMinDistance *
+          (self.model.combatProfile?.size ?? 1) &&
       gap < 290 &&
       this.tacticsRandom() < 0.2
     )
@@ -282,12 +324,114 @@ export class ArenaAI {
     }
     return undefined;
   }
+  private scheduledSkill(
+    self: ArenaFighter,
+    target: ArenaFighter,
+  ): ArenaInput | undefined {
+    const gap = Math.abs(target.x - self.x),
+      toward = Math.sign(target.x - self.x);
+    const hand = weaponForHand(self.model, "rear") ? "rear" : "front";
+    if (actionAllowed(self.model, "rage") && !self.rageUsed)
+      return { rage: true };
+    if (
+      target.knockdown?.phase === "down" &&
+      actionAllowed(self.model, "finish", hand) &&
+      gap < 260
+    )
+      return { attack: "finish", hand, move: toward };
+    for (const belt of ["belt1", "belt2"] as const) {
+      const def = item(self.model.equipment[belt] ?? "");
+      if (!permittedInput(self.model, { belt }).belt) continue;
+      if (def?.use === "throw" && gap > 110 && gap < 650) return { belt };
+      if (
+        this.drinkCooldown === 0 &&
+        def?.use === "drink" &&
+        ((def.heal && self.hp < stats(self.model).hp * 0.65) ||
+          (def.effect === "haste" && !self.speedRemaining))
+      )
+        return { belt, move: gap < 200 ? -toward : 0 };
+    }
+    const options: ArenaInput[] = [];
+    if (actionAllowed(self.model, "kick") && gap < 230)
+      options.push(
+        gap > 125 ? { move: toward, run: true } : { attack: "kick", move: 0 },
+      );
+    if (
+      actionAllowed(self.model, "grapple") &&
+      !self.grappleCooldown &&
+      target.y === 0 &&
+      !target.knockdown &&
+      gap < 220
+    )
+      options.push({
+        grapple: gap <= 105,
+        move: gap > 105 ? toward : 0,
+        run: true,
+      });
+    if (
+      twoHandWeapon(self.model) &&
+      actionAllowed(self.model, "shove") &&
+      gap < 190
+    )
+      options.push(gap > 130 ? { move: toward } : { attack: "shove" });
+    if (
+      actionAllowed(self.model, "superman", hand) &&
+      gap >=
+        skillBalance.supermanMinDistance *
+          (self.model.combatProfile?.size ?? 1) &&
+      gap < 340
+    )
+      options.push({ attack: "superman", hand });
+    if (
+      !options.length &&
+      actionAllowed(self.model, "superman", hand) &&
+      gap <
+        skillBalance.supermanMinDistance * (self.model.combatProfile?.size ?? 1)
+    ) {
+      const room = toward > 0 ? self.x - 90 : 1190 - self.x;
+      if (room > 30) return { move: -toward, run: true };
+    }
+    if (options.length) {
+      const selected =
+        options[
+          Math.min(
+            options.length - 1,
+            Math.floor(this.tacticsRandom() * options.length),
+          )
+        ];
+      if (selected.grapple !== undefined) this.grappleApproach = 1000;
+      return selected;
+    }
+    return undefined;
+  }
+  private canCycle(self: ArenaFighter, target: ArenaFighter) {
+    const hand = weaponForHand(self.model, "rear") ? "rear" : "front";
+    return (
+      actionAllowed(self.model, "kick") ||
+      (actionAllowed(self.model, "grapple") &&
+        !self.grappleCooldown &&
+        target.y === 0 &&
+        !target.knockdown) ||
+      (actionAllowed(self.model, "rage") && !self.rageUsed) ||
+      (Boolean(twoHandWeapon(self.model)) &&
+        actionAllowed(self.model, "shove")) ||
+      actionAllowed(self.model, "superman", hand) ||
+      (target.knockdown?.phase === "down" &&
+        actionAllowed(self.model, "finish", hand)) ||
+      (["belt1", "belt2"] as const).some(
+        (belt) =>
+          item(self.model.equipment[belt] ?? "")?.use === "throw" &&
+          Boolean(permittedInput(self.model, { belt }).belt),
+      )
+    );
+  }
   update(
     delta: number,
     self: ArenaFighter,
     target: ArenaFighter,
     ground: readonly Projectile[] = [],
   ): ArenaInput {
+    this.cadence.observe(self);
     const input = this.decide(delta, self, target, ground);
     return permittedInput(
       self.model,
@@ -379,6 +523,12 @@ export class ArenaAI {
       )
         return { ...tactic, toggleStance: self.relaxed };
     }
+    const cycle =
+      this.options.advanced !== false && this.canCycle(self, target);
+    if (cycle && this.cadence.due && !this.ready(self)) {
+      this.lastDecision = "prepare-skill";
+      return input;
+    }
     if (
       !self.action &&
       !self.parry &&
@@ -461,7 +611,13 @@ export class ArenaAI {
         }
       }
     }
+    let budget = cycle
+      ? Math.max(0, this.cadence.threshold - this.cadence.attacks)
+      : Infinity;
+    // If no contextual technique is possible now, continue ordinary combat.
+    if (budget === 0) budget = Infinity;
     for (const hand of hands) {
+      if (budget <= 0) break;
       if (
         self.handActions[hand] ||
         self.handCooldowns[hand] > 0 ||
@@ -490,6 +646,7 @@ export class ArenaAI {
         input.attack = "quick";
         input.hand = hand;
       } else (input.attacks ??= []).push(hand);
+      budget--;
     }
     if (
       input.attack &&

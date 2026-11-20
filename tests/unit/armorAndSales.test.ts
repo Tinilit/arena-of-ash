@@ -269,8 +269,9 @@ it("allows a deliberate AI grapple approach inside normal weapon spacing", () =>
     () => 0.8,
     () => 1,
     () => 1,
-    () => 0.1,
+    () => 0.99,
   );
+  ai.cadence.attacks = 3;
   let grabbed = false;
   for (let i = 0; i < 150; i++) {
     const input = ai.update(i === 0 ? 600 : 8, b.enemy, b.player);

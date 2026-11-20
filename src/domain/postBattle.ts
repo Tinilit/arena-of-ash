@@ -1,6 +1,6 @@
 import type { Player } from "./model";
 import { reward } from "./progression";
-import { allSkillIds, canLearn, type SkillId } from "./skills";
+import { activeSkills, canLearn, type SkillId } from "./skills";
 export interface PostBattle {
   battleId: string;
   outcome: "Victory" | "Defeat" | "Draw";
@@ -9,6 +9,7 @@ export interface PostBattle {
   choice: "pending" | "skill" | "shop";
   consumed: boolean;
   completed: boolean;
+  offers?: SkillId[];
 }
 export const pendingDecision = (p: Player) =>
   Boolean(p.postBattle && !p.postBattle.completed);
@@ -25,6 +26,21 @@ export const shopAccess = (p: Player) =>
   p.postBattle?.choice === "shop" &&
   !p.postBattle.completed &&
   p.postBattle.consumed;
+export function ensureSkillOffers(p: Player, random = Math.random) {
+  const record = p.postBattle;
+  if (!record || record.offers) return;
+  const pool = activeSkills()
+    .filter((s) => canLearn(p, s.id))
+    .map((s) => s.id);
+  record.offers = [];
+  while (pool.length && record.offers.length < 2) {
+    const index = Math.min(
+      pool.length - 1,
+      Math.floor(Math.max(0, random()) * pool.length),
+    );
+    record.offers.push(pool.splice(index, 1)[0]);
+  }
+}
 export function completeBattle(
   p: Player,
   battleId: string,
@@ -43,16 +59,18 @@ export function completeBattle(
     consumed: false,
     completed: false,
   };
+  ensureSkillOffers(p);
   return payout;
 }
 export function choosePostBattle(p: Player, choice: "skill" | "shop") {
+  ensureSkillOffers(p);
   const s = p.postBattle;
   if (
     !s ||
     s.completed ||
     s.consumed ||
     s.choice !== "pending" ||
-    (choice === "skill" && allSkillIds.every((id) => p.skills?.includes(id)))
+    (choice === "skill" && !s.offers?.length)
   )
     return false;
   s.choice = choice;
@@ -60,12 +78,14 @@ export function choosePostBattle(p: Player, choice: "skill" | "shop") {
   return true;
 }
 export function learnSkill(p: Player, id: SkillId) {
+  ensureSkillOffers(p);
   const s = p.postBattle;
   if (
     !s ||
     s.choice !== "skill" ||
     !s.consumed ||
     s.completed ||
+    !s.offers?.includes(id) ||
     !canLearn(p, id)
   )
     return false;

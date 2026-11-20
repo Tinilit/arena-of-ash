@@ -1,7 +1,10 @@
 import { BaseScene } from "./BaseScene";
 import { label, panel } from "../ui/widgets";
-import { choosePostBattle, progressionScene } from "../domain/postBattle";
-import { allSkillIds } from "../domain/skills";
+import {
+  choosePostBattle,
+  progressionScene,
+  ensureSkillOffers,
+} from "../domain/postBattle";
 export class ResultScene extends BaseScene {
   constructor() {
     super("ResultScene");
@@ -21,12 +24,14 @@ export class ResultScene extends BaseScene {
     };
     panel(this, 355, 447, 480, 225);
     panel(this, 925, 447, 480, 225);
-    const complete = allSkillIds.every((id) => p.skills?.includes(id));
+    ensureSkillOffers(p);
+    this.services.save();
+    const complete = !s.offers?.length;
     label(
       this,
       355,
       391,
-      complete ? "All 17 skills learned" : "One new combat ability",
+      complete ? "All available skills learned" : "One new combat ability",
       23,
       "#e8bd72",
     ).setOrigin(0.5);

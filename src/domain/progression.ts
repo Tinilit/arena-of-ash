@@ -16,9 +16,13 @@ import {
   type EquipmentSlot,
 } from "./model";
 export function stats(p: Player, hand?: Hand) {
-  const armor = [p.equipment.helmet, p.equipment.body].map((id) =>
-    item(id ?? ""),
-  );
+  const armor = [
+    p.equipment.helmet,
+    p.equipment.body,
+    ...(item(p.equipment.rightHand ?? "")?.slot === "shield"
+      ? [p.equipment.rightHand]
+      : []),
+  ].map((id) => item(id ?? ""));
   const weapon = hand ? weaponForHand(p, hand) : primaryWeapon(p);
   return {
     hp: p.combatProfile?.maxHealth ?? 100,
@@ -64,7 +68,7 @@ export function canEquip(p: Player, id: string, slot: EquipmentSlot) {
   return Boolean(
     i &&
     (i.slot === slotCategory[slot] ||
-      (i.slot === "shield" && slot === "leftHand")) &&
+      (i.slot === "shield" && slot === "rightHand")) &&
     equipmentAllowed(p, i, slot) &&
     p.inventory.includes(id) &&
     (i.hands !== 2 || slot === "rightHand"),
@@ -82,7 +86,7 @@ export function freeEquipmentSlot(
     definition.slot === "weapon"
       ? ["rightHand", "leftHand"]
       : definition.slot === "shield"
-        ? ["leftHand"]
+        ? ["rightHand"]
         : definition.slot === "utility"
           ? ["belt1", "belt2"]
           : definition.slot === "helmet"
@@ -121,7 +125,7 @@ export function equipmentTarget(
     )
       return existing;
   }
-  if (definition?.slot === "shield") return "leftHand";
+  if (definition?.slot === "shield") return "rightHand";
   return (
     freeEquipmentSlot(p, id, preferred) ??
     (definition?.hands === 2

@@ -1,3 +1,4 @@
+import { allSkillIds } from "../../src/domain/skills";
 import { test, expect, type Page } from "@playwright/test";
 import liveItems from "../../public/content/items.json" with { type: "json" };
 import bundled from "../fixtures/catalog.json" with { type: "json" };
@@ -344,6 +345,7 @@ for (const boss of [
     );
     const p = createPlayer();
     p.progress = boss.wins;
+    p.skills = [...allSkillIds];
     await savedFixture(page, p);
     await page.clock.install();
     await launch(page);
@@ -1331,7 +1333,11 @@ test("keyboard movement, jump and boundaries remain responsive without combat bu
   await scene(page, "ArenaScene");
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
   const initial = (await snapshot(page)).battle!.player.x;
-  expect(Object.keys((await snapshot(page)).buttons)).toEqual([]);
+  expect(Object.keys((await snapshot(page)).buttons).sort()).toEqual([
+    "hit-stop-less",
+    "hit-stop-more",
+    "hit-stop-toggle",
+  ]);
   await page.keyboard.down("a");
   await page.clock.runFor(400);
   await page.keyboard.up("a");
@@ -1981,7 +1987,9 @@ test("physical F kicks with a Ukrainian layout and ignores modified shortcuts", 
 test("a seeded kick knocks down on contact, holds one second and rises through a supported get-up", async ({
   page,
 }) => {
-  await savedFixture(page, createPlayer());
+  const p = createPlayer();
+  p.skills = [3]; // Isolate ordinary recovery from randomly learned Kip-Up.
+  await savedFixture(page, p);
   await page.clock.install();
   await page.goto("/?seed=5&renderer=canvas&manual=1");
   await scene(page, "MainMenuScene");
@@ -1996,6 +2004,7 @@ test("a seeded kick knocks down on contact, holds one second and rises through a
   );
   await page.clock.runFor(50);
   await scene(page, "ArenaScene");
+  expect((await snapshot(page)).battle!.enemy.model.skills).not.toContain(12);
   await page.keyboard.down("d");
   for (let i = 0; i < 60; i++) {
     const s = (await snapshot(page)).battle!;
@@ -2686,6 +2695,7 @@ test("a lethal thrown weapon settles after victory and can be collected for the 
     route.fulfill({ json: live }),
   );
   const p = createPlayer();
+  p.skills = [7]; // Keep the pickup case independent of a random Second Wind rescue.
   p.inventory.push("plate", "cap");
   p.equipment.body = "plate";
   p.equipment.helmet = "cap";
@@ -2693,6 +2703,7 @@ test("a lethal thrown weapon settles after victory and can be collected for the 
   await page.clock.install();
   await launch(page);
   await click(page, "battle");
+  expect((await snapshot(page)).battle!.enemy.model.skills).not.toContain(17);
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
   await page.keyboard.press("Control+k");
   let s = await snapshot(page);
@@ -3266,7 +3277,11 @@ test("camp, character and active arena expose no demonstration or combat action 
   await click(page, "back");
   await click(page, "battle");
   s = await snapshot(page);
-  expect(Object.keys(s.buttons)).toEqual([]);
+  expect(Object.keys(s.buttons).sort()).toEqual([
+    "hit-stop-less",
+    "hit-stop-more",
+    "hit-stop-toggle",
+  ]);
   await page.mouse.click(640, 400, { button: "right" });
   await expect
     .poll(
@@ -3474,7 +3489,11 @@ test("a physical hit shatters only the contacted armor piece and repair never re
     broken = s.battle!.armorBreaks.find((e) => e.ownerId === "wanderer")!;
   expect(s.player.inventory).not.toContain(broken.itemId);
   expect(s.rigs![0].armor[broken.slot as "helmet" | "body"]).toBeUndefined();
-  expect(s.battle!.projectiles).toEqual([]);
+  expect(
+    s.battle!.projectiles.some((projectile) =>
+      ["closed-helm", "cuirass"].includes(projectile.itemId),
+    ),
+  ).toBe(false);
   await shot(page, "localized-armor-shattering");
   await page.keyboard.press("Escape");
   await scene(page, "MainMenuScene");

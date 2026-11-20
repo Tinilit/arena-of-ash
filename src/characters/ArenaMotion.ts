@@ -1,3 +1,4 @@
+import { shieldCarryPose } from "./shieldMotion";
 import { hasSkill, skill } from "../domain/skills";
 import { item } from "../data/catalog";
 import { kipUpPose } from "./skillMotion";
@@ -77,6 +78,8 @@ export class ArenaMotion {
     );
   }
   update(delta: number, f: ArenaFighter): Pose {
+    if (f.animationDelta === 0 && Object.keys(this.displayed).length)
+      return this.displayed;
     if (this.primary !== primaryHand(f.model)) {
       this.primary = primaryHand(f.model);
       this.movement = new Animator(
@@ -246,7 +249,8 @@ export class ArenaMotion {
         this.swings[hand] = action.id;
       }
       const sample = this.actions[hand].update(
-        (starting ? action.elapsed : delta) * clockRate,
+        (starting ? action.elapsed : (f.handAnimationDelta?.[hand] ?? delta)) *
+          clockRate,
       );
       const overlay =
         armed && action.name === "quick"
@@ -427,23 +431,9 @@ export class ArenaMotion {
             ? "throwOpponent"
             : "liftOpponent";
     }
-    if (
-      item(f.model.equipment.leftHand ?? "")?.slot === "shield" &&
-      !f.grapple &&
-      !f.parry &&
-      !f.knockdown
-    ) {
-      const bash = f.bodyAction?.name === "bash" ? f.bodyAction : undefined;
-      const t = bash ? bash.elapsed / bash.duration : 0;
-      const reach = bash ? Math.sin(Math.PI * Math.min(1, t / 0.7)) : 0;
-      base.nearHandX = (f.guard ? 52 : 25) + reach * 18;
-      base.nearHandY = (f.guard ? 5 : 38) - reach * 14;
-      base.nearWrist = 0;
-      if (bash) {
-        base.torso = 0.13 * reach;
-        this.name = "shieldBash";
-      } else if (f.guard) this.name = "shieldBlock";
-    }
+    const shield = item(f.model.equipment.rightHand ?? "");
+    if (shield?.slot === "shield")
+      Object.assign(base, shieldCarryPose(base, shield));
     if (f.bodyAction?.name === "superman") {
       const t = f.bodyAction.elapsed / f.bodyAction.duration;
       base.torso = 0.18 * Math.sin(Math.PI * t);
@@ -468,6 +458,18 @@ export class ArenaMotion {
           meleeAimPose(base, weapon, action.hand, meleePitch(f) * weight),
         );
       }
+    }
+    for (const hand of ["front", "rear"] as const) {
+      if (f.handAnimationDelta?.[hand] !== 0) continue;
+      const prefix = hand === "front" ? "near" : "far";
+      for (const key of Object.keys(this.displayed))
+        if (
+          key.startsWith(prefix) &&
+          !key.includes("Thigh") &&
+          !key.includes("Shin") &&
+          !key.includes("Foot")
+        )
+          base[key] = this.displayed[key];
     }
     this.displayed = { ...base };
     return base;

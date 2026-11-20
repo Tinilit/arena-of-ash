@@ -1,3 +1,4 @@
+import { ensureSkillOffers } from "../domain/postBattle";
 import {
   allSkillIds,
   prerequisitesMet,
@@ -29,6 +30,10 @@ export function deserialize(raw: string | null): Player {
           delete p.equipment[slot as EquipmentSlot];
     if (p?.quantities && typeof p.quantities === "object")
       for (const id of ["net", "flask"]) delete p.quantities[id];
+    if (item(p?.equipment?.leftHand ?? "")?.slot === "shield") {
+      if (!p.equipment.rightHand) p.equipment.rightHand = p.equipment.leftHand;
+      delete p.equipment.leftHand;
+    }
     const integer = (n: unknown) => Number.isSafeInteger(n) && Number(n) >= 0;
     if (
       !p ||
@@ -73,7 +78,7 @@ export function deserialize(raw: string | null): Player {
           typeof id === "string" &&
           Object.hasOwn(slotCategory, slot) &&
           (item(id)?.slot === slotCategory[slot as EquipmentSlot] ||
-            (slot === "leftHand" && item(id)?.slot === "shield")) &&
+            (slot === "rightHand" && item(id)?.slot === "shield")) &&
           p.inventory.includes(id),
       ) ||
       !Array.isArray(p.rewarded) ||
@@ -119,6 +124,15 @@ export function deserialize(raw: string | null): Player {
         (decision.choice !== "pending" && !decision.consumed))
     )
       throw Error();
+    if (
+      decision?.offers !== undefined &&
+      (!Array.isArray(decision.offers) ||
+        decision.offers.length > 2 ||
+        new Set(decision.offers).size !== decision.offers.length ||
+        !decision.offers.every((id) => allSkillIds.includes(id)))
+    )
+      throw Error();
+    if (decision && !decision.completed) ensureSkillOffers(loaded);
     sanitizeEquipment(loaded);
     return loaded;
   } catch {

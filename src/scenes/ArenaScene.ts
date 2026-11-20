@@ -3,7 +3,11 @@ import { actionRequirement, actionAllowed } from "../combat/skillRules";
 import { completeBattle } from "../domain/postBattle";
 import { repairArmor } from "../combat/armor";
 import { bossAt, ladderLength } from "../domain/ladder";
-import { twoHandWeapon, primaryWeapon } from "../domain/progression";
+import {
+  twoHandWeapon,
+  primaryWeapon,
+  primaryHand,
+} from "../domain/progression";
 import { drawBolt } from "../rendering/crossbow";
 import Phaser from "phaser";
 import { BaseScene } from "./BaseScene";
@@ -104,6 +108,8 @@ export class ArenaScene extends BaseScene {
         deflect: seeded(seed ^ 0xd3f1),
       },
     );
+    this.battle.hitStop.configure(true, 200);
+    this.createHitStopControls();
     this.ai = new ArenaAI(
       seeded(seed),
       seeded(seed ^ 0x92ab),
@@ -197,17 +203,7 @@ export class ArenaScene extends BaseScene {
       .setText(
         skills
           .filter(
-            (s) =>
-              s.key &&
-              hasSkill(learned, s.id) &&
-              !(
-                s.id === 2 &&
-                item(learned.equipment.leftHand ?? "")?.slot === "shield"
-              ) &&
-              !(
-                s.id === 14 &&
-                item(learned.equipment.leftHand ?? "")?.slot !== "shield"
-              ),
+            (s) => s.key && hasSkill(learned, s.id) && s.id !== skill.bash,
           )
           .map((s) => `${s.key}: ${s.name}`)
           .join(" · ") + " · Esc: camp",
@@ -269,7 +265,6 @@ export class ArenaScene extends BaseScene {
         c: skill.parry,
         z: skill.rage,
         t: skill.superman,
-        s: skill.shield,
       };
       if (gate[key] && !hasSkill(this.services.player, gate[key])) {
         this.notifyLocked(gate[key]);
@@ -278,9 +273,7 @@ export class ArenaScene extends BaseScene {
       if (key === "z") this.queued.rage = true;
       if (key === "t") {
         this.queued.attack = "superman";
-        this.queued.hand = this.battle.player.model.equipment.rightHand
-          ? "rear"
-          : "front";
+        this.queued.hand = primaryHand(this.battle.player.model);
       }
       if (key === "q") this.queued.belt = "belt1";
       if (key === "c") this.queued.parry = true;
@@ -294,17 +287,12 @@ export class ArenaScene extends BaseScene {
         this.queueHand("rear");
       }
       if (key === "v") {
-        const action =
-          item(this.battle.player.model.equipment.leftHand ?? "")?.slot ===
-          "shield"
-            ? "bash"
-            : "shove";
+        const action = "shove";
         const required = actionRequirement(this.services.player, action);
         if (required && !hasSkill(this.services.player, required))
           this.notifyLocked(required);
         else {
           this.queued.attack = action;
-          if (action === "bash") this.queued.hand = "front";
         }
       }
       if (key === "x") this.queued.attack = "finish";
@@ -314,7 +302,7 @@ export class ArenaScene extends BaseScene {
     });
     this.input.keyboard?.addCapture(["J", "K"]);
     const useHand = (pointer: Phaser.Input.Pointer) => {
-      if (this.ending) return;
+      if (this.ending || this.hitStopControlPoint(pointer)) return;
       this.takeControl();
       this.updateAim(pointer);
       const point = pointer.positionToCamera(
@@ -841,10 +829,42 @@ export class ArenaScene extends BaseScene {
       });
     }
   }
+  private hitStopControlPoint(pointer: Phaser.Input.Pointer) {
+    const p = pointer.positionToCamera(
+      this.cameras.main,
+    ) as Phaser.Math.Vector2;
+    return p.x >= 850 && p.y >= 145 && p.y <= 176;
+  }
+  private createHitStopControls() {
+    const experiment = this.battle.hitStop;
+    const toggle = this.button(
+      "hit-stop-toggle",
+      953,
+      160,
+      195,
+      "Hit pause: On",
+      () => {
+        experiment.configure(!experiment.enabled, experiment.duration);
+        toggle.setCaption(`Hit pause: ${experiment.enabled ? "On" : "Off"}`);
+      },
+      28,
+    );
+    const value = label(this, 1158, 160, "200 ms", 16).setOrigin(0.5);
+    const change = (amount: number) => {
+      experiment.configure(experiment.enabled, experiment.duration + amount);
+      value.setText(`${experiment.duration} ms`);
+    };
+    this.button("hit-stop-less", 1083, 160, 36, "−", () => change(-50), 28);
+    this.button("hit-stop-more", 1223, 160, 36, "+", () => change(50), 28);
+  }
   override snapshot() {
     return {
       ...super.snapshot(),
       autoBattle: this.autoBattle,
+      hitStop: {
+        enabled: this.battle.hitStop.enabled,
+        duration: this.battle.hitStop.duration,
+      },
       lockedSkill: this.lockedSkill,
       aim: this.aimPoint,
       ai: {

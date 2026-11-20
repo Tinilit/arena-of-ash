@@ -1,8 +1,10 @@
 # Current verification
 
+The 2026-11-20 skill/loadout/impact update passed type checking, lint, all 474 unit tests and the production build. All 83 browser scenarios were exercised: 78 passed on the complete run; five older assertions assumed an empty settings panel, no enemy Kip-Up/Second Wind, or no crossbow bolts. After correcting those fixtures/assertions, a nine-scenario focused run, including all five cases, passed. It also rechecked the compact inventory, immediate two-offer learning, exclusive shop and tower-shield layers during movement/jumps. Pain eye closure/recovery and both shield poses were inspected visually.
+
 For skill progression, run `npm run typecheck`, `npm run lint`, `npm test`, `npm run check:content`, `npm run test:e2e` and `npm run build`. The GitHub validation/deployment workflow runs the complete browser suite before publishing. [Skill progression](SKILL_PROGRESSION.md) documents the current feature contract and tests; the older evidence below records earlier foundation milestones.
 
-The production smoke scenario uses real WebGL and automatic fights without a diagnostic API. It completes a victory, learns Kicking after confirming/reloading training, completes a defeat, resumes the exclusive shop after reload, buys and sells equipment, then verifies one skill and two reward IDs. Hidden fights retain actual physical contacts and persistent outcomes.
+The previous release's production smoke scenario used real WebGL and automatic fights without a diagnostic API. It completed a victory, learned Kicking through the earlier confirmation flow, completed a defeat, resumed the exclusive shop after reload, bought and sold equipment, then verified one skill and two reward IDs. Hidden fights retain actual physical contacts and persistent outcomes.
 
 # Inventory quantities, parry and equipment recovery — 2026-11-18
 

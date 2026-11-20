@@ -41,6 +41,7 @@ export function actionRequirement(
   )[action];
 }
 export function actionAllowed(p: Player, action: string, hand: Hand = "rear") {
+  if (action === "guard" || action === "bash") return false;
   const required = actionRequirement(p, action, hand);
   if (required && !hasSkill(p, required)) return false;
   const weapon = weaponForHand(p, hand);

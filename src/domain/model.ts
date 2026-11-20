@@ -44,6 +44,7 @@ export interface Item {
   attack: number;
   armor: number;
   visual: string;
+  equipmentClass?: "light" | "heavy";
   weaponType?: WeaponType;
   hands?: 1 | 2;
   description?: string;

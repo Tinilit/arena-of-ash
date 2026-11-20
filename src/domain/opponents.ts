@@ -1,4 +1,4 @@
-import { enemySkills } from "./skills";
+import { hasSkill, itemUsable, randomSkills, skill } from "./skills";
 import { items, enemies } from "../data/catalog";
 import {
   createPlayer,
@@ -14,7 +14,9 @@ export const opponentName = (wins: number) =>
 /** Equipment quality rises with victories; randomness has its own injected stream. */
 export function opponent(player: Player, random: Random = Math.random): Player {
   const boss = bossAt(player.progress);
-  if (boss) return createBoss(boss, player.progress);
+  const learned = randomSkills(player, player.skills?.length ?? 0, random);
+  const profile = { ...createPlayer(), skills: learned };
+  if (boss) return createBoss(boss, player.progress, learned);
   const tier = opponentTier(player.progress);
   const pick = (pool: Item[]) =>
     pool.length
@@ -26,7 +28,7 @@ export function opponent(player: Player, random: Random = Math.random): Player {
         ]
       : undefined;
   const weapons = items
-    .filter((i) => i.slot === "weapon")
+    .filter((i) => i.slot === "weapon" && itemUsable(profile, i))
     .sort((a, b) => a.attack - b.attack || a.id.localeCompare(b.id));
   const minimum = [0, 16, 21][tier],
     maximum = [16, 21, Infinity][tier];
@@ -40,6 +42,7 @@ export function opponent(player: Player, random: Random = Math.random): Player {
   if (main) equipment.rightHand = main.id;
   if (
     random() < Math.min(0.75, 0.2 + tier * 0.2 + player.progress * 0.01) &&
+    hasSkill(profile, skill.dual) &&
     main?.hands !== 2
   ) {
     const others = pool.filter((i) => i.id !== main?.id && i.hands !== 2);
@@ -55,7 +58,7 @@ export function opponent(player: Player, random: Random = Math.random): Player {
   ] as const) {
     if (!tier) continue;
     const armor = items
-      .filter((i) => i.slot === category)
+      .filter((i) => i.slot === category && itemUsable(profile, i))
       .sort((a, b) => a.armor - b.armor || a.id.localeCompare(b.id));
     const chosen =
       tier === 1
@@ -63,9 +66,31 @@ export function opponent(player: Player, random: Random = Math.random): Player {
         : pick(armor.filter((i) => i.armor === armor.at(-1)?.armor));
     if (chosen) equipment[slot as EquipmentSlot] = chosen.id;
   }
+  if (
+    main?.hands !== 2 &&
+    !equipment.leftHand &&
+    hasSkill(profile, skill.shield) &&
+    random() < 0.5
+  ) {
+    const shield = pick(
+      items.filter((i) => i.slot === "shield" && itemUsable(profile, i)),
+    );
+    if (shield) {
+      equipment.leftHand = equipment.rightHand;
+      equipment.rightHand = shield.id;
+    }
+  }
+  const utility = items.filter(
+    (i) => i.slot === "utility" && itemUsable(profile, i),
+  );
+  for (const slot of ["belt1", "belt2"] as const) {
+    const chosen = pick(utility);
+    if (chosen && !Object.values(equipment).includes(chosen.id))
+      equipment[slot] = chosen.id;
+  }
   return {
     ...createPlayer(),
-    skills: [...enemySkills],
+    skills: learned,
     id: "enemy",
     name: opponentName(player.progress),
     gold: 0,

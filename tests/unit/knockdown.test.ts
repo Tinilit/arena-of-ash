@@ -1,7 +1,7 @@
 import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { describe, expect, it, vi } from "vitest";
 
-import { opponent } from "../../src/domain/progression";
+const opponent = () => ({ ...createPlayer(), id: "enemy" });
 import {
   RealtimeBattle,
   arenaRules,
@@ -28,7 +28,7 @@ const geometry: CombatGeometry = {
 };
 function battle(roll = 0) {
   const p = createPlayer();
-  return new RealtimeBattle(p, opponent(p), () => roll);
+  return new RealtimeBattle(p, opponent(), () => roll);
 }
 function kick(b: RealtimeBattle) {
   b.advance(0, [{ attack: "kick" }, {}]);
@@ -42,7 +42,7 @@ describe("contact-based knockdown", () => {
     expect(falls).toBe(20);
     const rng = vi.fn(() => 0),
       p = createPlayer(),
-      b = new RealtimeBattle(p, opponent(p), rng);
+      b = new RealtimeBattle(p, opponent(), rng);
     b.advance(0, [{ attack: "kick" }, {}]);
     expect(b.resolve([geometry, geometry])).toEqual([]);
     expect(rng).not.toHaveBeenCalled();

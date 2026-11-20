@@ -1,3 +1,4 @@
+import { equipmentClass } from "../domain/skills";
 import { itemRequirements, skills, hasSkill } from "../domain/skills";
 import { BaseScene } from "./BaseScene";
 import { items } from "../data/catalog";
@@ -65,7 +66,13 @@ export class ShopScene extends BaseScene {
       visual
         .setScale(scale)
         .setPosition(x + 42 - b.centerX * scale, y + 20 - b.centerY * scale);
-      const name = label(this, x + 85, y - 10, it.name, 21);
+      const name = label(
+        this,
+        x + 85,
+        y - 10,
+        `${["weapon", "helmet", "chest", "shield"].includes(it.slot) ? `${equipmentClass(it) === "heavy" ? "Heavy" : "Light"} · ` : ""}${it.name}`,
+        21,
+      );
       if (name.width > 290) name.setFontSize((21 * 290) / name.width);
       const owned = quantity(p, it.id),
         count = it.use ? amount : 1;
@@ -73,7 +80,7 @@ export class ShopScene extends BaseScene {
         this,
         x + 85,
         y + 17,
-        `${it.slot === "shield" ? "Directional block" : it.effect === "haste" ? "×2 speed · 10s" : it.heal ? `+${it.heal} HP` : it.attack ? `${it.attack} damage` : `+${it.armor} ${en.armor}`} • ${it.price} ◈ each • Owned: ${owned}`,
+        `${it.effect === "haste" ? "×2 speed · 10s" : it.heal ? `+${it.heal} HP` : it.attack ? `${it.attack} damage` : `+${it.armor} ${en.armor}`} • ${it.price} ◈ each • Owned: ${owned}`,
         16,
         "#b9aa8d",
       );

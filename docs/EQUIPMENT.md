@@ -6,8 +6,8 @@ The default catalog has 24 definitions, including restored shields. Net, water f
 | ----------- | --------------- | ------------------------------------------------- |
 | Helmet      | helmet          | Head attachment and armor                         |
 | Body        | chest           | Torso attachment and armor                        |
-| Right hand  | weapon          | Rear hand: RMB/K attacks; Ctrl+RMB/K throws       |
-| Left hand   | weapon / shield | Front hand: LMB/J attacks; Ctrl+LMB/J throws      |
+| Right hand  | weapon / shield | Rear hand: RMB/K attacks; Ctrl+RMB/K throws       |
+| Left hand   | weapon          | Front hand: LMB/J attacks; Ctrl+LMB/J throws      |
 | Belt slot 1 | utility         | Q uses its throwable or potion with the rear hand |
 | Belt slot 2 | utility         | E uses its throwable or potion with the rear hand |
 
@@ -41,6 +41,6 @@ Backpack Sell exchanges one unequipped copy for half purchase price, rounded dow
 
 ## Skill eligibility and visits
 
-Dual Wielding enables a second one-handed weapon; without it, Equip replaces the existing weapon instead of filling a second weapon slot. Heavy Weapons enables two-handed melee; Marksmanship alone enables the crossbow. Shield Mastery enables a front-hand shield alongside a one-handed weapon without Dual Wielding. All drinks need Alchemy; belt and hand throws need Throwing Weapons. Ordinary armor remains basic. Pickup keeps skill-locked items owned in the backpack.
+Dual Wielding enables a second one-handed weapon; without it, Equip replaces the existing weapon instead of filling a second weapon slot. Heavy Weapons enables two-handed melee; Marksmanship alone enables the crossbow. Shield Mastery enables a rear-hand shield alongside a front-hand one-handed weapon without Dual Wielding. All drinks need Alchemy; belt and hand throws need Throwing Weapons. Light armor remains basic; Heavy Armor unlocks heavy helmets, body pieces and the Tower Shield. Weapons and armor expose light/heavy classes. Pickup keeps skill-locked items owned in the backpack.
 
-Shop access is exclusively post-battle. Its Sell equipment control opens backpack sales within that visit; returning to Shop preserves the visit, while closing Shop completes it permanently. Camp inventory still equips/unequips but does not sell. Shield armor values are not added to worn protection; hold S to physically block a frontal intercepted attack, or use learned Shield Bash with V.
+Shop access is exclusively post-battle. Its Sell equipment control opens backpack sales within that visit; returning to Shop preserves the visit, while closing Shop completes it permanently. Camp inventory still equips/unequips but does not sell. Arena Buckler (+3 armor) and Tower Shield (+6 armor) add passive protection to worn helmet/body armor. Their art is always behind all body and limb layers. Active blocking and Shield Bash are disabled for now.

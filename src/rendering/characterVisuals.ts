@@ -96,14 +96,6 @@ export function drawPart(
       ],
       true,
     );
-    g.lineStyle(3, p.ink);
-    g.lineBetween(10, -19, 22, -16);
-    g.fillStyle(0xffedc8);
-    g.fillEllipse(17, -12, 10, 6);
-    g.fillStyle(p.ink);
-    g.fillCircle(20, -12, 2.5);
-    g.lineStyle(2, p.ink);
-    g.lineBetween(17, 5, 25, 4);
     g.lineStyle(1.5, 0xa65f51);
     g.lineBetween(9, -8, 14, 1);
     g.lineBetween(11, -7, 8, -4);

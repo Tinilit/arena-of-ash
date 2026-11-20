@@ -109,6 +109,11 @@ export function parseCatalog(
     )
       throw Error("Invalid slot or fallback visual");
     if (
+      v.equipmentClass !== undefined &&
+      !["light", "heavy"].includes(String(v.equipmentClass))
+    )
+      throw Error("Invalid equipment class");
+    if (
       v.weaponType !== undefined &&
       (slot !== "weapon" ||
         !["sword", "spear", "hammer", "axe", "crossbow"].includes(
@@ -195,6 +200,10 @@ export function parseCatalog(
           : 0),
       armor: number(v.armor, 0, 10000, true),
       visual: String(v.visual),
+      equipmentClass: (v.equipmentClass ??
+        (slot === "weapon" && v.hands === 2 && v.weaponType !== "crossbow"
+          ? "heavy"
+          : "light")) as Item["equipmentClass"],
       ...(v.hands === undefined ? {} : { hands: v.hands as 1 | 2 }),
       ...(v.use === undefined ? {} : { use: v.use as Item["use"] }),
       ...(v.heal === undefined ? {} : { heal: number(v.heal, 1, 100, true) }),

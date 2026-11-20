@@ -2,6 +2,7 @@ import { beforeEach, describe, it, expect } from "vitest";
 import { createPlayer, type Player } from "../../src/domain/model";
 import {
   skills,
+  activeSkills,
   allSkillIds,
   enemySkills,
   hasSkill,
@@ -82,13 +83,14 @@ describe("skill progression and durable exclusive choices", () => {
     expect(s.player.skills).toEqual([]);
     expect(s.player.postBattle).toBeUndefined();
   });
-  it.each(skills)(
+  it.each(activeSkills())(
     "learns $name once, then unlocks its prerequisite-aware capability",
     (s) => {
       const p = createPlayer();
       if (s.requires) p.skills = [s.requires];
       expect(canLearn(p, s.id)).toBe(true);
       completeBattle(p, "fight", "Victory", "Opponent");
+      p.postBattle!.offers = [s.id];
       expect(choosePostBattle(p, "skill")).toBe(true);
       expect(learnSkill(p, s.id)).toBe(true);
       expect(hasSkill(p, s.id)).toBe(true);
@@ -132,6 +134,7 @@ describe("skill progression and durable exclusive choices", () => {
   it("resumes unfinished training and grants exactly one skill", () => {
     let p = createPlayer();
     completeBattle(p, "lost", "Defeat", "Opponent");
+    p.postBattle!.offers = [3, 4];
     choosePostBattle(p, "skill");
     p = deserialize(serialize(p));
     expect(progressionScene(p)).toBe("SkillScene");
@@ -141,7 +144,7 @@ describe("skill progression and durable exclusive choices", () => {
     expect(p.skills).toEqual([3]);
     expect(learnSkill(p, 4)).toBe(false);
   });
-  it("only permits the shop after all 17 skills", () => {
+  it("only permits the shop after all active skills", () => {
     const p = grant(createPlayer(), ...allSkillIds);
     completeBattle(p, "last", "Victory", "Opponent");
     expect(choosePostBattle(p, "skill")).toBe(false);
@@ -211,11 +214,11 @@ describe("equipment and action eligibility", () => {
     expect(equip(p, "greatsword", "rightHand")).toBe(true);
     expect(p.equipment.leftHand).toBeUndefined();
     expect(equip(p, "crossbow", "rightHand")).toBe(true);
-    expect(equip(p, "shield", "leftHand")).toBe(true);
-    expect(p.equipment.rightHand).toBeUndefined();
+    expect(equip(p, "shield", "rightHand")).toBe(true);
+    expect(p.equipment.rightHand).toBe("shield");
     expect(equip(p, "healing-potion", "belt1")).toBe(true);
     expect(equip(p, "throwing-knife", "belt2")).toBe(true);
-    expect(stats(p).armor).toBe(0);
+    expect(stats(p).armor).toBe(item("shield")!.armor);
   });
   it.each([
     ["kick", 3],
@@ -261,7 +264,7 @@ describe("equipment and action eligibility", () => {
     b.advance(10, [{ attack: "quick" }, {}]);
     expect(b.player.action?.name).toBe("quick");
   });
-  it("AI respects the player's locked abilities while enemies keep legacy capabilities", () => {
+  it("AI and enemies both respect their assigned skill budget", () => {
     const b = battle(),
       ai = new ArenaAI(
         () => 0,
@@ -279,9 +282,9 @@ describe("equipment and action eligibility", () => {
       expect(command.parry).not.toBe(true);
       b.advance(20, [command, {}]);
     }
-    expect(b.enemy.model.skills).toEqual(enemySkills);
-    expect(actionAllowed(b.enemy.model, "kick")).toBe(true);
-    expect(actionAllowed(opponent(createPlayer()), "grapple")).toBe(true);
+    expect(b.enemy.model.skills).toEqual([]);
+    expect(actionAllowed(b.enemy.model, "kick")).toBe(false);
+    expect(actionAllowed(opponent(createPlayer()), "grapple")).toBe(false);
   });
   it("dual hand attacks remain independent when learned", () => {
     const b = battle([1]);
@@ -294,7 +297,7 @@ describe("equipment and action eligibility", () => {
 });
 describe("new physical skill mechanics", () => {
   it("rage lasts eight real combat seconds, boosts damage and speed, reduces armor, and cannot repeat", () => {
-    const b = battle([11]);
+    const b = battle([11, 18]);
     b.advance(10, [{ rage: true }, {}]);
     expect(b.player.rageRemaining).toBe(8000);
     expect(attackRate(b.player)).toBe(1.3);
@@ -360,10 +363,10 @@ describe("new physical skill mechanics", () => {
       }
     }
   });
-  it("a held directional shield blocks only physical frontal interception and supplies no passive armor", () => {
+  it("a rear-hand shield supplies passive armor without interception", () => {
     const b = battle([10]);
     addItem(b.player.model, "shield");
-    equip(b.player.model, "shield", "leftHand");
+    equip(b.player.model, "shield", "rightHand");
     b.player.x = 500;
     b.enemy.x = 600;
     b.player.facing = 1;
@@ -376,22 +379,19 @@ describe("new physical skill mechanics", () => {
     g[1].blade = capsule();
     g[1].blades = { rear: capsule() };
     const e = b.resolve(g)[0];
-    expect(e.shieldBlocked).toBe(true);
-    expect(e.damage).toBe(0);
-    expect(b.player.hp).toBe(100);
-    expect(stats(b.player.model).armor).toBe(0);
+    expect(e.shieldBlocked).toBe(false);
+    expect(e.damage).toBe(item("wood")!.attack - item("shield")!.armor);
+    expect(b.player.hp).toBe(100 - e.damage);
+    expect(stats(b.player.model).armor).toBe(item("shield")!.armor);
   });
-  it("Shield Bash uses actual shield contact, damages, stuns, pushes and starts cooldown", () => {
+  it("passive shields cannot block or bash even with the dormant skill learned", () => {
     const b = battle([10, 14]);
     addItem(b.player.model, "shield");
-    equip(b.player.model, "shield", "leftHand");
-    b.advance(1, [{ attack: "bash", hand: "front" }, {}]);
-    b.player.bodyAction!.elapsed = 300;
-    const e = b.resolve(geometry())[0];
-    expect(e.damage).toBe(12);
-    expect(b.enemy.stun).toBe(700);
-    expect(Math.abs(b.enemy.pushVx)).toBe(500);
-    expect(b.player.bashCooldown).toBeGreaterThan(0);
+    equip(b.player.model, "shield", "rightHand");
+    b.advance(1, [{ attack: "bash", hand: "rear", guard: true }, {}]);
+    expect(b.player.bodyAction).toBeNull();
+    expect(b.player.guard).toBe(false);
+    expect(b.player.bashCooldown ?? 0).toBe(0);
   });
   it("a successful learned parry automatically launches a physical counterstrike after its shove", () => {
     const b = battle([6, 16]);
@@ -460,7 +460,7 @@ it("a shield cannot block a rear strike or a blade that misses its surface", () 
   for (const rear of [false, true]) {
     const b = battle([10]);
     addItem(b.player.model, "shield");
-    equip(b.player.model, "shield", "leftHand");
+    equip(b.player.model, "shield", "rightHand");
     b.advance(1, [{ guard: true }, { attack: "quick" }]);
     b.player.x = 500;
     b.enemy.x = rear ? 400 : 600;

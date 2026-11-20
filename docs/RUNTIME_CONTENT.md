@@ -125,4 +125,8 @@ Version 2 stores complete raw damage in `attack`: no combat base bonus is added.
 
 ## Skill requirements
 
-The progression catalog derives item requirements from existing fields: `slot: "shield"` requires Shield Mastery, `use: "throw"` requires Throwing Weapons, `use: "drink"` requires Alchemy, crossbows require Marksmanship, and other `hands: 2` weapons require Heavy Weapons. A second one-handed weapon requires Dual Wielding; ordinary armor and a single one-handed melee weapon remain basic. These requirements apply equally to newly loaded definitions, shop cards, equipment, pickups and combat. Item JSON cannot grant skills or bypass the exclusive post-battle shop visit. Restricted owned items remain in the backpack after migration or content changes.
+The progression catalog derives item requirements from existing fields: `slot: "shield"` requires Shield Mastery, `use: "throw"` requires Throwing Weapons, `use: "drink"` requires Alchemy, crossbows require Marksmanship, and other `hands: 2` weapons require Heavy Weapons. A second one-handed weapon requires Dual Wielding; light armor and a single one-handed melee weapon remain basic. These requirements apply equally to newly loaded definitions, shop cards, equipment, pickups and combat. Item JSON cannot grant skills or bypass the exclusive post-battle shop visit. Restricted owned items remain in the backpack after migration or content changes.
+
+### Weight class
+
+Weapons and armor accept `equipmentClass: "light" | "heavy"`. Heavy weapons need Heavy Weapons; heavy helmets, chest pieces and shields need Heavy Armor. Shields also need Shield Mastery and occupy the rear hand. Old catalogs without the field default two-handed melee weapons to heavy and everything else to light. Crossbows require Marksmanship. The bundled buckler and tower provide 3 and 6 passive armor respectively.

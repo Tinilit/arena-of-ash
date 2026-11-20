@@ -1,4 +1,4 @@
-import { enemySkills } from "./skills";
+import { equipmentAllowed, type SkillId } from "./skills";
 import { item, items } from "../data/catalog";
 import {
   createPlayer,
@@ -93,7 +93,11 @@ export function ladderEntries(wins: number) {
   }));
 }
 /** Fixed encounters; catalog fallbacks keep custom runtime catalogs playable. */
-export function createBoss(definition: Boss, progress: number): Player {
+export function createBoss(
+  definition: Boss,
+  progress: number,
+  learned: SkillId[] = [],
+): Player {
   const equipment: Player["equipment"] = {};
   const fallback: Record<string, string> = {
     chainmail: "plate",
@@ -111,7 +115,17 @@ export function createBoss(definition: Boss, progress: number): Player {
           i.slot === slotCategory[position] &&
           (position !== "leftHand" || i.hands !== 2),
       );
-    if (chosen) equipment[position] = chosen.id;
+    const profile = { ...createPlayer(), equipment, skills: learned };
+    const compatible =
+      chosen && equipmentAllowed(profile, chosen, position)
+        ? chosen
+        : items.find(
+            (i) =>
+              i.slot === slotCategory[position] &&
+              (position !== "leftHand" || i.hands !== 2) &&
+              equipmentAllowed(profile, i, position),
+          );
+    if (compatible) equipment[position] = compatible.id;
   }
   if (item(equipment.rightHand ?? "")?.hands === 2) delete equipment.leftHand;
   const quantities: Record<string, number> = {};
@@ -119,7 +133,7 @@ export function createBoss(definition: Boss, progress: number): Player {
     if (id) quantities[id] = (quantities[id] ?? 0) + 1;
   return {
     ...createPlayer(),
-    skills: [...enemySkills],
+    skills: [...learned],
     quantities,
     id: "enemy",
     name: definition.name,

@@ -1,7 +1,24 @@
 import type { EquipmentSlot, Item, Player } from "./model";
 import { item } from "../data/catalog";
 export type SkillId =
-  1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
+  | 1
+  | 2
+  | 3
+  | 4
+  | 5
+  | 6
+  | 7
+  | 8
+  | 9
+  | 10
+  | 11
+  | 12
+  | 13
+  | 14
+  | 15
+  | 16
+  | 17
+  | 18;
 export const skill = {
   dual: 1,
   heavy: 2,
@@ -20,6 +37,7 @@ export const skill = {
   berserker: 15,
   counter: 16,
   secondWind: 17,
+  heavyArmor: 18,
 } as const;
 export interface Skill {
   id: SkillId;
@@ -92,9 +110,8 @@ export const skills: readonly Skill[] = [
   {
     id: 10,
     name: "Shield Mastery",
-    description: "Intercept attacks from the front with a held shield.",
-    enables: "Shields · Hold S: directional block",
-    key: "S",
+    description: "Carry a passive shield in the rear hand for extra armor.",
+    enables: "Rear-hand shields · Passive armor",
   },
   {
     id: 11,
@@ -145,7 +162,41 @@ export const skills: readonly Skill[] = [
     description: "Recover 30 HP below 20% health, once per fight.",
     enables: "Automatic emergency healing",
   },
+  {
+    id: 18,
+    name: "Heavy Armor",
+    description: "Wear heavy helmets, body armor and shields.",
+    enables: "Heavy armor equipment",
+  },
 ];
+export const equipmentClass = (i: Item): "light" | "heavy" =>
+  i.equipmentClass ??
+  (i.slot === "weapon" && i.hands === 2 && i.weaponType !== "crossbow"
+    ? "heavy"
+    : "light");
+export const activeSkills = () => skills.filter((s) => s.id !== skill.bash);
+export function randomSkills(
+  p: Player,
+  count: number,
+  random = Math.random,
+): SkillId[] {
+  const result: Player = { ...p, skills: [] };
+  while (result.skills!.length < count) {
+    const pool = (
+      result.skills!.length >= activeSkills().length ? skills : activeSkills()
+    ).filter((s) => canLearn(result, s.id));
+    if (!pool.length) break;
+    result.skills!.push(
+      pool[
+        Math.min(
+          pool.length - 1,
+          Math.floor(Math.max(0, random()) * pool.length),
+        )
+      ].id,
+    );
+  }
+  return result.skills!;
+}
 export const allSkillIds = skills.map((s) => s.id);
 export const enemySkills = allSkillIds.filter((id) => id <= 10);
 export const hasSkill = (p: Player, id: SkillId) =>
@@ -157,17 +208,24 @@ export const prerequisitesMet = (p: Player, id: SkillId) => {
 export const canLearn = (p: Player, id: SkillId) =>
   !hasSkill(p, id) && prerequisitesMet(p, id);
 export function itemRequirements(i: Item): SkillId[] {
-  if (i.slot === "shield") return [skill.shield];
+  if (i.slot === "shield")
+    return equipmentClass(i) === "heavy"
+      ? [skill.shield, skill.heavyArmor]
+      : [skill.shield];
+  if (["helmet", "chest"].includes(i.slot) && equipmentClass(i) === "heavy")
+    return [skill.heavyArmor];
   if (i.use === "drink") return [skill.alchemy];
   if (i.use === "throw") return [skill.throwing];
   if (i.weaponType === "crossbow") return [skill.ranged];
-  if (i.hands === 2) return [skill.heavy];
+  if (i.slot === "weapon" && equipmentClass(i) === "heavy")
+    return [skill.heavy];
   return [];
 }
 export const itemUsable = (p: Player, i: Item) =>
   itemRequirements(i).every((id) => hasSkill(p, id));
 export function equipmentAllowed(p: Player, i: Item, slot: EquipmentSlot) {
-  if (!itemUsable(p, i)) return false;
+  if (!itemUsable(p, i) || (i.slot === "shield" && slot !== "rightHand"))
+    return false;
   if (i.slot === "weapon" && i.hands !== 2) {
     const held = item(
       p.equipment[slot === "leftHand" ? "rightHand" : "leftHand"] ?? "",
@@ -203,6 +261,7 @@ export const skillBalance = {
   rageArmor: 0.75,
   kipUpDuration: 500,
   supermanDuration: 1200,
+  supermanMinDistance: 175,
   bashDuration: 700,
   counterSpeed: 300,
   supermanDamage: 1.4,
