@@ -3586,15 +3586,18 @@ test("localized damage shows actual numbers, subtle cracks and repairs survivors
   p.equipment.helmet = "closed-helm";
   p.equipment.body = "cuirass";
   await savedFixture(page, p);
+  await page.clock.install();
   await launch(page);
   await click(page, "battle");
-  await expect
-    .poll(async () => (await snapshot(page)).battle!.contacts.length, {
-      timeout: 15000,
-    })
-    .toBeGreaterThan(0);
+  // Inspect the first impact before its 700 ms floating label can expire on CI.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  for (let elapsed = 0; elapsed < 15000; elapsed += 32) {
+    if ((await snapshot(page)).battle!.contacts.length) break;
+    await page.clock.runFor(32);
+  }
   let s = await snapshot(page);
   const hit = s.battle!.contacts.find((e) => e.defenderId === "wanderer")!;
+  expect(hit).toBeDefined();
   expect(hit.hitRegion).toBeTruthy();
   const damagedId = hit.hitRegion === "helmet" ? "closed-helm" : "cuirass";
   expect(s.player.armorWear?.[damagedId]).toBeGreaterThan(0);
@@ -3611,14 +3614,16 @@ test("localized damage shows actual numbers, subtle cracks and repairs survivors
       String(hit.damage),
     ),
   ).toBe(true);
-  await expect
-    .poll(
-      async () =>
-        Math.max(...Object.values((await snapshot(page)).rigs![0].armorDamage)),
-      { timeout: 25000 },
-    )
-    .toBeGreaterThan(0.75);
+  // Stop at visible wear, before another hit can break the surviving armor.
+  for (let elapsed = 0; elapsed < 25000; elapsed += 80) {
+    const wear = (await snapshot(page)).rigs![0].armorDamage;
+    if (Math.max(...Object.values(wear)) > 0.75) break;
+    await page.clock.runFor(80);
+  }
   s = await snapshot(page);
+  expect(Math.max(...Object.values(s.rigs![0].armorDamage))).toBeGreaterThan(
+    0.75,
+  );
   const ratios = s.rigs![0].armorCracks;
   expect(Math.max(...Object.values(ratios).map((v) => v ?? 0))).toBeGreaterThan(
     0,
@@ -3626,9 +3631,12 @@ test("localized damage shows actual numbers, subtle cracks and repairs survivors
   expect(
     Math.max(...Object.values(ratios).map((v) => v ?? 0)),
   ).toBeLessThanOrEqual(0.5);
-  await shot(page, "subtle-damaged-armor-cracks");
+  await page.screenshot({
+    path: "test-results/screenshots/subtle-damaged-armor-cracks.png",
+  });
   const surviving = { ...(await snapshot(page)).player.equipment };
   await page.keyboard.press("Escape");
+  await page.clock.runFor(80);
   await scene(page, "MainMenuScene");
   expect((await snapshot(page)).player.armorWear ?? {}).toEqual({});
   expect((await snapshot(page)).player.equipment).toEqual(surviving);
@@ -3637,5 +3645,7 @@ test("localized damage shows actual numbers, subtle cracks and repairs survivors
       (v) => v === 0,
     ),
   ).toBe(true);
-  await shot(page, "armor-repaired-after-combat");
+  await page.screenshot({
+    path: "test-results/screenshots/armor-repaired-after-combat.png",
+  });
 });
