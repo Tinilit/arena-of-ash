@@ -251,6 +251,10 @@ test("passive rear shield stays behind the body and active skills retain weapon 
     path: "test-results/screenshots/passive-rear-shield.png",
   });
   await page.keyboard.up("s");
+  // S now starts grounded evasion; finish it before testing another body action.
+  for (let i = 0; i < 14 && (await snapshot(page)).battle!.player.dodge; i++)
+    await page.clock.runFor(50);
+  expect((await snapshot(page)).battle!.player.dodge).toBeNull();
   await page.keyboard.press("Control+z");
   await page.clock.runFor(50);
   expect((await snapshot(page)).battle!.player.rageUsed).not.toBe(true);
