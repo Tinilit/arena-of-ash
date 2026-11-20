@@ -128,7 +128,28 @@ for (const profile of [
       await page.screenshot({
         path: `test-results/screenshots/display-${profile.name}.png`,
       });
-      await click(page, "shop");
+      // Seed a completed fight: the shop is now an exclusive post-battle visit.
+      await page.evaluate(() => {
+        const save = JSON.parse(localStorage.getItem("arena-of-ash.v3")!);
+        const battleId = crypto.randomUUID();
+        save.player.rewarded.push(battleId);
+        save.player.postBattle = {
+          battleId,
+          outcome: "Victory",
+          opponent: "Display fixture",
+          gold: 0,
+          choice: "pending",
+          consumed: false,
+          completed: false,
+        };
+        localStorage.setItem("arena-of-ash.v3", JSON.stringify(save));
+      });
+      await page.reload();
+      await expect
+        .poll(async () => (await state(page))?.scene)
+        .toBe("ResultScene");
+      sharp(await display(page));
+      await click(page, "visit-shop");
       await expect
         .poll(async () => (await state(page)).scene)
         .toBe("ShopScene");

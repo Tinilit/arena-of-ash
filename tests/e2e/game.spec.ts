@@ -974,11 +974,13 @@ test("invalid external data and undecodable image files keep the game playable",
     route.fulfill({ contentType: "image/png", body: "invalid image bytes" }),
   );
   await page.reload();
-  await scene(page, "MainMenuScene");
+  await scene(page, "ShopScene");
   expect((await snapshot(page)).content).toMatchObject({
     source: "live",
     failedImages: 1,
   });
+  await click(page, "back");
+  await scene(page, "MainMenuScene");
   await click(page, "battle");
   await scene(page, "ArenaScene");
   expect((await snapshot(page)).rigs![0].weapons[0].texture).toBeNull();
@@ -986,7 +988,7 @@ test("invalid external data and undecodable image files keep the game playable",
   expect(hit.damage).toBe(13);
 });
 
-test("shields are absent and the free front arm stays behind the torso while the armed rear arm renders in front", async ({
+test("a no-shield catalog keeps the free front arm behind the torso while the armed rear arm renders in front", async ({
   page,
 }) => {
   await page.clock.install();
@@ -1979,6 +1981,7 @@ test("physical F kicks with a Ukrainian layout and ignores modified shortcuts", 
 test("a seeded kick knocks down on contact, holds one second and rises through a supported get-up", async ({
   page,
 }) => {
+  await savedFixture(page, createPlayer());
   await page.goto("/?seed=5&renderer=canvas&manual=1");
   await scene(page, "MainMenuScene");
   await click(page, "battle");
