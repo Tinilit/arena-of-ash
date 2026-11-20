@@ -1,7 +1,8 @@
 import { hasSkill, skill, skills, type SkillId } from "../domain/skills";
-import { actionRequirement, actionAllowed } from "../combat/skillRules";
+import { actionRequirement } from "../combat/skillRules";
 import { completeBattle } from "../domain/postBattle";
 import { repairArmor } from "../combat/armor";
+import { syncBattleInventory } from "../combat/inventorySync";
 import { bossAt, ladderLength } from "../domain/ladder";
 import {
   twoHandWeapon,
@@ -23,13 +24,7 @@ import {
 import { ArenaAI } from "../combat/ArenaAI";
 import type { CombatGeometry } from "../combat/geometry";
 import { seeded } from "../utils/random";
-import {
-  opponent,
-  stats,
-  consumeItem,
-  addItem,
-  equip,
-} from "../domain/progression";
+import { opponent, stats } from "../domain/progression";
 import { item } from "../data/catalog";
 import { drawGear } from "../rendering/characterVisuals";
 import { label, ProgressBar, colors } from "../ui/widgets";
@@ -178,8 +173,8 @@ export class ArenaScene extends BaseScene {
         this,
         640,
         611,
-        "A/D: walk · Shift: run · Space: jump · A/D+Space: hop · R: stance · B: resume Auto Battle",
-        16,
+        "A/D: walk · Shift: run · Space: jump · A/D+Space: hop · S: dodge / retreat · R: stance · B: Auto Battle",
+        15,
       ),
       label(
         this,
@@ -223,7 +218,6 @@ export class ArenaScene extends BaseScene {
         run: "SHIFT",
         jump: "SPACE",
         control: "CTRL",
-        block: "S",
       }) as typeof this.keys) ?? {};
     this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
       // Physical codes keep combat controls working with Ukrainian and other layouts.
@@ -272,6 +266,7 @@ export class ArenaScene extends BaseScene {
         return;
       }
       if (key === "z") this.queued.rage = true;
+      if (key === "s") this.queued.dodge = true;
       if (key === "t") {
         this.queued.attack = "superman";
         this.queued.hand = primaryHand(this.battle.player.model);
@@ -327,7 +322,11 @@ export class ArenaScene extends BaseScene {
     this.game.events.on(Phaser.Core.Events.BLUR, releaseInput);
     this.game.events.on(Phaser.Core.Events.HIDDEN, releaseInput);
     this.events.once("shutdown", () => {
-      if (repairArmor(this.services.player)) this.services.save();
+      const changed = syncBattleInventory(
+        this.services.player,
+        this.battle.player.model,
+      );
+      if (repairArmor(this.services.player) || changed) this.services.save();
       this.input.off("pointerdown", useHand);
       this.input.off("pointermove", moveAim);
       this.game.canvas.style.cursor = "";
@@ -403,7 +402,7 @@ export class ArenaScene extends BaseScene {
       ...(this.aimActive && this.aimPoint ? { aim: this.aimPoint } : {}),
       move: this.direction(),
       run: this.down("run"),
-      guard: this.down("block") && actionAllowed(this.services.player, "guard"),
+      guard: false,
     };
     this.queued = {};
     return input;
@@ -577,6 +576,7 @@ export class ArenaScene extends BaseScene {
   }
   private finish() {
     if (this.ending) return;
+    this.persistItems();
     this.ending = true;
     this.clearInput();
     this.controlHints.forEach((t) => t.setVisible(false));
@@ -622,7 +622,7 @@ export class ArenaScene extends BaseScene {
     const attachment = this.rigs[index].armorAttachment(entry.slot);
     const art = drawGear(this, entry.itemId);
     const bounds = art.getBounds();
-    const crack = this.add.graphics().lineStyle(2.5, 0xe1d6bc);
+    const crack = this.add.graphics().lineStyle(2.5, 0xe0e5e6);
     crack
       .beginPath()
       .moveTo(bounds.centerX - 16, bounds.centerY - 17)
@@ -684,17 +684,17 @@ export class ArenaScene extends BaseScene {
     const breaks = this.battle.armorBreaks.slice(this.armorBreakCursor);
     breaks.forEach((entry) => this.scatterArmor(entry));
     this.armorBreakCursor = this.battle.armorBreaks.length;
-    for (const entry of this.battle.consumedItems.slice(this.consumptionCursor))
-      if (entry.ownerId === this.services.player.id)
-        changed =
-          consumeItem(this.services.player, entry.itemId, entry.sourceSlot) ||
-          changed;
+    if (
+      this.consumptionCursor !== this.battle.consumedItems.length ||
+      this.collectionCursor !== this.battle.collectedItems.length ||
+      this.armorRevision !== this.battle.armorRevision
+    )
+      changed = syncBattleInventory(
+        this.services.player,
+        this.battle.player.model,
+      );
     for (const entry of this.battle.collectedItems.slice(this.collectionCursor))
-      if (
-        entry.ownerId === this.services.player.id &&
-        addItem(this.services.player, entry.itemId)
-      ) {
-        if (entry.slot) equip(this.services.player, entry.itemId, entry.slot);
+      if (entry.ownerId === this.services.player.id) {
         const destination = entry.slot
           ? en.equipmentSlots[entry.slot]
           : "Backpack";
@@ -717,17 +717,7 @@ export class ArenaScene extends BaseScene {
         });
         changed = true;
       }
-    if (this.armorRevision !== this.battle.armorRevision) {
-      const wear = this.battle.player.model.armorWear ?? {};
-      if (
-        JSON.stringify(wear) !==
-        JSON.stringify(this.services.player.armorWear ?? {})
-      ) {
-        this.services.player.armorWear = { ...wear };
-        changed = true;
-      }
-      this.armorRevision = this.battle.armorRevision;
-    }
+    this.armorRevision = this.battle.armorRevision;
     this.consumptionCursor = this.battle.consumedItems.length;
     this.collectionCursor = this.battle.collectedItems.length;
     if (changed) this.services.save();

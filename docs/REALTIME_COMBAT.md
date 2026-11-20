@@ -2,6 +2,10 @@
 
 Arena combat supports walking forward/back, running, jumping, independent light hand attacks and a front kick and relaxed/combat stance. Actions and locomotion run together. The old turn-based Battle/AI and precomputed hit rolls have been removed.
 
+## Two-stage evasion
+
+S starts a grounded rear-foot step and backward torso lean while the front ankle stays planted. The 150 ms entry, 300 ms hold, 150 ms recovery and 300 ms retreat are authored at 1.2× normal movement speed. A fresh S press during the planted lean starts the sharp grounded retreat. A light hand attack during that lean queues its selected hand(s), restores combat stance in 60 ms, then begins the normal weapon action with its own unchanged cooldown and contact window. Repeats do not advance phases; jumps, parries and attacks cannot interrupt the retreat. Facing stays locked until evasion ends. Hits, grabs and finishers interrupt it. There are no invulnerability frames: the rendered leaning body remains the physical hit target. Haste and optional impact pause use the shared actor clock. Production AI can choose this defense as an alternative to the existing airborne backstep.
+
 ## Simulation and contact
 
 `RealtimeBattle` is Phaser-independent. Scene time is accumulated into 120 Hz steps (8.33 ms). The scene accepts at most 100 ms from a rendered frame. Hidden scenes receive monotonic headless updates split into at most 100 ms each; these still run the same 120 Hz collision steps. At each step:

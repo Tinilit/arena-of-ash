@@ -136,6 +136,8 @@ export class ShopScene extends BaseScene {
       );
       if (info.width > 290) info.setFontSize((16 * 290) / info.width);
       const requirements = itemRequirements(it);
+      if (!requirements.every((id) => hasSkill(p, id)))
+        label(this, x + 466, y + 52, "No skill", 12, "#ff7777").setOrigin(0.5);
       const requirementText = requirements.length
         ? `Requires: ${requirements.map((id) => skills.find((s) => s.id === id)!.name).join(", ")}${requirements.every((id) => hasSkill(p, id)) ? " · Learned" : " · Locked"}`
         : it.slot === "weapon"

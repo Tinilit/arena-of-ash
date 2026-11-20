@@ -44,6 +44,7 @@ export class GrappleController {
       !a.action &&
       !a.parry &&
       !a.hop &&
+      !a.dodge &&
       !a.knockdown &&
       !a.reaction &&
       a.stun === 0 &&
@@ -122,6 +123,7 @@ export class GrappleController {
       b.action = null;
       b.parry = null;
       b.hop = null;
+      b.dodge = null;
       b.guard = false;
       b.reaction = null;
       b.pushVx = 0;

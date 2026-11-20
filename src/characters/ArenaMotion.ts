@@ -1,4 +1,5 @@
 import { shieldCarryPose } from "./shieldMotion";
+import { dodgePose } from "./dodgeMotion";
 import { hasSkill, skill, skillBalance } from "../domain/skills";
 import { item } from "../data/catalog";
 import { ragePose, kipUpPose } from "./skillMotion";
@@ -57,6 +58,9 @@ export class ArenaMotion {
   private reaction = -1;
   private carryStarts: Record<Hand, Pose> = { front: {}, rear: {} };
   private displayed: Pose = {};
+  private dodgeStart: Pose = {};
+  private dodgeReturn: Pose = {};
+  private dodgePhase?: string;
   private primary: Hand;
   private guardStart?: Pose;
   private guardAge = 0;
@@ -134,7 +138,7 @@ export class ArenaMotion {
     const running = Math.abs(locomotionVx) > 115,
       backwards = f.vx * f.facing < 0;
     const name =
-      Math.abs(f.vx) < 0.01 || f.hop
+      Math.abs(f.vx) < 0.01 || f.hop || f.dodge
         ? f.relaxed
           ? "idleRelaxed"
           : "idleCombat"
@@ -167,6 +171,21 @@ export class ArenaMotion {
     base.nearWeaponGrip =
       this.primary === "front" ? base.weaponGrip : (3 * Math.PI) / 4;
     this.name = name;
+    if (f.dodge) {
+      if (!this.dodgePhase)
+        this.dodgeStart = {
+          ...this.displayed,
+          ...(!Object.keys(this.displayed).length ? base : {}),
+        };
+      if (this.dodgePhase !== f.dodge.phase)
+        this.dodgeReturn = { ...this.displayed };
+      Object.assign(
+        base,
+        dodgePose(base, f.dodge, this.dodgeStart, this.dodgeReturn),
+      );
+      this.dodgePhase = f.dodge.phase;
+      this.name = f.dodge.phase === "retreat" ? "dodgeRetreat" : "dodgeLean";
+    } else this.dodgePhase = undefined;
     if (f.hop) {
       Object.assign(base, hopPose(base, f.hop));
       this.name = f.hop.kind;

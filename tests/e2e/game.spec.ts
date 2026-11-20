@@ -3630,7 +3630,7 @@ test("localized damage shows actual numbers, subtle cracks and repairs survivors
   );
   expect(
     Math.max(...Object.values(ratios).map((v) => v ?? 0)),
-  ).toBeLessThanOrEqual(0.5);
+  ).toBeLessThanOrEqual(0.75);
   await page.screenshot({
     path: "test-results/screenshots/subtle-damaged-armor-cracks.png",
   });

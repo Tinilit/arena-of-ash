@@ -43,6 +43,7 @@ The arena legend follows the gladiator's learned skills. Combat uses the mouse a
 | -------------------- | ---------------------------------------------- | ------------------------------------------------ |
 | A/D or arrows, Shift | Walk / run                                     | Basic                                            |
 | Space, A/D+Space     | Jump / directional hop                         | Basic                                            |
+| S, S again           | Planted lean dodge / sharp backward retreat    | Basic                                            |
 | R, G                 | Stance / grounded equipment pickup             | Basic                                            |
 | LMB/J/1, RMB/K/2     | Front / rear hand light attack                 | One melee weapon is basic; Dual Wielding for two |
 | Mouse                | Slight melee aim / ranged aim                  | Marksmanship for ranged weapons                  |

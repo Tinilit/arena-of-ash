@@ -13,6 +13,7 @@ import {
   resolvedDamage,
 } from "./skillRules";
 import { wearArmor, repairArmor, type ArmorSlot } from "./armor";
+import { canDodge, dodgeDuration, dodgeRules, type Dodge } from "./dodge";
 import { aimedVelocity } from "./aim";
 import type { Player, Hand, EquipmentSlot } from "../domain/model";
 import { item } from "../data/catalog";
@@ -110,6 +111,7 @@ export type Attack =
 export type ArenaAction = Attack | "recover" | "drink" | "shoot";
 export type ArenaState = "Fighting" | "Victory" | "Defeat" | "Draw";
 export interface ArenaInput {
+  dodge?: boolean;
   rage?: boolean;
   aim?: Point;
   move?: number;
@@ -169,6 +171,8 @@ export interface ArenaFighter extends Fighter {
   relaxed: boolean;
   landed: number;
   hop: Hop | null;
+  dodge?: Dodge | null;
+  dodgeCooldown?: number;
   hopCooldown: number;
   attackCooldown: number;
   stun: number;
@@ -257,6 +261,8 @@ function actor(model: Player, x: number, facing: 1 | -1): ArenaFighter {
     relaxed: false,
     landed: 1000,
     hop: null,
+    dodge: null,
+    dodgeCooldown: 0,
     hopCooldown: 0,
     get attackCooldown() {
       return Math.max(
@@ -377,6 +383,7 @@ export class RealtimeBattle {
     hand: Hand = primaryHand(f.model),
   ) {
     if (
+      f.dodge ||
       !actionAllowed(f.model, name, hand) ||
       this.hitStop.blocked(f.model.id, hand)
     )
@@ -465,6 +472,7 @@ export class RealtimeBattle {
   }
   canParry(f: ArenaFighter) {
     return (
+      !f.dodge &&
       actionAllowed(f.model, "parry") &&
       this.state === "Fighting" &&
       f.hp > 0 &&
@@ -535,6 +543,7 @@ export class RealtimeBattle {
     f.action = null;
     f.parry = null;
     f.hop = null;
+    f.dodge = null;
     f.landed += delta;
     f.stun = Math.max(0, f.stun - delta);
     if (!f.stun) f.reaction = null;
@@ -673,6 +682,7 @@ export class RealtimeBattle {
       f.y === 0 &&
       f.vy === 0 &&
       !f.hop &&
+      !f.dodge &&
       f.hopCooldown === 0
     );
   }
@@ -796,6 +806,21 @@ export class RealtimeBattle {
         if (f.reaction.elapsed >= f.reaction.duration) f.reaction = null;
       }
       f.hopCooldown = Math.max(0, f.hopCooldown - actorDelta);
+      f.dodgeCooldown = Math.max(0, (f.dodgeCooldown ?? 0) - actorDelta);
+      let dodgeAttack: ArenaInput | undefined;
+      if (f.dodge) {
+        f.dodge.elapsed += actorDelta;
+        while (f.dodge && f.dodge.elapsed >= dodgeDuration(f.dodge)) {
+          if (f.dodge.phase === "lean") {
+            f.dodge.elapsed -= dodgeDuration(f.dodge);
+            f.dodge.phase = "recover";
+          } else {
+            dodgeAttack = f.dodge.pending;
+            f.dodge = null;
+            f.dodgeCooldown = dodgeRules.cooldown;
+          }
+        }
+      }
       if (f.hop) {
         const h = f.hop,
           definition = hopDefinitions[h.kind];
@@ -880,7 +905,7 @@ export class RealtimeBattle {
           ? {}
           : carrying
             ? { move: input[i].move }
-            : input[i];
+            : { ...input[i], ...dodgeAttack };
       if (carrying && c.move) f.facing = c.move > 0 ? 1 : -1;
       if (c.toggleStance) f.relaxed = !f.relaxed;
       if (c.pickup) this.pickup(f);
@@ -891,7 +916,14 @@ export class RealtimeBattle {
         f.relaxed = false;
         f.reaction = null;
       }
-      if (!f.grapple && !f.action && !f.hop && !f.reaction && !f.knockdown)
+      if (
+        !f.grapple &&
+        !f.action &&
+        !f.hop &&
+        !f.dodge &&
+        !f.reaction &&
+        !f.knockdown
+      )
         f.facing = this.fighters[1 - i].x >= f.x ? 1 : -1;
       if (
         f.aim &&
@@ -900,9 +932,38 @@ export class RealtimeBattle {
         !f.grapple &&
         !f.finisher &&
         !f.knockdown &&
+        !f.dodge &&
         f.stun === 0
       )
         f.facing = f.aim.x >= f.x ? 1 : -1;
+      if (
+        c.dodge &&
+        f.dodge?.phase === "lean" &&
+        f.dodge.elapsed >= dodgeRules.enter
+      ) {
+        f.dodge.phase = "retreat";
+        f.dodge.elapsed = 0;
+      } else if (c.dodge && canDodge(f)) {
+        f.dodge = { phase: "lean", elapsed: 0, direction: f.facing };
+        f.relaxed = false;
+      }
+      if (f.dodge?.phase === "lean" || f.dodge?.phase === "attackReturn") {
+        const hands = [
+          ...(c.attacks ?? []),
+          ...(c.attack === "quick" ? [c.hand ?? primaryHand(f.model)] : []),
+        ];
+        if (hands.length) {
+          if (f.dodge.phase === "lean") {
+            f.dodge.phase = "attackReturn";
+            f.dodge.elapsed = 0;
+          }
+          f.dodge.pending = {
+            attacks: [
+              ...new Set([...(f.dodge.pending?.attacks ?? []), ...hands]),
+            ],
+          };
+        }
+      }
       for (const hand of new Set([
         ...(c.throws ?? []),
         ...(c.attack === "throw" ? [c.hand ?? primaryHand(f.model)] : []),
@@ -985,6 +1046,7 @@ export class RealtimeBattle {
         actionAllowed(f.model, "guard") &&
         !f.action &&
         !f.hop &&
+        !f.dodge &&
         !f.reaction &&
         !f.knockdown &&
         !f.parry,
@@ -996,6 +1058,7 @@ export class RealtimeBattle {
         f.action?.name !== "shove" &&
         !c.hop &&
         !f.hop &&
+        !f.dodge &&
         !f.reaction &&
         f.y === 0 &&
         f.vy === 0 &&
@@ -1022,6 +1085,16 @@ export class RealtimeBattle {
         f.vx =
           f.hop.phase === "air"
             ? f.hop.direction * hopDefinitions[f.hop.kind].speed
+            : 0;
+      if (f.dodge)
+        f.vx =
+          f.dodge.phase === "retreat"
+            ? -f.dodge.direction *
+              dodgeRules.retreatSpeed *
+              Math.sin(
+                Math.PI * Math.min(1, f.dodge.elapsed / dodgeRules.retreat),
+              ) *
+              (f.model.combatProfile?.size ?? 1)
             : 0;
       if (
         f.knockdown ||
@@ -1506,6 +1579,7 @@ export class RealtimeBattle {
       f.action = null;
       f.parry = null;
       f.hop = null;
+      f.dodge = null;
       f.guard = false;
       f.relaxed = false;
       f.pushVx = 0;
@@ -1639,6 +1713,7 @@ export class RealtimeBattle {
       defender.action = null;
       defender.parry = null;
       defender.hop = null;
+      defender.dodge = null;
       defender.guard = false;
       defender.relaxed = false;
       defender.bodyCooldown = Math.max(defender.bodyCooldown, 180);

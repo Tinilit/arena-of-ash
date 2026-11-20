@@ -1,4 +1,5 @@
 import { SkillCadence } from "./skillCadence";
+import { dodgeRules } from "./dodge";
 import { hasSkill, skill, skillBalance } from "../domain/skills";
 import { permittedInput, actionAllowed } from "./skillRules";
 import { stats } from "../domain/progression";
@@ -50,6 +51,7 @@ export class ArenaAI {
       !self.action &&
       !self.parry &&
       !self.hop &&
+      !self.dodge &&
       self.bodyCooldown === 0 &&
       self.handCooldowns.front === 0 &&
       self.handCooldowns.rear === 0
@@ -513,6 +515,14 @@ export class ArenaAI {
       this.lastDecision = "drink";
       return { move: gap < 300 ? -toward : 0, run: true };
     }
+    if (self.dodge) {
+      this.lastDecision = "dodge";
+      if (self.dodge.phase !== "lean" || self.dodge.elapsed < dodgeRules.enter)
+        return { move: 0 };
+      if (target.action && gap < 135) return { dodge: true, move: 0 };
+      const hand = hands.find((h) => self.handCooldowns[h] === 0);
+      return hand ? { attacks: [hand], move: 0 } : { move: 0 };
+    }
     if (
       self.grapple ||
       self.finisher ||
@@ -595,9 +605,14 @@ export class ArenaAI {
               -60,
           ) + 80;
         const room = self.facing === 1 ? self.x - 90 : 1190 - self.x;
-        if (gap <= threatReach && room >= 90 && this.dodgeRandom() < 0.35) {
-          this.dodgeCooldown = 2200;
-          return { hop: -1, move: 0, guard: false };
+        if (gap <= threatReach && room >= 90) {
+          const choice = this.dodgeRandom();
+          if (choice < 0.35) {
+            this.dodgeCooldown = 2200;
+            return this.options.advanced === false || choice < 0.175
+              ? { hop: -1, move: 0, guard: false }
+              : { dodge: true, move: 0, guard: false };
+          }
         }
       }
     }

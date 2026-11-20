@@ -324,7 +324,7 @@ export class Gladiator {
           ? Math.min(20, bounds.width * 0.3)
           : bounds.width * 0.3,
       h = slot === "helmet" ? 9 : bounds.height * 0.32;
-    const cracks = this.scene.add.graphics().lineStyle(0.9, 0x263238, 0.8);
+    const cracks = this.scene.add.graphics().lineStyle(1.4, 0xe0e5e6, 0.95);
     for (const offset of [-0.5, 0.6]) {
       cracks
         .beginPath()
@@ -348,7 +348,7 @@ export class Gladiator {
       const ratio = armorDamage(model, slot);
       this.armorRatios[slot] = ratio;
       this.armorCracks[slot]?.setAlpha(
-        Math.max(0, (ratio - 0.55) / 0.45) * 0.5,
+        Math.max(0, (ratio - 0.55) / 0.45) * 0.75,
       );
     }
   }

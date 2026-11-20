@@ -120,6 +120,7 @@ export class FinisherController {
     b.action = null;
     b.parry = null;
     b.hop = null;
+    b.dodge = null;
     b.reaction = null;
     b.guard = false;
     b.pushVx = b.vx = b.vy = 0;
