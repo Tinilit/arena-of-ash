@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import liveItems from "../../public/content/items.json" with { type: "json" };
 import bundled from "../fixtures/catalog.json" with { type: "json" };
 import type { Player } from "../../src/domain/model";
-import { createPlayer } from "../../src/domain/model";
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import type { Projectile } from "../../src/combat/projectiles";
 import type {
   ArenaFighter,
@@ -451,6 +451,34 @@ async function scene(page: Page, name: string) {
 }
 async function click(page: Page, id: string) {
   let state = await snapshot(page);
+  if (id === "shop" && state.scene === "MainMenuScene") {
+    // Legacy equipment cases seed a completed zero-payout fight to isolate the shop.
+    await page.evaluate(() => {
+      const saved = JSON.parse(localStorage.getItem("arena-of-ash.v3")!);
+      const battleId = crypto.randomUUID();
+      saved.player.rewarded.push(battleId);
+      saved.player.postBattle = {
+        battleId,
+        outcome: "Victory",
+        opponent: "Equipment fixture",
+        gold: 0,
+        choice: "pending",
+        consumed: false,
+        completed: false,
+      };
+      localStorage.setItem("arena-of-ash.v3", JSON.stringify(saved));
+    });
+    await page.reload();
+    await scene(page, "ResultScene");
+    await click(page, "visit-shop");
+    return;
+  }
+  if (state.scene === "ResultScene" && (id === "again" || id === "back")) {
+    await click(page, "visit-shop");
+    await click(page, "back");
+    if (id === "again") await click(page, "battle");
+    return;
+  }
   if (state.scene === "ShopScene" && id.startsWith("buy-") && state.shop) {
     const itemId = id.slice(4),
       category = state.shop.itemCategories[itemId];
@@ -484,6 +512,7 @@ async function click(page: Page, id: string) {
   await frames(page);
 }
 async function launch(page: Page) {
+  await savedFixture(page, createPlayer());
   await page.goto("/?seed=42&renderer=canvas&ai=training&manual=1");
   await scene(page, "MainMenuScene");
 }
@@ -588,7 +617,7 @@ test("complete battle, animation impact and persisted victory rewards", async ({
     if (!localStorage.getItem("arena-of-ash.v3"))
       localStorage.setItem(
         "arena-of-ash.v3",
-        JSON.stringify({ version: 3, player: p }),
+        JSON.stringify({ version: 4, player: p }),
       );
   }, player);
   await launch(page);
@@ -610,7 +639,7 @@ test("complete battle, animation impact and persisted victory rewards", async ({
   expect((await snapshot(page)).player).not.toHaveProperty("xp");
   await shot(page, "victory");
   await page.reload();
-  await scene(page, "MainMenuScene");
+  await scene(page, "ResultScene");
   expect((await snapshot(page)).player.gold).toBe(150);
   expect((await snapshot(page)).player.progress).toBe(1);
 });
@@ -641,7 +670,7 @@ test("paginated purchases and inventory equip all remaining items and persist th
     (p) =>
       localStorage.setItem(
         "arena-of-ash.v3",
-        JSON.stringify({ version: 3, player: p }),
+        JSON.stringify({ version: 4, player: p }),
       ),
     p,
   );
@@ -981,7 +1010,7 @@ test("shields are absent and the free front arm stays behind the torso while the
     (p) =>
       localStorage.setItem(
         "arena-of-ash.v3",
-        JSON.stringify({ version: 3, player: p }),
+        JSON.stringify({ version: 4, player: p }),
       ),
     player,
   );
@@ -1585,7 +1614,7 @@ test("anatomical slots move weapons between hands and persist two belt attachmen
     (p) =>
       localStorage.setItem(
         "arena-of-ash.v3",
-        JSON.stringify({ version: 3, player: p }),
+        JSON.stringify({ version: 4, player: p }),
       ),
     p,
   );
@@ -1849,7 +1878,7 @@ test("backpack lists all unequipped categories, excludes worn items and restores
     (p) =>
       localStorage.setItem(
         "arena-of-ash.v3",
-        JSON.stringify({ version: 3, player: p }),
+        JSON.stringify({ version: 4, player: p }),
       ),
     p,
   );
@@ -2167,7 +2196,7 @@ test("simultaneous hand inputs produce two independent physical weapon hits", as
     (p) =>
       localStorage.setItem(
         "arena-of-ash.v3",
-        JSON.stringify({ version: 3, player: p }),
+        JSON.stringify({ version: 4, player: p }),
       ),
     p,
   );
@@ -2231,7 +2260,7 @@ test("victory progress beyond three persists and generates stronger equipped opp
     (p) =>
       localStorage.setItem(
         "arena-of-ash.v3",
-        JSON.stringify({ version: 3, player: p }),
+        JSON.stringify({ version: 4, player: p }),
       ),
     p,
   );
@@ -2357,7 +2386,7 @@ test("Ctrl plus each mouse attack throws that hand's actual weapon and leaves ba
     if (!localStorage.getItem("arena-of-ash.v3"))
       localStorage.setItem(
         "arena-of-ash.v3",
-        JSON.stringify({ version: 3, player: p }),
+        JSON.stringify({ version: 4, player: p }),
       );
   }, p);
   await page.clock.install();
@@ -2514,7 +2543,7 @@ async function savedFixture(page: Page, p: Player) {
     if (!localStorage.getItem("arena-of-ash.v3"))
       localStorage.setItem(
         "arena-of-ash.v3",
-        JSON.stringify({ version: 3, player: p }),
+        JSON.stringify({ version: 4, player: p }),
       );
   }, p);
 }
@@ -2863,7 +2892,7 @@ test("H captures, holds an opponent overhead and throws into supported floor rec
     (p) =>
       localStorage.setItem(
         "arena-of-ash.v3",
-        JSON.stringify({ version: 3, player: p }),
+        JSON.stringify({ version: 4, player: p }),
       ),
     p,
   );
@@ -3214,7 +3243,7 @@ test("camp, character and active arena expose no demonstration or combat action 
     "character",
     "ladder",
     "reset",
-    "shop",
+    "skills",
   ]);
   await click(page, "character");
   s = await snapshot(page);
@@ -3384,7 +3413,8 @@ test("backpack sales remove only spare copies and persist gold and equipped gear
   p.equipment.belt1 = "throwing-knife";
   await savedFixture(page, p);
   await launch(page);
-  await click(page, "character");
+  await click(page, "shop");
+  await click(page, "sell-equipment");
   expect((await snapshot(page)).buttons["sell-wood"]).toBeUndefined();
   await shot(page, "inventory-sale-controls");
   await click(page, "sell-throwing-knife");
@@ -3398,7 +3428,7 @@ test("backpack sales remove only spare copies and persist gold and equipped gear
   expect(s.player.gold).toBe(183);
   expect(s.player.inventory).toEqual(["wood", "throwing-knife"]);
   await page.reload();
-  await scene(page, "MainMenuScene");
+  await scene(page, "ShopScene");
   expect((await snapshot(page)).player).toEqual(s.player);
 });
 

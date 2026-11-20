@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "revision": "2026-11-19-fixed-damage-and-breakable-armor",
+  "revision": "2026-11-20-skill-progression-and-shields",
   "items": [
     {
       "id": "wood",
@@ -255,6 +255,26 @@
       "durationMs": 10000,
       "speedMultiplier": 2,
       "description": "Belt potion. Double action and movement speed for 10 seconds."
+    },
+    {
+      "id": "shield",
+      "name": "Arena Buckler",
+      "slot": "shield",
+      "price": 65,
+      "attack": 0,
+      "armor": 0,
+      "visual": "shield",
+      "description": "Held shield. Requires Shield Mastery."
+    },
+    {
+      "id": "tower",
+      "name": "Tower Shield",
+      "slot": "shield",
+      "price": 130,
+      "attack": 0,
+      "armor": 0,
+      "visual": "tower",
+      "description": "Large blocking surface. Requires Shield Mastery."
     }
   ]
 }

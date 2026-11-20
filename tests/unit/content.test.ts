@@ -1,3 +1,4 @@
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -6,7 +7,7 @@ import fixture from "../fixtures/catalog.json";
 import { parseCatalog } from "../../src/content/schema";
 import { loadCatalog } from "../../src/content/loadCatalog";
 import { items, installCatalog, item } from "../../src/data/catalog";
-import { createPlayer } from "../../src/domain/model";
+
 import { purchase, equip, stats } from "../../src/domain/progression";
 import { deserialize, serialize } from "../../src/persistence/save";
 

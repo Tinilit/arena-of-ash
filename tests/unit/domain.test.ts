@@ -114,7 +114,7 @@ describe("progression and persistence", () => {
       }),
     );
     expect(loaded).toEqual(p);
-    expect(JSON.parse(serialize(loaded)).version).toBe(3);
+    expect(JSON.parse(serialize(loaded)).version).toBe(4);
     expect(loaded).not.toHaveProperty("level");
     expect(loaded).not.toHaveProperty("attributes");
   });

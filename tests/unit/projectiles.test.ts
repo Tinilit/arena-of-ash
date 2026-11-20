@@ -1,6 +1,7 @@
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { describe, it, expect } from "vitest";
 import { RealtimeBattle, arenaRules } from "../../src/combat/realtime";
-import { createPlayer } from "../../src/domain/model";
+
 import { projectileShape } from "../../src/combat/projectiles";
 import { consumeItem, purchase, equip } from "../../src/domain/progression";
 import { deserialize, serialize } from "../../src/persistence/save";

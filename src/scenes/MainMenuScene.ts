@@ -1,3 +1,4 @@
+import { skills, hasSkill, skill } from "../domain/skills";
 import { BaseScene } from "./BaseScene";
 import { label, panel } from "../ui/widgets";
 import { en } from "../ui/strings";
@@ -16,7 +17,7 @@ export class MainMenuScene extends BaseScene {
     super("MainMenuScene");
   }
   create() {
-    this.prepare(en.camp);
+    if (!this.prepare(en.camp)) return;
     label(this, 640, 169, en.subtitle, 17, "#e8bd72").setOrigin(0.5);
     label(this, 640, 230, en.title, 70).setOrigin(0.5);
     label(this, 350, 288, en.startCopy, 18).setOrigin(0.5);
@@ -27,9 +28,7 @@ export class MainMenuScene extends BaseScene {
     this.button("character", 260, 430, 170, en.character, () =>
       this.scene.start("CharacterScene"),
     );
-    this.button("shop", 444, 430, 170, en.shop, () =>
-      this.scene.start("ShopScene"),
-    );
+    this.button("skills", 444, 430, 170, "Skills", () => this.showSkills());
     this.button("reset", 350, 501, 350, en.reset, () => this.confirmReset());
     this.button(
       "ladder",
@@ -71,19 +70,24 @@ export class MainMenuScene extends BaseScene {
       if (!this.modalOpen) this.movement.jump();
     });
     this.keys?.throw.on("down", () => {
-      if (!this.modalOpen) this.movement.throw();
+      if (!this.modalOpen && hasSkill(this.services.player, skill.throwing))
+        this.movement.throw();
     });
     this.keys?.throwOverhand.on("down", () => {
-      if (!this.modalOpen) this.movement.throw("overhand");
+      if (!this.modalOpen && hasSkill(this.services.player, skill.throwing))
+        this.movement.throw("overhand");
     });
     this.keys?.drink.on("down", () => {
-      if (!this.modalOpen) this.movement.drink();
+      if (!this.modalOpen && hasSkill(this.services.player, skill.alchemy))
+        this.movement.drink();
     });
     this.keys?.crossbow.on("down", () => {
-      if (!this.modalOpen) this.movement.shoot("crossbow");
+      if (!this.modalOpen && hasSkill(this.services.player, skill.ranged))
+        this.movement.shoot("crossbow");
     });
     this.keys?.rifle.on("down", () => {
-      if (!this.modalOpen) this.movement.shoot("rifle");
+      if (!this.modalOpen && hasSkill(this.services.player, skill.ranged))
+        this.movement.shoot("rifle");
     });
     this.keys?.stance.on("down", () => {
       if (!this.modalOpen) this.movement.toggle();
@@ -116,6 +120,35 @@ export class MainMenuScene extends BaseScene {
       12,
       "#b9aa8d",
     ).setOrigin(0.5);
+  }
+  private showSkills() {
+    this.modalOpen = true;
+    const shade = this.add
+      .rectangle(640, 360, 1280, 720, 0x000000, 0.9)
+      .setInteractive();
+    const title = label(
+      this,
+      640,
+      75,
+      "GLADIATOR SKILLS",
+      30,
+      "#e8bd72",
+    ).setOrigin(0.5);
+    const entries = skills.map((s, i) =>
+      label(
+        this,
+        95 + (i % 2) * 620,
+        130 + Math.floor(i / 2) * 55,
+        `${hasSkill(this.services.player, s.id) ? "✓" : "Locked"} · ${s.name}`,
+        21,
+        hasSkill(this.services.player, s.id) ? "#87c5a0" : "#b9aa8d",
+      ),
+    );
+    const close = this.button("close-skills", 640, 665, 260, "Close", () => {
+      [shade, title, ...entries, close].forEach((o) => o.destroy());
+      delete this.buttons["close-skills"];
+      this.modalOpen = false;
+    });
   }
   override snapshot() {
     return {

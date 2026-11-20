@@ -1,6 +1,7 @@
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { describe, it, expect } from "vitest";
 import { opponent, opponentTier, reward } from "../../src/domain/progression";
-import { createPlayer } from "../../src/domain/model";
+
 import { item, items, installCatalog } from "../../src/data/catalog";
 import { seeded } from "../../src/utils/random";
 import { deserialize, serialize } from "../../src/persistence/save";

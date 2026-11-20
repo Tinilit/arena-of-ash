@@ -1,4 +1,4 @@
-import bundled from "../../public/content/items.json";
+import bundled from "../../public/content/items.json" with { type: "json" };
 import { parseCatalog } from "../content/schema";
 import type { Item } from "../domain/model";
 // A startup snapshot keeps gameplay synchronous and stable for the session.

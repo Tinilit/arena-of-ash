@@ -1,8 +1,9 @@
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { beforeEach, describe, expect, it } from "vitest";
 import live from "../../public/content/items.json";
 import { installCatalog, item } from "../../src/data/catalog";
 import { parseCatalog } from "../../src/content/schema";
-import { createPlayer } from "../../src/domain/model";
+
 import { damage } from "../../src/combat/engine";
 import { armorDurability, wearArmor } from "../../src/combat/armor";
 import { RealtimeBattle } from "../../src/combat/realtime";
@@ -171,7 +172,10 @@ describe("fixed damage and breakable protection", () => {
     ] as Record<string, number>[]) {
       const p = make().enemy.model;
       p.armorWear = wear;
-      expect(deserialize(serialize(p))).toEqual(createPlayer());
+      expect(deserialize(serialize(p))).toEqual({
+        ...createPlayer(),
+        skills: [],
+      });
     }
   });
 });

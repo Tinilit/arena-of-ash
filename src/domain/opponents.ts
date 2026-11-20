@@ -1,3 +1,4 @@
+import { enemySkills } from "./skills";
 import { items, enemies } from "../data/catalog";
 import {
   createPlayer,
@@ -64,6 +65,7 @@ export function opponent(player: Player, random: Random = Math.random): Player {
   }
   return {
     ...createPlayer(),
+    skills: [...enemySkills],
     id: "enemy",
     name: opponentName(player.progress),
     gold: 0,

@@ -302,7 +302,8 @@ it("prepares a relaxed spear for an arena attack or guard without crossing the f
   const { RealtimeBattle, arenaRules } =
     await import("../../src/combat/realtime");
   const { ArenaMotion } = await import("../../src/characters/ArenaMotion");
-  const { createPlayer } = await import("../../src/domain/model");
+  const { trainedGladiator: createPlayer } =
+    await import("../fixtures/trained");
   const { opponent } = await import("../../src/domain/progression");
   for (const command of [{ attack: "quick" as const }, { guard: true }]) {
     const player = createPlayer();
@@ -314,6 +315,10 @@ it("prepares a relaxed spear for an arena attack or guard without crossing the f
     battle.advance(0, [command, {}]);
     for (let i = 0; i < 80; i++) {
       battle.advance(arenaRules.step, ["guard" in command ? command : {}, {}]);
+      if ("guard" in command) {
+        battle.player.guard = true;
+        battle.player.relaxed = false;
+      }
       const p = motion.update(arenaRules.step, battle.player),
         s = groundedPose(p),
         arm = s.farArm;

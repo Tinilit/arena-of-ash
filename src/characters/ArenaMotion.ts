@@ -1,3 +1,6 @@
+import { hasSkill, skill } from "../domain/skills";
+import { item } from "../data/catalog";
+import { kipUpPose } from "./skillMotion";
 import { meleeAimPose, meleePitch } from "./meleeAim";
 import { rangedPitch } from "../combat/aim";
 import { Animator, type Pose } from "./animation";
@@ -13,7 +16,6 @@ import type { Hand } from "../domain/model";
 import { activeActions, type ArenaFighter } from "../combat/realtime";
 import { knockdownPose } from "./knockdownMotion";
 import { groundedPose } from "./kinematics";
-import { overhandThrowTiming } from "./throwMotion";
 import { hopPose } from "./hopPose";
 import { parryPose } from "./parryMotion";
 import { crossbowPose } from "./crossbowMotion";
@@ -111,7 +113,12 @@ export class ArenaMotion {
           : f.knockdown.phase === "down"
             ? "down"
             : "getUp";
-      this.displayed = knockdownPose(f.knockdown, this.fallStart, this.primary);
+      this.displayed =
+        hasSkill(f.model, skill.kipUp) && f.knockdown.phase === "getUp"
+          ? kipUpPose(f.knockdown.elapsed, this.fallStart, this.primary)
+          : knockdownPose(f.knockdown, this.fallStart, this.primary);
+      if (hasSkill(f.model, skill.kipUp) && f.knockdown.phase === "getUp")
+        this.name = "kipUp";
       return this.displayed;
     }
     const recovering = this.falling;
@@ -206,17 +213,21 @@ export class ArenaMotion {
         prefix = hand === "rear" ? "far" : "near";
       const armed = Boolean(weaponForHand(f.model, hand));
       const clip =
-        action.name === "throw"
-          ? "throwAction"
-          : action.name === "quick" && !armed
-            ? "punch"
-            : action.name;
+        action.name === "counter" &&
+        weaponForHand(f.model, hand)?.weaponType === "crossbow"
+          ? "shoot"
+          : action.name === "superman" || action.name === "counter"
+            ? "quick"
+            : action.name === "bash"
+              ? "shove"
+              : action.name === "throw"
+                ? "throwAction"
+                : action.name === "quick" && !armed
+                  ? "punch"
+                  : action.name;
+      const library = equipmentMotion(weaponForHand(f.model, hand), hand);
       const clockRate =
-        action.name === "throw"
-          ? overhandThrowTiming.duration / action.duration
-          : action.name === "quick" || action.name === "shoot"
-            ? (f.model.combatProfile?.attackSpeed ?? 1)
-            : 1;
+        (library[clip]?.duration ?? action.duration) / action.duration;
       const starting = this.swings[hand] !== action.id;
       if (starting) {
         this.carryStarts[hand] = {
@@ -362,13 +373,16 @@ export class ArenaMotion {
       !f.grapple &&
       !f.parry &&
       !f.reaction &&
-      (!shared || shared.name === "shoot" || shared.name === "kick")
+      (!shared ||
+        shared.name === "shoot" ||
+        shared.name === "counter" ||
+        shared.name === "kick")
     ) {
       Object.assign(
         base,
         crossbowPose(
           base,
-          shared?.name === "shoot"
+          shared?.name === "shoot" || shared?.name === "counter"
             ? shared.elapsed / shared.duration
             : undefined,
           (f.rangedCooldown ?? 0) === 0,
@@ -381,14 +395,14 @@ export class ArenaMotion {
       !f.grapple &&
       !f.parry &&
       !f.reaction &&
-      (!shared || ["quick", "shove", "finish"].includes(shared.name))
+      (!shared || ["quick", "counter", "shove", "finish"].includes(shared.name))
     ) {
       Object.assign(
         base,
         twoHandPose(
           base,
           twoHand,
-          shared?.name,
+          shared?.name === "counter" ? "quick" : shared?.name,
           shared ? shared.elapsed / shared.duration : 0,
         ),
       );
@@ -412,6 +426,35 @@ export class ArenaMotion {
           : f.grapple.phase === "throw"
             ? "throwOpponent"
             : "liftOpponent";
+    }
+    if (
+      item(f.model.equipment.leftHand ?? "")?.slot === "shield" &&
+      !f.grapple &&
+      !f.parry &&
+      !f.knockdown
+    ) {
+      const bash = f.bodyAction?.name === "bash" ? f.bodyAction : undefined;
+      const t = bash ? bash.elapsed / bash.duration : 0;
+      const reach = bash ? Math.sin(Math.PI * Math.min(1, t / 0.7)) : 0;
+      base.nearHandX = (f.guard ? 52 : 25) + reach * 18;
+      base.nearHandY = (f.guard ? 5 : 38) - reach * 14;
+      base.nearWrist = 0;
+      if (bash) {
+        base.torso = 0.13 * reach;
+        this.name = "shieldBash";
+      } else if (f.guard) this.name = "shieldBlock";
+    }
+    if (f.bodyAction?.name === "superman") {
+      const t = f.bodyAction.elapsed / f.bodyAction.duration;
+      base.torso = 0.18 * Math.sin(Math.PI * t);
+      if (f.y < 0) {
+        base.nearThigh = -0.9;
+        base.nearShin = 1.7;
+        base.farThigh = -0.35;
+        base.farShin = 0.8;
+        base.plant = 0;
+      }
+      this.name = "superman";
     }
     if (f.aim && !f.reaction && !f.parry && !f.grapple) {
       for (const action of activeActions(f)) {

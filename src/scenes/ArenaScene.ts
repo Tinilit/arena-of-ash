@@ -1,3 +1,6 @@
+import { hasSkill, skill, skills, type SkillId } from "../domain/skills";
+import { actionRequirement, actionAllowed } from "../combat/skillRules";
+import { completeBattle } from "../domain/postBattle";
 import { repairArmor } from "../combat/armor";
 import { bossAt, ladderLength } from "../domain/ladder";
 import { twoHandWeapon, primaryWeapon } from "../domain/progression";
@@ -19,7 +22,6 @@ import { seeded } from "../utils/random";
 import {
   opponent,
   stats,
-  reward,
   consumeItem,
   addItem,
   equip,
@@ -47,6 +49,8 @@ export class ArenaScene extends BaseScene {
   private queued: ArenaInput = {};
   private battleId = "";
   private ending = false;
+  private lockedSkill?: string;
+  private noticeUntil = 0;
   private controlHints: Phaser.GameObjects.Text[] = [];
   private accumulator = 0;
   private debug?: Phaser.GameObjects.Graphics;
@@ -63,7 +67,7 @@ export class ArenaScene extends BaseScene {
     super("ArenaScene");
   }
   create() {
-    this.prepare(en.arena);
+    if (!this.prepare(en.arena)) return;
     this.projectileViews.clear();
     const maskSource = this.add
       .graphics()
@@ -185,6 +189,30 @@ export class ArenaScene extends BaseScene {
         16,
       ),
     ];
+    const learned = this.services.player;
+    this.controlHints[1].setText(
+      `Mouse: aim · LMB/J: front hand · RMB/K: rear hand · G: pick up${hasSkill(learned, skill.throwing) ? " · Ctrl+attack: throw" : ""}${hasSkill(learned, skill.throwing) || hasSkill(learned, skill.alchemy) ? " · Q/E: belt" : ""}`,
+    );
+    this.controlHints[2]
+      .setText(
+        skills
+          .filter(
+            (s) =>
+              s.key &&
+              hasSkill(learned, s.id) &&
+              !(
+                s.id === 2 &&
+                item(learned.equipment.leftHand ?? "")?.slot === "shield"
+              ) &&
+              !(
+                s.id === 14 &&
+                item(learned.equipment.leftHand ?? "")?.slot !== "shield"
+              ),
+          )
+          .map((s) => `${s.key}: ${s.name}`)
+          .join(" · ") + " · Esc: camp",
+      )
+      .setFontSize(13);
     this.controlHints.forEach((t) => t.setOrigin(0.5));
     this.pickupHint = label(this, 40, 570, "", 13, "#f4d18b")
       .setOrigin(0, 0.5)
@@ -198,6 +226,7 @@ export class ArenaScene extends BaseScene {
         run: "SHIFT",
         jump: "SPACE",
         control: "CTRL",
+        block: "S",
       }) as typeof this.keys) ?? {};
     this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
       // Physical codes keep combat controls working with Ukrainian and other layouts.
@@ -232,6 +261,27 @@ export class ArenaScene extends BaseScene {
         if (key === "k" || key === "2") this.queueHand("rear", true);
         return;
       }
+      const gate: Record<string, SkillId> = {
+        f: skill.kick,
+        "3": skill.kick,
+        h: skill.wrestling,
+        x: skill.execution,
+        c: skill.parry,
+        z: skill.rage,
+        t: skill.superman,
+        s: skill.shield,
+      };
+      if (gate[key] && !hasSkill(this.services.player, gate[key])) {
+        this.notifyLocked(gate[key]);
+        return;
+      }
+      if (key === "z") this.queued.rage = true;
+      if (key === "t") {
+        this.queued.attack = "superman";
+        this.queued.hand = this.battle.player.model.equipment.rightHand
+          ? "rear"
+          : "front";
+      }
       if (key === "q") this.queued.belt = "belt1";
       if (key === "c") this.queued.parry = true;
       if (key === "h") this.queued.grapple = true;
@@ -243,7 +293,20 @@ export class ArenaScene extends BaseScene {
       if (key === "k" || key === "2") {
         this.queueHand("rear");
       }
-      if (key === "v") this.queued.attack = "shove";
+      if (key === "v") {
+        const action =
+          item(this.battle.player.model.equipment.leftHand ?? "")?.slot ===
+          "shield"
+            ? "bash"
+            : "shove";
+        const required = actionRequirement(this.services.player, action);
+        if (required && !hasSkill(this.services.player, required))
+          this.notifyLocked(required);
+        else {
+          this.queued.attack = action;
+          if (action === "bash") this.queued.hand = "front";
+        }
+      }
       if (key === "x") this.queued.attack = "finish";
       if (key === "f" || key === "3") this.queued.attack = "kick";
       if (key === " ") this.queueJump();
@@ -312,8 +375,34 @@ export class ArenaScene extends BaseScene {
     }
   }
   private queueHand(hand: "front" | "rear", modified = false) {
-    const field = modified || this.down("control") ? "throws" : "attacks";
+    const throwing = modified || this.down("control");
+    const required = actionRequirement(
+      this.services.player,
+      throwing ? "throw" : "quick",
+      hand,
+    );
+    if (required && !hasSkill(this.services.player, required)) {
+      this.notifyLocked(required);
+      return;
+    }
+    const field = throwing ? "throws" : "attacks";
     this.queued[field] = [...new Set([...(this.queued[field] ?? []), hand])];
+  }
+  private notifyLocked(id: SkillId) {
+    if (performance.now() < this.noticeUntil) return;
+    this.noticeUntil = performance.now() + 700;
+    this.lockedSkill = skills.find((s) => s.id === id)!.name;
+    const notice = label(
+      this,
+      640,
+      575,
+      `Locked: ${this.lockedSkill} · Learn after battle`,
+      17,
+      "#e8bd72",
+    )
+      .setOrigin(0.5)
+      .setDepth(100);
+    this.time.delayedCall(1300, () => notice.destroy());
   }
   private clearInput() {
     this.queued = {};
@@ -325,6 +414,7 @@ export class ArenaScene extends BaseScene {
       ...(this.aimActive && this.aimPoint ? { aim: this.aimPoint } : {}),
       move: this.direction(),
       run: this.down("run"),
+      guard: this.down("block") && actionAllowed(this.services.player, "guard"),
     };
     this.queued = {};
     return input;
@@ -418,9 +508,17 @@ export class ArenaScene extends BaseScene {
       const s = stats(f.model);
       this.bars[i].update(f.hp, s.hp);
       this.speedLabels[i].setText(
-        (f.speedRemaining ?? 0) > 0
-          ? `Haste ×2 · ${((f.speedRemaining ?? 0) / 1000).toFixed(1)}s`
-          : "",
+        [
+          (f.speedRemaining ?? 0) > 0
+            ? `Haste ×2 · ${((f.speedRemaining ?? 0) / 1000).toFixed(1)}s`
+            : "",
+          (f.rageRemaining ?? 0) > 0
+            ? `Rage · ${((f.rageRemaining ?? 0) / 1000).toFixed(1)}s`
+            : "",
+          f.secondWindUsed ? "Second Wind spent" : "",
+        ]
+          .filter(Boolean)
+          .join(" · "),
       );
     });
   }
@@ -458,19 +556,21 @@ export class ArenaScene extends BaseScene {
       this,
       event.point.x,
       event.point.y,
-      event.deflected
-        ? "Deflected"
-        : event.parried
-          ? event.disarmed
-            ? "Disarmed"
-            : "Parry"
-          : event.kind === "shove"
-            ? "Pushed back"
-            : event.kind === "kick"
-              ? event.knockdown
-                ? "Knockdown"
-                : "Off balance"
-              : `${event.damage}`,
+      event.shieldBlocked
+        ? "Blocked"
+        : event.deflected
+          ? "Deflected"
+          : event.parried
+            ? event.disarmed
+              ? "Disarmed"
+              : "Parry"
+            : event.kind === "shove"
+              ? "Pushed back"
+              : event.kind === "kick"
+                ? event.knockdown
+                  ? "Knockdown"
+                  : "Off balance"
+                : `${event.damage}`,
       26,
       event.blocked ? "#9bc6d1" : "#f4e2bc",
     ).setOrigin(0.5);
@@ -494,7 +594,12 @@ export class ArenaScene extends BaseScene {
     repairArmor(this.services.player);
     this.rigs.forEach((rig, i) => rig.syncArena(this.battle.fighters[i]));
     const win = this.battle.state === "Victory";
-    const payout = reward(this.services.player, this.battleId, win);
+    const payout = completeBattle(
+      this.services.player,
+      this.battleId,
+      this.battle.state as "Victory" | "Defeat" | "Draw",
+      this.battle.enemy.model.name,
+    );
     this.services.save();
     this.status.setText(
       this.battle.state === "Draw" ? en.draw : win ? en.victory : en.defeat,
@@ -740,6 +845,7 @@ export class ArenaScene extends BaseScene {
     return {
       ...super.snapshot(),
       autoBattle: this.autoBattle,
+      lockedSkill: this.lockedSkill,
       aim: this.aimPoint,
       ai: {
         player: this.playerAI.lastDecision,

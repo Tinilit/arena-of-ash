@@ -1,9 +1,10 @@
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { projectileFloorRadius } from "../../src/combat/projectiles";
 import { beforeEach, describe, expect, it } from "vitest";
 import live from "../../public/content/items.json";
 import { installCatalog, item } from "../../src/data/catalog";
 import { parseCatalog } from "../../src/content/schema";
-import { createPlayer } from "../../src/domain/model";
+
 import { equip, purchase, twoHandWeapon } from "../../src/domain/progression";
 import { deserialize, serialize } from "../../src/persistence/save";
 import { RealtimeBattle, arenaRules } from "../../src/combat/realtime";

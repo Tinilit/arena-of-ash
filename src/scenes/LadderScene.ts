@@ -9,7 +9,7 @@ export class LadderScene extends BaseScene {
     super("LadderScene");
   }
   create() {
-    this.prepare("THE ARENA LADDER");
+    if (!this.prepare("THE ARENA LADDER")) return;
     const wins = this.services.player.progress;
     label(
       this,

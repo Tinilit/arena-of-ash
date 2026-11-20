@@ -1,52 +1,62 @@
 import { BaseScene } from "./BaseScene";
 import { label, panel } from "../ui/widgets";
-import { en } from "../ui/strings";
-import { Gladiator } from "../characters/Gladiator";
-interface Result {
-  win: boolean;
-  draw?: boolean;
-  opponent: string;
-  payout: { gold: number } | null;
-}
+import { choosePostBattle, progressionScene } from "../domain/postBattle";
+import { allSkillIds } from "../domain/skills";
 export class ResultScene extends BaseScene {
-  private rig!: Gladiator;
   constructor() {
     super("ResultScene");
   }
-  create(data: Result) {
-    this.prepare(data.draw ? en.draw : data.win ? en.victory : en.defeat);
-    panel(this, 425, 342, 660, 350);
+  create() {
+    if (!this.prepare("AFTER THE ARENA")) return;
+    const p = this.services.player,
+      s = p.postBattle!;
+    label(this, 640, 175, s.outcome, 54, "#e8bd72").setOrigin(0.5);
+    label(this, 640, 234, `${s.opponent} · +${s.gold} gold`, 22).setOrigin(0.5);
+    label(this, 640, 298, "Choose your next step", 30).setOrigin(0.5);
+    const choose = (choice: "skill" | "shop") => {
+      if (choosePostBattle(p, choice)) {
+        this.services.save();
+        this.scene.start(progressionScene(p));
+      }
+    };
+    panel(this, 355, 447, 480, 225);
+    panel(this, 925, 447, 480, 225);
+    const complete = allSkillIds.every((id) => p.skills?.includes(id));
     label(
       this,
-      425,
-      230,
-      data.draw ? en.draw : data.win ? en.victory : en.defeat,
-      56,
+      355,
+      391,
+      complete ? "All 17 skills learned" : "One new combat ability",
+      23,
       "#e8bd72",
     ).setOrigin(0.5);
-    label(this, 425, 290, data.opponent, 26).setOrigin(0.5);
     label(
       this,
-      425,
-      337,
-      data.win ? en.resultWin : en.resultLose,
-      20,
+      355,
+      438,
+      "Permanent training for your gladiator",
+      18,
     ).setOrigin(0.5);
-    label(
-      this,
-      425,
-      395,
-      `+${data.payout?.gold ?? 0} ${en.gold}`,
-      26,
-    ).setOrigin(0.5);
-    this.rig = new Gladiator(this, 965, 534, this.services.player);
-    this.rig.play(data.win ? "victory" : "recover");
-    this.back();
-    this.button("again", 1028, 670, 280, en.again, () =>
-      this.scene.start("ArenaScene"),
+    if (!complete)
+      this.button("learn-skill", 355, 505, 360, "LEARN A SKILL", () =>
+        choose("skill"),
+      ).setEnabled(!complete);
+    label(this, 925, 391, "Prepare your equipment", 23, "#e8bd72").setOrigin(
+      0.5,
     );
-  }
-  update(_time: number, delta: number) {
-    this.rig?.update(delta);
+    label(this, 925, 438, "Buy supplies and sell spare gear", 18).setOrigin(
+      0.5,
+    );
+    this.button("visit-shop", 925, 505, 360, "VISIT SHOP", () =>
+      choose("shop"),
+    );
+    label(
+      this,
+      640,
+      625,
+      "One choice per completed battle · Saved immediately",
+      18,
+      "#b9aa8d",
+    ).setOrigin(0.5);
   }
 }

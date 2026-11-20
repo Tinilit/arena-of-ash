@@ -1,6 +1,7 @@
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { describe, it, expect } from "vitest";
 import { items, item } from "../../src/data/catalog";
-import { createPlayer } from "../../src/domain/model";
+
 import { purchase, equip, stats } from "../../src/domain/progression";
 import { serialize, deserialize } from "../../src/persistence/save";
 import { Animator } from "../../src/characters/animation";

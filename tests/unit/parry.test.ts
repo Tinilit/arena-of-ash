@@ -1,8 +1,9 @@
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { parryPose } from "../../src/characters/parryMotion";
 import { combatRest } from "../../src/characters/locomotion";
 import { groundedPose, skeleton } from "../../src/characters/kinematics";
 import { describe, expect, it } from "vitest";
-import { createPlayer } from "../../src/domain/model";
+
 import { RealtimeBattle, arenaRules } from "../../src/combat/realtime";
 import { parryRules } from "../../src/combat/parry";
 import type { CombatGeometry } from "../../src/combat/geometry";

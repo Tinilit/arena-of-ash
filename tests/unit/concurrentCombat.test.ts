@@ -1,6 +1,7 @@
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { describe, it, expect } from "vitest";
 import { RealtimeBattle, arenaRules } from "../../src/combat/realtime";
-import { createPlayer } from "../../src/domain/model";
+
 import { ArenaMotion } from "../../src/characters/ArenaMotion";
 import type { CombatGeometry } from "../../src/combat/geometry";
 const make = () => {

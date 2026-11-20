@@ -14,7 +14,8 @@ export class Services {
   player: Player = createPlayer();
   load() {
     this.player = this.store.load();
-    if (repairArmor(this.player)) this.save();
+    repairArmor(this.player);
+    this.save();
   }
   save() {
     this.store.save(this.player);

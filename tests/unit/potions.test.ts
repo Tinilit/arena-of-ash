@@ -1,5 +1,6 @@
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { describe, expect, it } from "vitest";
-import { createPlayer } from "../../src/domain/model";
+
 import { equip, purchase } from "../../src/domain/progression";
 import { RealtimeBattle, arenaRules } from "../../src/combat/realtime";
 import type { CombatGeometry } from "../../src/combat/geometry";

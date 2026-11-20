@@ -1,3 +1,4 @@
+import { enemySkills } from "./skills";
 import { item, items } from "../data/catalog";
 import {
   createPlayer,
@@ -118,6 +119,7 @@ export function createBoss(definition: Boss, progress: number): Player {
     if (id) quantities[id] = (quantities[id] ?? 0) + 1;
   return {
     ...createPlayer(),
+    skills: [...enemySkills],
     quantities,
     id: "enemy",
     name: definition.name,

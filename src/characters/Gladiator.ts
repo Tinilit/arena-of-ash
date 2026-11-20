@@ -73,6 +73,9 @@ export class Gladiator {
   private potion!: Phaser.GameObjects.Container;
   private guns!: ReturnType<typeof rangedPreview>[];
   private equippedWeapon?: Item;
+  private shieldArt?: Phaser.GameObjects.Container;
+  private shieldId?: string;
+  private shieldProfile = { x: 0, top: -4, bottom: 22, radius: 32 };
   private openPalm!: Phaser.GameObjects.Container;
   constructor(
     private scene: Phaser.Scene,
@@ -259,10 +262,39 @@ export class Gladiator {
       }
     }
 
+    this.syncShield(model);
     this.updateCracks(model);
     this.loadoutKey = JSON.stringify(model.equipment);
     scene.events.once("shutdown", () => this.animator.stop());
     this.update(0);
+  }
+  private syncShield(model: Player) {
+    const def = item(model.equipment.leftHand ?? "");
+    const id = def?.slot === "shield" ? def.id : undefined;
+    if (id === this.shieldId) return;
+    this.shieldArt?.destroy();
+    this.shieldArt = undefined;
+    this.shieldId = id;
+    if (id && def) {
+      const resolved = this.artDefinition(def);
+      const tower = resolved.visual === "tower";
+      const width = resolved.image?.width ?? (tower ? 84 : 68),
+        height = resolved.image?.height ?? (tower ? 169 : 90);
+      const radius = Math.max(1, Math.min(width, height) / 2 - 2);
+      const top = resolved.image
+        ? -height * resolved.image.originY
+        : tower
+          ? -71
+          : -36;
+      this.shieldProfile = {
+        x: resolved.image ? width * (0.5 - resolved.image.originX) : 0,
+        top: top + radius,
+        bottom: top + height - radius,
+        radius,
+      };
+      this.shieldArt = drawGear(this.scene, def).setName("held-shield");
+      this.handMounts.front.addAt(this.shieldArt, 0);
+    }
   }
   update(delta: number) {
     this.applyPose(this.animator.update(delta));
@@ -328,6 +360,7 @@ export class Gladiator {
         this.armorArt[slot] = art;
       }
     }
+    this.syncShield(f.model);
     this.updateCracks(f.model);
     this.equippedWeapon = primaryWeapon(f.model);
     this.primaryHand = primaryHand(f.model);
@@ -435,6 +468,7 @@ export class Gladiator {
         "knockdown",
         "down",
         "getUp",
+        "kipUp",
         "carried",
         "death",
       ].includes(animation ?? this.animator.name)
@@ -451,6 +485,12 @@ export class Gladiator {
     const drinking = (p.drinkPreview ?? 0) > 0.5;
     const shooting = (p.shootPreview ?? 0) > 0.5;
     const grappling = (p.grappling ?? 0) > 0.5;
+    if (this.shieldArt)
+      this.shieldArt
+        .setRotation(
+          -solved.nearArm.angle - solved.nearArm.bend - solved.nearArm.wrist,
+        )
+        .setVisible(!grappling);
     this.root.setDepth((p.carried ?? 0) > 0 ? 5 : 0);
     this.shadow.setVisible(!(p.held ?? 0));
     for (const hand of ["rear", "front"] as const) {
@@ -650,8 +690,13 @@ export class Gladiator {
         waist: frame("pelvis"),
         torso: frame("torso"),
       },
-      shield: false,
-      shieldAttachment: null,
+      shield: Boolean(this.shieldArt?.visible),
+      shieldAttachment: this.shieldArt
+        ? {
+            ...this.shieldArt.getWorldTransformMatrix().transformPoint(0, 0),
+            behindBody: true,
+          }
+        : null,
       weapons: this.weapons.map((weapon) => {
         const p = weapon.getWorldTransformMatrix().transformPoint(0, 0);
         return {
@@ -825,6 +870,17 @@ export class Gladiator {
     }
     return {
       blade: blades[this.primaryHand] ?? null,
+      shield: this.shieldArt?.visible
+        ? (() => {
+            const m = this.shieldArt!.getWorldTransformMatrix();
+            const profile = this.shieldProfile;
+            return capsule(
+              m.transformPoint(profile.x, profile.top),
+              m.transformPoint(profile.x, profile.bottom),
+              profile.radius,
+            );
+          })()
+        : undefined,
       parries,
       shove:
         (this.displayedPose.twoHanded ?? 0) > 0.5 ||

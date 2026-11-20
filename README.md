@@ -1,19 +1,14 @@
 # Arena of Ash
 
-An original, single-player, real-time gladiator action RPG built with TypeScript, Phaser **3.90.0**, Vite and procedural artwork. The interface is English. The game uses **Ash Vanguard** artwork and **Grounded** joint mechanics exclusively. There is no style studio, alternate style selector or paired-blade item.
+An original single-player gladiator action RPG built with TypeScript, Phaser **3.90.0** and Vite. The English interface, procedural **Ash Vanguard** artwork, **Grounded** articulated animation and physical combat engine are preserved.
 
-## Run
+## Run and verify
 
 Use Node.js **22 LTS** and npm:
 
 ```sh
 npm ci
 npm run dev
-```
-
-The logical game area is 1280×720 with FIT scaling. The canvas backing buffer and text textures adapt to window size and device pixel ratio for sharp large-screen/Retina rendering. See [display scaling](docs/DISPLAY_SCALING.md). Portrait screens display a rotation message. No backend, login, app secrets or external art assets are required.
-
-```sh
 npm run typecheck
 npm run lint
 npm test
@@ -21,70 +16,73 @@ npm run check:content
 npm run test:e2e
 npm run build
 npm run preview
-npm run format
 ```
 
-Install Playwright Chromium on a standard machine:
+Install the browser with `PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install --with-deps chromium` if system Chromium is unavailable. On the managed cloud workspace, activate `export PATH=/workspace/.arena-tools/node_modules/.bin:$PATH`. `CHROMIUM_PATH` selects another browser executable. Playwright starts Vite and stores screenshots/traces under `test-results/`.
 
-```sh
-PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install --with-deps chromium
-```
+## Progression
 
-On the managed cloud machine, system Chromium is detected automatically. Activate the prepared Node toolchain with `export PATH=/workspace/.arena-tools/node_modules/.bin:$PATH`. An alternative browser executable can be supplied with `CHROMIUM_PATH`. Browser tests start Vite when needed and write screenshots/traces under `test-results/`. Gameplay tests use deterministic seeded Canvas rendering on headless software graphics; a separate test covers the normal renderer. Development-only `seed=42` and `renderer=canvas` query parameters and the read-only `window.__arena.snapshot()` helper are unavailable in production.
+A new gladiator owns only a Wooden Sword, has 100 gold, empty belt slots and **zero advanced skills**. Basic movement, running, jumps/hops, one one-handed melee weapon, stance changes, ordinary armor, inventory and pickups are available immediately. There are no levels, XP, attributes, stamina or skill upgrades.
 
-## Play
+Every completed victory, defeat or draw grants **one exclusive post-battle choice**:
 
-Start from camp, enter the arena, buy equipment and manage your loadout in Character. Arena combat runs in real time. **A/D** or **Left/Right** move, **Shift** runs, **Space** jumps, **A/D+Space** performs a backward/forward hop relative to facing in the arena, **LMB/J/1** uses the front hand and **RMB/K/2** uses the rear hand. Weapons make light attacks; empty hands cannot attack. Each one-handed weapon has its own animation and cooldown, so both can strike together or at different times. A two-handed item reserves both hands: either attack input swings the same weapon, with shared recovery. **V** shoves with the held two-handed shaft (zero damage, push/stagger, no fall). **X** binds a nearby downed opponent into a guaranteed execution: the character moves into position and stays attached until the fatal strike. The victim cannot get up during the action; an already standing or getting-up target cannot start it. **F/3** shoves with a front kick on the ground or in a jump/hop, dealing no HP damage and keeping a 20% knockdown chance. Heavy attacks are disabled. There are no attributes, character levels or energy costs. **R** changes relaxed/combat stance. Move, run and jump during an attack. **Ctrl+LMB/J** throws the front-hand weapon; **Ctrl+RMB/K** throws the rear-hand weapon. **Q/E** uses belt slots 1/2. **C** performs a timed weapon parry; a successful frontal melee deflection stuns the attacker for one second and automatically follows with an open-palm shove, without knockdown. A successful weapon parry has one 20% chance to disarm the contacting hand; its dropped weapon can be recovered. **G** picks up nearby grounded equipment. **H** starts a close-range opponent lift; press **H** again to throw (the command can be queued during lifting). While holding, **A/D** walks and turns with the captive; the throw follows the current facing direction. A grab can miss or be interrupted during its 420 ms reach. The throw deals no HP damage and ends in the existing supported floor recovery. All real throws are overarm, including in jumps. **Escape** returns to camp without a reward for an unresolved fight.
+- **Learn a Skill:** choose and confirm one of 17 permanent combat abilities. Learned skills cannot be selected again; unmet prerequisites remain visible.
+- **Visit Shop:** buy equipment, bulk consumables and sell unequipped copies through the shop's equipment screen. Closing the shop ends this visit.
 
-Camp and Character have no demonstration buttons; active combat has no on-screen action buttons. Use the mouse and keyboard, following the static legend below the arena. Normal navigation, shop/equipment controls and post-victory Continue remain. The front arm and elbow stay behind the torso; the complete rear arm, elbow and weapon stay in front during a two-handed hold. Relaxed melee idle carries the weapon on the rear shoulder with the front arm down; R returns to the two-handed combat grip. Two-handed swings use a broad backward wind-up and a forward body drive. Keyboard-only animation previews remain available in camp. Both fighters can hop in either direction. AI sometimes parries committed swings and actively recovers disarmed weapons, using kicks and opponent throws to clear a blocked route.
+The shop is accessible only through this choice. Camp's Skills button is a read-only collection. After all 17 skills are learned, only Visit Shop remains. The decision, selected branch and its consumption are saved immediately. Reload resumes the decision/training/shop visit; it never grants another reward or skill. Escape during an unfinished fight gives neither reward nor choice.
 
-Steel Crossbow costs 180 gold in the Weapons shop category and reserves both hands. Either normal attack fires one physical bolt, then automatically reloads. Shooting retains the crossbow and does not require an ammunition inventory item. Bolts cannot be picked up as equipment. [Crossbow artwork and references](docs/CROSSBOW_ART.md).
+Victory grants 50 gold and advances the ladder; defeat/draw grant 10 gold without advancement. Victory keeps the arena open for grounded equipment collection until Continue. Defeat/draw proceed automatically after the short presentation. The 18-encounter ladder has a fixed boss after each five challengers; further wins unlock elite exhibition fights.
 
-Damage requires an active blade or flying projectile to contact a moving body part. A swing that misses deals no damage. The paired X execution is the explicit guaranteed-impact exception after a valid local bind. Each swing can hit once; idle weapons, sword grips and spear shafts do not deal damage. Body and blade collision shapes follow the actual articulated rig, including jumps and mirrored facing. See [real-time combat](docs/REALTIME_COMBAT.md).
+See [all 17 skills, prerequisites, balance and persistence](docs/SKILL_PROGRESSION.md).
 
-After victory, collect equipment on the sand and choose **Continue**. Victory earns 50 gold; defeat earns 10 gold. Saves are automatic in localStorage. Reset Progress requires confirmation. Version 2 saves retain coins and equipment while discarded attributes and leveling fields are removed.
+## Controls
 
-## Equipment
+The arena legend follows the gladiator's learned skills. Combat uses the mouse and keyboard, without action buttons.
 
-The default catalog has **22 items** across weapon, helmet, chest and utility equipment types. Shields are temporarily removed while the character rig is refined. Character has explicit Helmet, Body, Right hand, Left hand and two Belt mounts. Equip fills a free compatible hand/belt slot first; when all compatible slots are occupied, the selected slot is replaced; × returns worn gear to the backpack. Each hand can attack independently. The belt holds one usable throwable or potion per slot. The shop supports consumable bundles of **1/5/10**; quantities accumulate in the backpack. Multiple owned copies may occupy different compatible slots, one each. Battle slots do not automatically refill from reserves. Shop and the backpack have page controls; the backpack shows all unequipped categories together. Ashwood War Spear is in Weapons and Viking Warhelm is in Armor:
+| Input                | Action                                         | Requirement                                      |
+| -------------------- | ---------------------------------------------- | ------------------------------------------------ |
+| A/D or arrows, Shift | Walk / run                                     | Basic                                            |
+| Space, A/D+Space     | Jump / directional hop                         | Basic                                            |
+| R, G                 | Stance / grounded equipment pickup             | Basic                                            |
+| LMB/J/1, RMB/K/2     | Front / rear hand light attack                 | One melee weapon is basic; Dual Wielding for two |
+| Mouse                | Slight melee aim / ranged aim                  | Marksmanship for ranged weapons                  |
+| F/3                  | Ground or airborne front kick                  | Kicking                                          |
+| H, A/D, H            | Lift, carry/turn, throw opponent               | Wrestling                                        |
+| X                    | Bind and execute a grounded opponent           | Execution                                        |
+| C                    | Timed parry, counter-shove and possible disarm | Parrying                                         |
+| Ctrl+hand attack     | Throw that hand's weapon                       | Throwing Weapons                                 |
+| Q/E                  | Use the corresponding belt slot                | Throwing Weapons / Alchemy by item               |
+| Hold S               | Physically block attacks from the front        | Shield Mastery + equipped shield                 |
+| V                    | Two-handed shaft shove / shield bash           | Heavy Weapons / Shield Bash by equipment         |
+| Z                    | Battle Rage, once per fight                    | Battle Rage                                      |
+| T                    | Forward jumping weapon strike                  | Superman Punch + one-handed melee weapon         |
+| B                    | Resume / stop Auto Battle                      | Basic                                            |
+| Escape               | Abandon unfinished combat / close a shop visit | No reward for abandonment                        |
 
-- **Ashwood War Spear** — 115 gold, +10 attack; wooden haft, leaf head and thrust animations.
-- **Viking Warhelm** — 60 gold, +3 armor; horned fantasy helmet.
+Kip-Up, Berserker, Counterstrike and Second Wind are automatic learned abilities. Shield Bash requires Shield Mastery; Counterstrike requires Parrying. These are the only skill prerequisites. Crossbows require Marksmanship, independently of Heavy Weapons. Two-handed melee weapons require Heavy Weapons. Either hand input uses the same reserved two-handed weapon; one-handed attacks remain independent after Dual Wielding.
 
-Training Spear also uses a real haft/head design. New games and Reset Progress own only the Wooden Sword. Throwing Knives, Throwing Axes and potions must be bought; the belt starts empty. The shop sells replacement knives (25 gold), axes (45 gold) and Healing Potions (30 gold, up to 35 HP). Net and water flask have been removed. Release/use removes one owned copy and immediately saves the empty slot. Grounded thrown equipment, including enemy weapons, can be collected with G and retained for later matches. An empty original/compatible slot receives it; occupied slots keep their items and the pickup goes into the backpack. Unrecovered equipment is lost when leaving. Used potions are consumed. A potion heals at the animated sip; a hit before the sip interrupts without consuming it. At full health its use is disabled. See [equipment](docs/EQUIPMENT.md).
+Auto Battle starts enabled and follows the player's actual skills, equipment and consumables. Enemies retain their established abilities independently. Any gameplay key/button takes manual control; mouse movement only aims. Alt/Meta shortcuts preserve the mode. Focus loss releases held input while combat continues through headless background updates, including when RAF stops.
 
-Item definitions live in [`public/content/items.json`](public/content/items.json). Add images under `public/content/items/` and edit the catalog to add or rebalance equipment without rebuilding the game. Refresh to load changes; the public game reads content directly from `main`. See the [runtime content guide](docs/RUNTIME_CONTENT.md) for a complete record, pivots, validation and publishing.
+## Equipment, combat and saves
 
-## Scope and documentation
+The default runtime catalog has 24 items in **Weapons, Armor and Misc**. Item cards show skill requirements before purchase; skill-locked owned equipment remains in the backpack. Equip fills eligible empty slots first, and replacing a single weapon without Dual Wielding keeps a valid one-weapon configuration. A two-handed item reserves both hands. Shields occupy the front hand and provide physical interception rather than passive armor.
 
-Six scenes, three enemy ranks, equipment-based bonuses, persistent saves and a modular articulated rig. Victories unlock stronger random enemy loadouts; some enemies wield two weapons and occasionally attempt a weapon throw. They collect nearby landed weapons when a compatible hand is empty. Fight health resets each battle; unfinished fight state is not saved, but consumed items remain spent. Artwork remains procedural, balance is basic, and there is no audio or backend. Storage failure permits session-only play with a warning. The Phaser bundle produces a size warning.
+Belt slots hold one copy each; consumable bundles of 1/5/10 accumulate in the backpack. Releasing a throw or sipping a potion consumes one copy and saves immediately. Interrupted wind-ups preserve it. G can recover landed thrown equipment, including enemy weapons, into an eligible empty slot or the backpack. Spare copies never refill battle slots automatically. Used potions and unrecovered equipment remain spent. Selling trades only an unequipped copy for half its purchase price, rounded down.
 
-See [architecture](docs/ARCHITECTURE.md), [animation](docs/ANIMATION_SYSTEM.md), [anatomy and references](docs/ANTHROPOMETRY.md), [art contract](docs/ART_PIPELINE.md), [game design](docs/GAME_DESIGN.md), [roadmap](docs/ROADMAP.md), and [verification](docs/VERIFICATION.md).
+Combat retains 120 Hz simulation and actual swept weapon/projectile contact with the articulated body. Ordinary damage is the weapon's complete raw attack minus total worn helmet/body armor, floored at zero. Explicit learned skill modifiers are deterministic. Kicks and shaft shoves deal zero HP damage; valid bound executions are the guaranteed-impact exception. A shield blocks only when its rendered surface intercepts a frontal attack. Idle weapons and missed attacks deal no damage.
 
-[GitHub Pages deployment](docs/DEPLOYMENT.md) publishes validated pushes to `main` using `/arena-of-ash/` as the base path. The public site and local development server keep separate browser saves.
+Head contacts wear the helmet; torso/limb contacts wear chest armor. Subtle cracks appear after 55% wear. Broken copies fly off and disappear permanently; surviving armor repairs after combat/exit/reload. Numeric popups show resolved damage.
 
-Character rig refinements cover shoulder placement, both legs beneath the skirt, the free front arm behind the torso and the armed rear arm in front, continuous elbow/knee silhouettes, calf-covering greaves, connected leather boots and smoother keyframe motion. See [rig refinement and references](docs/RIG_REFINEMENT.md).
+Save **format 4** stores skills and the durable post-battle state, using the existing `arena-of-ash.v3` localStorage key so existing browsers retain their data. Formats 2/3 migrate explicitly: inventory, quantities, gold and progression survive; no advanced skills are granted, and restricted equipment returns to the backpack. Reset Progress clears skills, decisions and progression. Storage failures retain the existing session-only warning behavior. Unfinished combat itself is not serialized.
 
-Light hits interrupt actions with a short pain reaction/stun. A front kick drives a several-step backwards balance recovery. Each armed hand and boot uses its actual rendered contact shape; the other hand cannot award a hit. See [melee controls and rules](docs/MELEE_COMBAT.md).
+## Runtime content and rendering
 
-Two-handed Greatsword (140 gold), War Hammer (165 gold) and Battle Axe (155 gold) are in the Weapons shop category. Their distinct overhead swings use one rear-hand weapon mount and an exact second grip on the same handle. Equipping one reserves the left hand and returns its old item to the backpack. These weapons have slower shared swings (1150/1350/1250 ms), not the disabled heavy-attack action.
+Edit [`public/content/items.json`](public/content/items.json) and place optional art under `public/content/items/` to add/rebalance equipment without rebuilding. The public game loads validated content directly from `main`; malformed/unavailable content falls back to the bundled catalog. Skill requirements derive from equipment functionality. See [runtime content](docs/RUNTIME_CONTENT.md) and [equipment](docs/EQUIPMENT.md).
 
-Closed Steel Helm (110 gold, +5 armor) and Steel Cuirass (180 gold, +8 armor) are in the Armor shop category. An unblocked nonlethal melee hammer hit has independent 10% chances to knock down and to push with kick-strength stagger; both effects can occur together.
+The logical area is 1280×720 with FIT scaling. Physical canvas/text density adapts to window size and DPR, retaining sharp large-screen text. See [display scaling](docs/DISPLAY_SCALING.md). The existing shoulder layers, exact bone lengths, two-hand grips and all attack/throw/get-up animations remain; new skill poses reuse that rig.
 
-Auto Battle starts enabled in every fight. Any key or mouse button immediately takes manual control and performs its normal action; moving the mouse only aims. **B** resumes Auto Battle (or stops it when active). The full AI controls actual movement, independent hand attacks, parries, kicks, hops, jumps, belt uses, ranged weapons, weapon throws, two-handed shoves, opponent lifts/throws, pickups and ground executions. Equipped consumables and thrown gear follow normal ownership rules. Continue remains manual after victory.
+## Architecture and validation
 
-The categorized shop also has Riveted Chainmail (95 gold, 4 armor), Roman Legionary Helm (155 gold, 6 armor), Two-handed War Trident (175 gold, 27 damage) and Potion of Haste (55 gold). The trident has three real tines, a long shaft, a wide two-hand grip and a dedicated thrust/withdrawal animation. Haste doubles movement and action/animation speed for ten real active-combat seconds after the sip, including cooldowns and reload, without speeding up the opponent or its own countdown. A visible timer tracks the effect; drinking another dose while already hasted is disabled.
+See [architecture](docs/ARCHITECTURE.md), [game design](docs/GAME_DESIGN.md), [skill progression](docs/SKILL_PROGRESSION.md), [real-time combat](docs/REALTIME_COMBAT.md), [animation](docs/ANIMATION_SYSTEM.md) and [deployment](docs/DEPLOYMENT.md). GitHub Pages deploys validated pushes to `main` with `/arena-of-ash/` as the base path.
 
-The camp’s **View ladder** opens all 18 encounters: five challengers followed by a boss, repeated across three stages. Only victories advance the ladder. Defeat retries the same fight; completing all three stages unlocks elite exhibition matches.
-
-| Round | Boss             | Fixed equipment                                                                      | Specialty                                                   |
-| ----- | ---------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
-| 6     | Cassian the Red  | Iron Sword, Rusty Sword, Riveted Chainmail, Closed Steel Helm, knife, healing potion | 120% size, 125 HP, 25% faster weapon attacks                |
-| 12    | Brakka Stonefist | War Hammer, Steel Cuirass, Viking Helm, axe, healing potion                          | 130% size, 160 HP, heavy armor, 10% slower movement/attacks |
-| 18    | Vesper Ashwind   | Steel Crossbow, Riveted Chainmail, Roman Legionary Helm, haste potion, knife         | 125% size, 140 HP, 30% faster movement, 10% faster attacks  |
-
-Move the mouse to aim a held crossbow, including down toward fallen opponents. Either hand attack fires the two-handed crossbow; the bolt starts at its rendered muzzle with gravity compensation. **C** can physically deflect a bolt with the weapon during the normal 140 ms window, sending it in a random direction. A reflected bolt can hurt its original shooter. It grants no remote stun or counter-shove; thrown knives and axes retain their normal behavior.
-
-Inventory includes **Sell** for one unequipped copy at half its purchase price, rounded down. Equipped copies cannot be sold. Every confirmed weapon hit deals its fixed catalog damage minus total worn helmet/chest armor, floored at zero. There are no critical or guard multipliers. Armor arithmetic and fatigue stay internal. Repeated hits wear protection even when it absorbs all HP damage. Broken armor flies off and is permanently lost, exposing the head or torso; the breaking hit still receives its protection. Wear follows the contacted region: head hits damage the helmet, other body hits damage chest armor. Surviving armor repairs after a fight or leaving the arena, while broken items remain lost. Heavily damaged gear gains faint cracks. Fighters maintain weapon reach and only close deliberately for grapples.
-
-Mouse height gently steers physical melee strikes up or down, including both hands and two-handed grips; it never creates automatic hits. Floating hit labels show resolved damage numbers. The shop filters runtime definitions into Weapons, Armor and Misc, retaining consumable bundles and category-local pages.
+Development-only seeded Canvas rendering and read-only `window.__arena.snapshot()` support repeatable browser tests; production exposes no diagnostic API. Existing mechanics fixtures explicitly learn the original ten abilities; separate basic-player scenarios exercise actual zero-skill restrictions and the complete choice flow. No production permission bypass exists. Artwork remains procedural; there is no audio, account system or backend. The Phaser bundle retains its existing size warning.

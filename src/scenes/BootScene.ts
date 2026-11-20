@@ -5,6 +5,7 @@ import { loadCatalog, publishedCatalogUrl } from "../content/loadCatalog";
 import { loadItemTextures } from "../content/textures";
 import { prepareDisplay } from "../app/display";
 import { label } from "../ui/widgets";
+import { progressionScene } from "../domain/postBattle";
 export class BootScene extends Phaser.Scene {
   constructor() {
     super("BootScene");
@@ -38,6 +39,6 @@ export class BootScene extends Phaser.Scene {
     };
     services.load();
     this.registry.set("services", services);
-    this.scene.start("MainMenuScene");
+    this.scene.start(progressionScene(services.player));
   }
 }

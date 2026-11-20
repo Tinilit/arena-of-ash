@@ -1,8 +1,9 @@
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { beforeEach, describe, expect, it } from "vitest";
 import live from "../../public/content/items.json";
 import { installCatalog, item } from "../../src/data/catalog";
 import { parseCatalog } from "../../src/content/schema";
-import { createPlayer } from "../../src/domain/model";
+
 import {
   RealtimeBattle,
   fighterSpeed,

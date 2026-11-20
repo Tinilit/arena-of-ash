@@ -12,6 +12,7 @@ export interface CombatGeometry {
   blade: Capsule | null;
   parries?: Capsule[];
   shove?: Capsule;
+  shield?: Capsule;
   grips?: Record<Hand, Point>;
   muzzles?: Partial<Record<Hand, Point>>;
   launch?: Partial<

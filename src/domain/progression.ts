@@ -1,4 +1,5 @@
 import { item, rewards } from "../data/catalog";
+import { equipmentAllowed } from "./skills";
 import { quantity, availableQuantity, addItem } from "./inventory";
 export {
   consumeItem,
@@ -62,7 +63,9 @@ export function canEquip(p: Player, id: string, slot: EquipmentSlot) {
   const i = item(id);
   return Boolean(
     i &&
-    i.slot === slotCategory[slot] &&
+    (i.slot === slotCategory[slot] ||
+      (i.slot === "shield" && slot === "leftHand")) &&
+    equipmentAllowed(p, i, slot) &&
     p.inventory.includes(id) &&
     (i.hands !== 2 || slot === "rightHand"),
   );
@@ -78,17 +81,20 @@ export function freeEquipmentSlot(
   const slots: EquipmentSlot[] =
     definition.slot === "weapon"
       ? ["rightHand", "leftHand"]
-      : definition.slot === "utility"
-        ? ["belt1", "belt2"]
-        : definition.slot === "helmet"
-          ? ["helmet"]
-          : definition.slot === "chest"
-            ? ["body"]
-            : [];
+      : definition.slot === "shield"
+        ? ["leftHand"]
+        : definition.slot === "utility"
+          ? ["belt1", "belt2"]
+          : definition.slot === "helmet"
+            ? ["helmet"]
+            : definition.slot === "chest"
+              ? ["body"]
+              : [];
   if (preferred && slots.includes(preferred)) slots.unshift(preferred);
   return slots.find(
     (slot) =>
       !p.equipment[slot] &&
+      equipmentAllowed(p, definition, slot) &&
       (definition.hands !== 2 ||
         (slot === "rightHand" && !p.equipment.leftHand)) &&
       (slot !== "leftHand" || !twoHandWeapon(p)),
@@ -101,6 +107,21 @@ export function equipmentTarget(
   preferred: EquipmentSlot,
 ): EquipmentSlot {
   const definition = item(id);
+  if (definition?.slot === "weapon" && definition.hands !== 2) {
+    const existing = (["rightHand", "leftHand"] as const).find(
+      (s) => item(p.equipment[s] ?? "")?.slot === "weapon",
+    );
+    if (
+      existing &&
+      !equipmentAllowed(
+        p,
+        definition,
+        existing === "rightHand" ? "leftHand" : "rightHand",
+      )
+    )
+      return existing;
+  }
+  if (definition?.slot === "shield") return "leftHand";
   return (
     freeEquipmentSlot(p, id, preferred) ??
     (definition?.hands === 2
@@ -148,14 +169,17 @@ export function unequip(p: Player, slot: EquipmentSlot) {
   return true;
 }
 export function primaryWeapon(p: Player) {
-  return item(p.equipment.rightHand ?? p.equipment.leftHand ?? "");
+  return weaponForHand(p, "rear") ?? weaponForHand(p, "front");
 }
 export function primaryHand(p: Player): "rear" | "front" {
-  return p.equipment.rightHand || !p.equipment.leftHand ? "rear" : "front";
+  return weaponForHand(p, "rear") || !weaponForHand(p, "front")
+    ? "rear"
+    : "front";
 }
 
 export function weaponForHand(p: Player, hand: Hand) {
-  return item(p.equipment[handSlots[hand]] ?? "");
+  const def = item(p.equipment[handSlots[hand]] ?? "");
+  return def?.slot === "weapon" ? def : undefined;
 }
 
 /** A two-handed item is owned once and reserves the opposite hand. */

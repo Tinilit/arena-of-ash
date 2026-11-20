@@ -1,3 +1,4 @@
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { beforeEach, describe, expect, it } from "vitest";
 import live from "../../public/content/items.json";
 import { parseCatalog } from "../../src/content/schema";
@@ -8,7 +9,7 @@ import {
   createBoss,
   ladderEntries,
 } from "../../src/domain/ladder";
-import { createPlayer } from "../../src/domain/model";
+
 import {
   opponent,
   opponentName,

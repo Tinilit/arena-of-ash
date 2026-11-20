@@ -1,10 +1,11 @@
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { describe, it, expect } from "vitest";
 import {
   RealtimeBattle,
   arenaRules,
   attackTimings,
 } from "../../src/combat/realtime";
-import { createPlayer, type Hand } from "../../src/domain/model";
+import { type Hand } from "../../src/domain/model";
 import { opponent } from "../../src/domain/progression";
 import type { Capsule, CombatGeometry } from "../../src/combat/geometry";
 import { ArenaMotion } from "../../src/characters/ArenaMotion";

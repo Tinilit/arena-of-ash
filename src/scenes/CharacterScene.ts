@@ -1,3 +1,5 @@
+import { itemRequirements, skills } from "../domain/skills";
+import { shopAccess } from "../domain/postBattle";
 import { BaseScene } from "./BaseScene";
 import { Gladiator } from "../characters/Gladiator";
 import { label, panel } from "../ui/widgets";
@@ -23,7 +25,7 @@ export class CharacterScene extends BaseScene {
     super("CharacterScene");
   }
   create(data: { page?: number; slot?: EquipmentSlot } = {}) {
-    this.prepare(en.characterTitle);
+    if (!this.prepare(en.characterTitle)) return;
     const p = this.services.player,
       slot = data.slot ?? "rightHand";
     const inventory = backpack(p);
@@ -127,8 +129,10 @@ export class CharacterScene extends BaseScene {
         this,
         855,
         y,
-        `${def.name} ×${availableQuantity(p, id)}`,
-        14,
+        `${def.name} ×${availableQuantity(p, id)}\n${itemRequirements(def)
+          .map((s) => skills.find((k) => k.id === s)!.name)
+          .join(", ")}`,
+        12,
       ).setWordWrapWidth(164, true);
       this.button(
         `equip-${id}`,
@@ -144,20 +148,21 @@ export class CharacterScene extends BaseScene {
         },
         29,
       ).setEnabled(canEquip(p, id, target));
-      this.button(
-        `sell-${id}`,
-        1165,
-        y,
-        100,
-        `Sell ${salePrice(id)} ◈`,
-        () => {
-          if (sell(p, id)) {
-            this.services.save();
-            restart();
-          }
-        },
-        29,
-      );
+      if (shopAccess(p))
+        this.button(
+          `sell-${id}`,
+          1165,
+          y,
+          100,
+          `Sell ${salePrice(id)} ◈`,
+          () => {
+            if (sell(p, id)) {
+              this.services.save();
+              restart();
+            }
+          },
+          29,
+        );
     });
     if (!inventory.length)
       label(this, 855, 230, "All owned items are equipped", 17, "#b9aa8d");
@@ -184,7 +189,14 @@ export class CharacterScene extends BaseScene {
     ).setEnabled(page + 1 < pages);
     const st = stats(p);
     label(this, 65, 515, `Health ${st.hp}`, 16);
-    label(this, 430, 571, en.loadoutHint, 16, "#b9aa8d");
+    label(
+      this,
+      430,
+      571,
+      "Skill-locked items stay in your backpack. Learn skills after battle.",
+      14,
+      "#b9aa8d",
+    );
     label(
       this,
       430,

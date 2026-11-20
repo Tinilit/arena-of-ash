@@ -1,3 +1,9 @@
+# Current verification
+
+For skill progression, run `npm run typecheck`, `npm run lint`, `npm test`, `npm run check:content`, `npm run test:e2e` and `npm run build`. The GitHub validation/deployment workflow runs the complete browser suite before publishing. [Skill progression](SKILL_PROGRESSION.md) documents the current feature contract and tests; the older evidence below records earlier foundation milestones.
+
+The production smoke scenario uses real WebGL and automatic fights without a diagnostic API. It completes a victory, learns Kicking after confirming/reloading training, completes a defeat, resumes the exclusive shop after reload, buys and sells equipment, then verifies one skill and two reward IDs. Hidden fights retain actual physical contacts and persistent outcomes.
+
 # Inventory quantities, parry and equipment recovery — 2026-11-18
 
 Consumables support repeated purchases and bundles of 1/5/10. Equipment slots carry one copy each; backpack rows show reserves after subtracting equipped copies. Release/use consumes one source copy without auto-refill. G recovers landed player/enemy equipment into an empty compatible slot or the backpack and immediately persists ownership. A victorious player may collect a lethal thrown weapon before Continue; it remains equipped in the next match.

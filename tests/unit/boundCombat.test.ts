@@ -1,8 +1,9 @@
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { beforeEach, expect, it } from "vitest";
 import live from "../../public/content/items.json";
 import { installCatalog } from "../../src/data/catalog";
 import { parseCatalog } from "../../src/content/schema";
-import { createPlayer } from "../../src/domain/model";
+
 import { RealtimeBattle, arenaRules } from "../../src/combat/realtime";
 import { crossbowPose } from "../../src/characters/crossbowMotion";
 import { groundedPose } from "../../src/characters/kinematics";

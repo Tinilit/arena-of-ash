@@ -1,3 +1,5 @@
+import type { SkillId } from "./skills";
+import type { PostBattle } from "./postBattle";
 export type Slot = "weapon" | "helmet" | "chest" | "shield" | "utility";
 export const equipmentSlots = [
   "helmet",
@@ -63,6 +65,8 @@ export interface Player {
   equipment: Partial<Record<EquipmentSlot, string>>;
   progress: number;
   rewarded: string[];
+  skills?: SkillId[];
+  postBattle?: PostBattle;
   combatProfile?: {
     bossId: string;
     size: number;
@@ -82,4 +86,5 @@ export const createPlayer = (): Player => ({
   },
   progress: 0,
   rewarded: [],
+  skills: [],
 });

@@ -1,3 +1,17 @@
+import {
+  enemySkills,
+  hasSkill,
+  sanitizeEquipment,
+  skill,
+  skillBalance,
+} from "../domain/skills";
+import {
+  actionAllowed,
+  permittedInput,
+  attackRate,
+  damageMultiplier,
+  resolvedDamage,
+} from "./skillRules";
 import { wearArmor, repairArmor, type ArmorSlot } from "./armor";
 import { aimedVelocity } from "./aim";
 import type { Player, Hand, EquipmentSlot } from "../domain/model";
@@ -28,7 +42,7 @@ import {
   weaponForHand,
   twoHandWeapon,
 } from "../domain/progression";
-import { damage, damageAfterArmor, fighter, type Fighter } from "./engine";
+import { fighter, type Fighter } from "./engine";
 import { hopDefinitions, hopKind, type Hop } from "./hops";
 import {
   sweptContact,
@@ -69,6 +83,9 @@ export interface CombatProcRandom {
 }
 import { twoHandDuration } from "../characters/twoHandMotion";
 export const attackTimings = {
+  superman: { duration: skillBalance.supermanDuration, from: 0.4, to: 0.7 },
+  bash: { duration: skillBalance.bashDuration, from: 0.3, to: 0.65 },
+  counter: { duration: skillBalance.counterDuration, from: 0.32, to: 0.65 },
   shoot: { duration: 2600, from: 0.2, to: 0.2 },
   quick: { duration: 1000, from: 0.45, to: 0.67 },
   shove: { duration: 800, from: 0.35, to: 0.55 },
@@ -79,10 +96,20 @@ export const attackTimings = {
   drink: { duration: 2100, from: 0.55, to: 0.55 },
   recover: { duration: 750, from: 1, to: 1 },
 } as const;
-export type Attack = "quick" | "heavy" | "kick" | "throw" | "shove" | "finish";
+export type Attack =
+  | "quick"
+  | "heavy"
+  | "kick"
+  | "throw"
+  | "shove"
+  | "finish"
+  | "superman"
+  | "bash"
+  | "counter";
 export type ArenaAction = Attack | "recover" | "drink" | "shoot";
 export type ArenaState = "Fighting" | "Victory" | "Defeat" | "Draw";
 export interface ArenaInput {
+  rage?: boolean;
   aim?: Point;
   move?: number;
   run?: boolean;
@@ -118,6 +145,11 @@ export interface ArenaFighter extends Fighter {
   aim?: Point;
   speedRemaining?: number;
   timeScale?: number;
+  rageRemaining?: number;
+  rageUsed?: boolean;
+  secondWindUsed?: boolean;
+  bashCooldown?: number;
+  counterPending?: boolean;
   animationDelta?: number;
   x: number;
   y: number;
@@ -168,6 +200,7 @@ export interface ContactEvent {
   rawDamage?: number;
   hitRegion?: ArmorSlot;
   blocked: boolean;
+  shieldBlocked?: boolean;
   parried?: boolean;
   deflected?: boolean;
   disarmed?: boolean;
@@ -206,6 +239,7 @@ function actor(model: Player, x: number, facing: 1 | -1): ArenaFighter {
       this.bodyAction = null;
       this.handActions.front = this.handActions.rear = null;
       if (
+        value?.name === "counter" ||
         value?.name === "quick" ||
         value?.name === "heavy" ||
         value?.name === "throw" ||
@@ -283,6 +317,10 @@ export class RealtimeBattle {
     private procRandom: CombatProcRandom = {},
   ) {
     this.fighters = [actor(player, 370, 1), actor(enemy, 910, -1)];
+    sanitizeEquipment(this.player.model);
+    this.enemy.model.skills = [
+      ...new Set([...(enemy.skills ?? []), ...enemySkills]),
+    ];
   }
   get player() {
     return this.fighters[0];
@@ -290,11 +328,28 @@ export class RealtimeBattle {
   get enemy() {
     return this.fighters[1];
   }
+  private startCounter(f: ArenaFighter) {
+    if (!f.counterPending) return;
+    f.counterPending = false;
+    const hand = primaryHand(f.model);
+    if (this.canAttack(f, "counter", hand))
+      f.handActions[hand] = {
+        id: ++this.sequence,
+        name: "counter",
+        hand,
+        elapsed: 0,
+        duration: skillBalance.counterDuration / attackRate(f),
+        hit: false,
+      };
+  }
   canGrapple(f = this.player) {
-    return this.grapples.canStart(
-      this.state,
-      f,
-      this.fighters.find((t) => t !== f)!,
+    return (
+      actionAllowed(f.model, "grapple") &&
+      this.grapples.canStart(
+        this.state,
+        f,
+        this.fighters.find((t) => t !== f)!,
+      )
     );
   }
   canAttack(
@@ -302,6 +357,9 @@ export class RealtimeBattle {
     name: ArenaAction,
     hand: Hand = primaryHand(f.model),
   ) {
+    if (!actionAllowed(f.model, name, hand)) return false;
+    if (name === "bash" && (f.bashCooldown ?? 0) > 0) return false;
+    if (name === "superman" && (f.y !== 0 || f.vy !== 0 || f.hop)) return false;
     if (name === "finish")
       return (
         this.state === "Fighting" &&
@@ -330,7 +388,7 @@ export class RealtimeBattle {
       (name !== "quick" || Boolean(weaponForHand(f.model, hand))) &&
       (!(
         weaponForHand(f.model, hand)?.weaponType === "crossbow" &&
-        (name === "quick" || name === "shoot")
+        (name === "quick" || name === "shoot" || name === "counter")
       ) ||
         (f.rangedCooldown ?? 0) === 0) &&
       (name !== "shove" ||
@@ -342,15 +400,15 @@ export class RealtimeBattle {
         ((hand === "rear" || name === "kick") &&
           !f.handActions.front &&
           !f.handActions.rear &&
-          f.handCooldowns.front === 0 &&
-          f.handCooldowns.rear === 0)) &&
+          (name === "counter" ||
+            (f.handCooldowns.front === 0 && f.handCooldowns.rear === 0)))) &&
       !f.knockdown &&
       !f.parry &&
       !f.finisher &&
       !f.grapple &&
       f.stun === 0 &&
       !f.bodyAction &&
-      f.bodyCooldown === 0 &&
+      (f.bodyCooldown === 0 || name === "counter") &&
       (name === "quick" ||
       name === "throw" ||
       name === "drink" ||
@@ -376,6 +434,7 @@ export class RealtimeBattle {
   }
   canParry(f: ArenaFighter) {
     return (
+      actionAllowed(f.model, "parry") &&
       this.state === "Fighting" &&
       f.hp > 0 &&
       !f.finisher &&
@@ -558,7 +617,9 @@ export class RealtimeBattle {
       sourceSlot: slot,
       itemId: definition.id,
       elapsed: 0,
-      duration: f.y < 0 || f.vy < 0 ? 650 : attackTimings.throw.duration,
+      duration:
+        (f.y < 0 || f.vy < 0 ? 650 : attackTimings.throw.duration) /
+        attackRate(f),
       hit: false,
       released: false,
       throwAttack: definition.attack,
@@ -586,6 +647,10 @@ export class RealtimeBattle {
   }
   advance(delta: number, input: [ArenaInput, ArenaInput]) {
     if (this.state !== "Fighting") return;
+    input = this.fighters.map((f, i) => permittedInput(f.model, input[i])) as [
+      ArenaInput,
+      ArenaInput,
+    ];
     this.fighters.forEach((f, i) =>
       this.grapples.command(this.state, f, this.fighters[1 - i], input[i]),
     );
@@ -596,6 +661,21 @@ export class RealtimeBattle {
     const before = this.fighters.map((f) => f.x);
     this.fighters.forEach((f, i) => {
       const command = input[i];
+      f.rageRemaining = Math.max(0, (f.rageRemaining ?? 0) - delta);
+
+      if (
+        command.rage &&
+        !f.rageUsed &&
+        f.hp > 0 &&
+        !f.knockdown &&
+        !f.grapple &&
+        !f.finisher &&
+        !f.stun
+      ) {
+        f.rageUsed = true;
+        f.rageRemaining = skillBalance.rageDuration;
+        f.relaxed = false;
+      }
       if (
         command.aim &&
         Number.isFinite(command.aim.x) &&
@@ -605,6 +685,7 @@ export class RealtimeBattle {
       const actorDelta = delta + Math.min(delta, f.speedRemaining ?? 0);
       f.timeScale = delta > 0 ? actorDelta / delta : fighterSpeed(f);
       f.animationDelta = actorDelta;
+      f.bashCooldown = Math.max(0, (f.bashCooldown ?? 0) - actorDelta);
       f.speedRemaining = Math.max(0, (f.speedRemaining ?? 0) - delta);
       const dt = actorDelta / 1000;
       f.landed += actorDelta;
@@ -621,15 +702,21 @@ export class RealtimeBattle {
             );
             if (target && target.hp > 0 && !target.knockdown)
               target.pushVx = f.facing * arenaRules.kickImpulse;
+            if (f.counterPending) {
+              f.parry = null;
+              this.startCounter(f);
+            }
           }
         }
         if (
+          f.parry &&
           f.parry.elapsed >= parryRules.duration &&
           (!f.parry.succeeded ||
             (f.parry.shoveAge ?? 0) >= parryRules.shoveDuration)
         ) {
           f.parry = null;
           f.parryCooldown = parryRules.cooldown;
+          this.startCounter(f);
         }
       }
       f.stun = Math.max(0, f.stun - actorDelta);
@@ -664,7 +751,8 @@ export class RealtimeBattle {
         swing.elapsed += actorDelta;
         if (swing.elapsed >= swing.duration) {
           f.handCooldowns[hand] =
-            twoHandWeapon(f.model) && swing.name === "quick" ? 400 : 280;
+            (twoHandWeapon(f.model) && swing.name === "quick" ? 400 : 280) /
+            attackRate(f);
           if (twoHandWeapon(f.model))
             f.handCooldowns.front = f.handCooldowns.rear = Math.max(
               f.handCooldowns.front,
@@ -676,7 +764,10 @@ export class RealtimeBattle {
       if (f.bodyAction) {
         f.bodyAction.elapsed += actorDelta;
         if (f.bodyAction.elapsed >= f.bodyAction.duration) {
-          f.bodyCooldown = f.bodyAction.name === "kick" ? 350 : 280;
+          f.bodyCooldown =
+            f.bodyAction.name === "superman"
+              ? skillBalance.supermanRecovery
+              : (f.bodyAction.name === "kick" ? 350 : 280) / attackRate(f);
           f.bodyAction = null;
         }
       }
@@ -694,7 +785,13 @@ export class RealtimeBattle {
         } else if (k.phase === "down" && k.elapsed >= knockdownTiming.down) {
           k.phase = "getUp";
           k.elapsed = 0;
-        } else if (k.phase === "getUp" && k.elapsed >= knockdownTiming.getUp) {
+        } else if (
+          k.phase === "getUp" &&
+          k.elapsed >=
+            (hasSkill(f.model, skill.kipUp)
+              ? skillBalance.kipUpDuration
+              : knockdownTiming.getUp)
+        ) {
           f.knockdown = null;
           f.landed = 1000;
         }
@@ -722,6 +819,7 @@ export class RealtimeBattle {
       if (c.pickup) this.pickup(f);
       if (c.parry && this.canParry(f)) {
         f.parryCooldown = parryRules.duration + parryRules.cooldown;
+        f.counterPending = false;
         f.parry = { id: ++this.sequence, elapsed: 0, succeeded: false };
         f.relaxed = false;
         f.reaction = null;
@@ -766,7 +864,7 @@ export class RealtimeBattle {
               : twoHandWeapon(f.model)
                 ? twoHandDuration(twoHandWeapon(f.model)!)
                 : attackTimings.quick.duration) /
-            (f.model.combatProfile?.attackSpeed ?? 1),
+            ((f.model.combatProfile?.attackSpeed ?? 1) * attackRate(f)),
           hit: false,
         };
         f.relaxed = false;
@@ -784,10 +882,16 @@ export class RealtimeBattle {
           id: ++this.sequence,
           name: request,
           elapsed: 0,
-          duration: attackTimings[request].duration,
+          duration:
+            attackTimings[request].duration /
+            (request === "finish" ? 1 : attackRate(f)),
           hit: false,
           hand: c.hand ?? primaryHand(f.model),
         };
+        if (request === "superman") {
+          f.vy = -skillBalance.supermanJump;
+        }
+        if (request === "bash") f.bashCooldown = skillBalance.bashCooldown;
         if (request === "finish")
           this.finishers.start(
             f,
@@ -811,6 +915,7 @@ export class RealtimeBattle {
       }
       f.guard = Boolean(
         c.guard &&
+        actionAllowed(f.model, "guard") &&
         !f.action &&
         !f.hop &&
         !f.reaction &&
@@ -842,6 +947,10 @@ export class RealtimeBattle {
         (carrying ? 80 : running ? arenaRules.run : arenaRules.walk) *
         (f.model.combatProfile?.movement ?? 1) *
         (f.guard ? 0.5 : (f.action && !flyingKick) || f.parry ? 0.7 : 1);
+      if (f.handActions[primaryHand(f.model)]?.name === "counter")
+        f.vx = f.facing * skillBalance.counterSpeed;
+      if (f.bodyAction?.name === "superman" && (f.y < 0 || f.vy < 0))
+        f.vx = f.facing * skillBalance.supermanSpeed;
       if (f.hop)
         f.vx =
           f.hop.phase === "air"
@@ -942,7 +1051,11 @@ export class RealtimeBattle {
           }
           continue;
         }
-        if (swing.name === "shoot") {
+        if (
+          swing.name === "shoot" ||
+          (swing.name === "counter" &&
+            weaponForHand(f.model, swing.hand)?.weaponType === "crossbow")
+        ) {
           const weapon = weaponForHand(f.model, swing.hand),
             origin = geometry[i].muzzles?.[swing.hand];
           if (
@@ -952,7 +1065,9 @@ export class RealtimeBattle {
             origin
           ) {
             swing.released = true;
-            f.rangedCooldown = 2080 / (f.model.combatProfile?.attackSpeed ?? 1);
+            f.rangedCooldown =
+              2080 /
+              ((f.model.combatProfile?.attackSpeed ?? 1) * attackRate(f));
             const { vx, vy } = f.aim
               ? aimedVelocity(origin, f.aim)
               : { vx: f.facing * 1150, vy: -20 };
@@ -972,7 +1087,11 @@ export class RealtimeBattle {
               spin: 0,
               previous: { ...origin, angle },
               floorRadius: 4,
-              attack: stats(f.model, swing.hand).attack,
+              attack: Math.round(
+                stats(f.model, swing.hand).attack *
+                  damageMultiplier(f) *
+                  (swing.name === "counter" ? skillBalance.counterDamage : 1),
+              ),
               profile: { startY: -34, endY: 12, radius: 2 },
               age: 0,
               state: "flying",
@@ -1026,7 +1145,10 @@ export class RealtimeBattle {
                 floorRadius:
                   geometry[i].launch?.[swing.hand]?.floorRadius ??
                   projectileFloorRadius(definition),
-                attack: swing.throwAttack ?? definition.attack,
+                attack: Math.round(
+                  (swing.throwAttack ?? definition.attack) *
+                    damageMultiplier(f),
+                ),
                 profile:
                   geometry[i].launch?.[swing.hand]?.profile ??
                   projectileProfile(definition),
@@ -1040,17 +1162,20 @@ export class RealtimeBattle {
         if (swing.name === "recover" || swing.name === "finish" || swing.hit)
           continue;
         const weapon = weaponForHand(f.model, swing.hand);
-        if (swing.name === "quick" && !weapon) continue;
+        if (["quick", "superman", "counter"].includes(swing.name) && !weapon)
+          continue;
         const shape = (g: CombatGeometry) =>
-          swing.name === "shove"
-            ? g.shove
-            : swing.name === "kick"
-              ? g.feet?.front
-              : weapon
-                ? g.blades
-                  ? g.blades[swing.hand]
-                  : g.blade
-                : g.hands?.[swing.hand];
+          swing.name === "bash"
+            ? g.shield
+            : swing.name === "shove"
+              ? g.shove
+              : swing.name === "kick"
+                ? g.feet?.front
+                : weapon
+                  ? g.blades
+                    ? g.blades[swing.hand]
+                    : g.blade
+                  : g.hands?.[swing.hand];
         const strike = shape(geometry[i]);
         if (!strike) continue;
         const timing = attackTimings[swing.name],
@@ -1084,9 +1209,47 @@ export class RealtimeBattle {
               (index === 0 ? "helmet" : "body");
           }
         }
+        const defenderShield = this.fighters[other];
+        let shieldBlocked = false;
+        if (
+          defenderShield.guard &&
+          geometry[other].shield &&
+          (f.x - defenderShield.x) * defenderShield.facing >= 0
+        ) {
+          const intercepted = sweptContact(
+            oldBlade,
+            blade,
+            previous[other].shield ?? geometry[other].shield!,
+            geometry[other].shield!,
+          );
+          if (
+            intercepted &&
+            (!collision || intercepted.time <= collision.time)
+          ) {
+            collision = intercepted;
+            shieldBlocked = true;
+          }
+        }
         if (collision) {
           swing.hit = true;
           const defender = this.fighters[other];
+          const damaging = ["quick", "superman", "counter", "bash"].includes(
+            swing.name,
+          );
+          const rawDamage = damaging
+            ? Math.round(
+                (swing.name === "bash"
+                  ? skillBalance.bashDamage
+                  : (weapon?.attack ?? 0)) *
+                  damageMultiplier(f) *
+                  (swing.name === "superman"
+                    ? skillBalance.supermanDamage
+                    : swing.name === "counter"
+                      ? skillBalance.counterDamage
+                      : 1),
+              )
+            : 0;
+          const dealt = shieldBlocked ? 0 : resolvedDamage(rawDamage, defender);
           events.push({
             id: swing.id,
             attackerId: f.model.id,
@@ -1098,21 +1261,25 @@ export class RealtimeBattle {
                   ? "kick"
                   : "weapon",
             hand: swing.hand,
-            damage:
-              swing.name === "kick" || swing.name === "shove"
-                ? 0
-                : damage(f.model, defender.model, swing.hand),
+            damage: damaging ? dealt : 0,
             hitRegion,
-            rawDamage: swing.name === "quick" ? (weapon?.attack ?? 0) : 0,
-            blocked:
-              swing.name === "quick" &&
-              damage(f.model, defender.model, swing.hand) === 0,
+            shieldBlocked,
+            rawDamage: shieldBlocked ? 0 : rawDamage,
+            blocked: shieldBlocked || (damaging && dealt === 0),
             knockdown:
               swing.name === "kick" &&
+              !shieldBlocked &&
               !defender.knockdown &&
               this.random() < knockdownTiming.chance,
             ...collision,
           });
+          if (shieldBlocked) {
+            const e = events[events.length - 1];
+            e.damage = 0;
+            e.rawDamage = 0;
+            e.blocked = true;
+            e.knockdown = false;
+          }
         }
       }
     });
@@ -1144,6 +1311,8 @@ export class RealtimeBattle {
           .find(Boolean);
         if (collision) {
           const attackerId = p.ownerId;
+          if (hasSkill(defender.model, skill.counter))
+            defender.counterPending = true;
           deflectBolt(
             p,
             collision.point,
@@ -1183,6 +1352,20 @@ export class RealtimeBattle {
           hitPart = part;
         }
       }
+      let shieldBlocked = false;
+      const shield = geometry[target].shield;
+      if (defender.guard && shield && p.vx * defender.facing < 0) {
+        const intercepted = sweptContact(
+          projectileShape(p, true),
+          projectileShape(p),
+          this.previous?.[target].shield ?? shield,
+          shield,
+        );
+        if (intercepted && (!collision || intercepted.time <= collision.time)) {
+          collision = intercepted;
+          shieldBlocked = true;
+        }
+      }
       if (collision) {
         p.state = "spent";
         p.vx *= 0.18;
@@ -1194,12 +1377,13 @@ export class RealtimeBattle {
           defenderId: defender.model.id,
           hand: p.hand,
           kind: "projectile",
-          damage: damageAfterArmor(p.attack, defender.model),
-          rawDamage: p.attack,
+          damage: shieldBlocked ? 0 : resolvedDamage(p.attack, defender),
+          rawDamage: shieldBlocked ? 0 : p.attack,
+          shieldBlocked,
           hitRegion:
             geometry[target].bodyRegions?.[hitPart] ??
             (hitPart === 0 ? "helmet" : "body"),
-          blocked: damageAfterArmor(p.attack, defender.model) === 0,
+          blocked: shieldBlocked || resolvedDamage(p.attack, defender) === 0,
           knockdown: false,
           ...collision,
         });
@@ -1220,6 +1404,8 @@ export class RealtimeBattle {
         e.damage = 0;
         e.knockdown = false;
         defender.parry.succeeded = true;
+        if (hasSkill(defender.model, skill.counter))
+          defender.counterPending = true;
         defender.parry.targetId = attacker.model.id;
         defender.parry.shoveAge ??= 0;
         if (e.kind === "weapon" && !defender.parry.disarmAttempted) {
@@ -1261,7 +1447,7 @@ export class RealtimeBattle {
     }
     // Resolve trades from the same physical instant before deciding the outcome.
     for (const e of events) {
-      if (e.parried) {
+      if (e.parried || e.shieldBlocked) {
         this.contacts.push(e);
         continue;
       }
@@ -1303,6 +1489,20 @@ export class RealtimeBattle {
         }
       }
       defender.hp = Math.max(0, defender.hp - e.damage);
+      if (
+        e.kind !== "finisher" &&
+        e.damage > 0 &&
+        hasSkill(defender.model, skill.secondWind) &&
+        !defender.secondWindUsed &&
+        defender.hp <
+          stats(defender.model).hp * skillBalance.secondWindThreshold
+      ) {
+        defender.secondWindUsed = true;
+        defender.hp = Math.min(
+          stats(defender.model).hp,
+          defender.hp + skillBalance.secondWindHealth,
+        );
+      }
       const attacker = this.fighters.find((f) => f.model.id === e.attackerId)!;
       const direction: 1 | -1 = attacker.x <= defender.x ? 1 : -1;
       if (defender.knockdown) {
@@ -1323,11 +1523,21 @@ export class RealtimeBattle {
           (this.procRandom.hammerPush ?? Math.random)() <
           hammerRules.pushChance;
       }
-      const strongPush = e.kind === "kick" || e.kind === "shove" || e.pushed;
+      const strongPush =
+        e.kind === "kick" ||
+        e.kind === "shove" ||
+        e.pushed ||
+        activeActions(attacker).some((a) => a.id === e.id && a.name === "bash");
       if (e.knockdown) defender.knockdown = { phase: "fall", elapsed: 0 };
       defender.stun = Math.max(
         defender.stun,
-        strongPush ? arenaRules.kickStun : arenaRules.hitStun,
+        strongPush
+          ? activeActions(attacker).some(
+              (a) => a.id === e.id && a.name === "bash",
+            )
+            ? skillBalance.bashStun
+            : arenaRules.kickStun
+          : arenaRules.hitStun,
       );
       if (defender.reaction?.kind !== "parried")
         defender.reaction = e.knockdown

@@ -1,3 +1,4 @@
+import { itemRequirements, skills, hasSkill } from "../domain/skills";
 import { BaseScene } from "./BaseScene";
 import { items } from "../data/catalog";
 import { purchase, quantity } from "../domain/progression";
@@ -20,7 +21,7 @@ export class ShopScene extends BaseScene {
   create(
     data: { page?: number; amount?: number; category?: ShopCategory } = {},
   ) {
-    this.prepare(en.shopTitle);
+    if (!this.prepare(en.shopTitle)) return;
     const category = shopCategories.includes(data.category!)
       ? data.category!
       : "weapons";
@@ -72,13 +73,25 @@ export class ShopScene extends BaseScene {
         this,
         x + 85,
         y + 17,
-        `${it.effect === "haste" ? "×2 speed · 10s" : it.heal ? `+${it.heal} HP` : it.attack ? `${it.attack} damage` : `+${it.armor} ${en.armor}`} • ${it.price} ◈ each • Owned: ${owned}`,
+        `${it.slot === "shield" ? "Directional block" : it.effect === "haste" ? "×2 speed · 10s" : it.heal ? `+${it.heal} HP` : it.attack ? `${it.attack} damage` : `+${it.armor} ${en.armor}`} • ${it.price} ◈ each • Owned: ${owned}`,
         16,
         "#b9aa8d",
       );
       if (info.width > 290) info.setFontSize((16 * 290) / info.width);
-      if (it.description)
-        label(this, x + 85, y + 42, it.description, 13, "#d0c2a6");
+      const requirements = itemRequirements(it);
+      const requirementText = requirements.length
+        ? `Requires: ${requirements.map((id) => skills.find((s) => s.id === id)!.name).join(", ")}${requirements.every((id) => hasSkill(p, id)) ? " · Learned" : " · Locked"}`
+        : it.slot === "weapon"
+          ? "One weapon: basic · Two weapons: Dual Wielding"
+          : (it.description ?? "Basic equipment");
+      label(
+        this,
+        x + 85,
+        y + 42,
+        requirementText,
+        12,
+        requirements.every((id) => hasSkill(p, id)) ? "#b9aa8d" : "#dfad7e",
+      ).setWordWrapWidth(460, true);
       this.button(
         `buy-${it.id}`,
         x + 466,
@@ -95,6 +108,15 @@ export class ShopScene extends BaseScene {
       ).setEnabled((Boolean(it.use) || !owned) && p.gold >= it.price * count);
     });
     this.back();
+    this.button(
+      "sell-equipment",
+      1150,
+      108,
+      190,
+      "Sell equipment",
+      () => this.scene.start("CharacterScene"),
+      34,
+    );
     this.button("shop-prev", 500, 670, 200, en.previous, () =>
       this.scene.restart({ page: page - 1, category, amount }),
     ).setEnabled(page > 0);

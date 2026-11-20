@@ -1,7 +1,8 @@
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { describe, expect, it } from "vitest";
 import { RealtimeBattle, arenaRules } from "../../src/combat/realtime";
 import { hopDefinitions } from "../../src/combat/hops";
-import { createPlayer } from "../../src/domain/model";
+
 import { opponent } from "../../src/domain/progression";
 import { ArenaMotion } from "../../src/characters/ArenaMotion";
 import { groundedPose } from "../../src/characters/kinematics";

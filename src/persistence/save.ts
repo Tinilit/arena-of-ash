@@ -1,4 +1,9 @@
 import {
+  allSkillIds,
+  prerequisitesMet,
+  sanitizeEquipment,
+} from "../domain/skills";
+import {
   createPlayer,
   slotCategory,
   type EquipmentSlot,
@@ -8,12 +13,13 @@ import { item } from "../data/catalog";
 import { quantity, equippedCount } from "../domain/inventory";
 export const SAVE_KEY = "arena-of-ash.v3";
 export function serialize(p: Player) {
-  return JSON.stringify({ version: 3, player: p });
+  return JSON.stringify({ version: 4, player: p });
 }
 export function deserialize(raw: string | null): Player {
   try {
     const data = JSON.parse(raw ?? "null");
-    if (data?.version !== 3 && data?.version !== 2) throw Error();
+    if (data?.version !== 4 && data?.version !== 3 && data?.version !== 2)
+      throw Error();
     const p = data.player as Player;
     if (Array.isArray(p?.inventory))
       p.inventory = p.inventory.filter((id) => !["net", "flask"].includes(id));
@@ -66,14 +72,19 @@ export function deserialize(raw: string | null): Player {
         ([slot, id]) =>
           typeof id === "string" &&
           Object.hasOwn(slotCategory, slot) &&
-          item(id)?.slot === slotCategory[slot as EquipmentSlot] &&
+          (item(id)?.slot === slotCategory[slot as EquipmentSlot] ||
+            (slot === "leftHand" && item(id)?.slot === "shield")) &&
           p.inventory.includes(id),
       ) ||
       !Array.isArray(p.rewarded) ||
       !p.rewarded.every((id) => typeof id === "string")
     )
       throw Error();
-    return {
+    const loaded: Player = {
+      skills: data.version === 4 ? (p.skills ?? []) : [],
+      ...(data.version === 4 && p.postBattle
+        ? { postBattle: p.postBattle }
+        : {}),
       id: p.id,
       name: p.name,
       gold: p.gold,
@@ -84,6 +95,32 @@ export function deserialize(raw: string | null): Player {
       progress: p.progress,
       rewarded: p.rewarded,
     };
+    if (
+      !Array.isArray(loaded.skills) ||
+      new Set(loaded.skills).size !== loaded.skills.length ||
+      !loaded.skills.every(
+        (id) => allSkillIds.includes(id) && prerequisitesMet(loaded, id),
+      )
+    )
+      throw Error();
+    const decision = loaded.postBattle;
+    if (
+      decision &&
+      (typeof decision !== "object" ||
+        !p.rewarded.includes(decision.battleId) ||
+        !["Victory", "Defeat", "Draw"].includes(decision.outcome) ||
+        typeof decision.opponent !== "string" ||
+        !integer(decision.gold) ||
+        !["pending", "skill", "shop"].includes(decision.choice) ||
+        typeof decision.consumed !== "boolean" ||
+        typeof decision.completed !== "boolean" ||
+        (decision.choice === "pending" &&
+          (decision.consumed || decision.completed)) ||
+        (decision.choice !== "pending" && !decision.consumed))
+    )
+      throw Error();
+    sanitizeEquipment(loaded);
+    return loaded;
   } catch {
     return createPlayer();
   }

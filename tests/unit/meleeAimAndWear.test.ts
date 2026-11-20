@@ -1,3 +1,4 @@
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { describe, expect, it, vi } from "vitest";
 import { item, installCatalog } from "../../src/data/catalog";
 import live from "../../public/content/items.json";
@@ -8,7 +9,7 @@ import {
   repairArmor,
   wearArmor,
 } from "../../src/combat/armor";
-import { createPlayer } from "../../src/domain/model";
+
 import { RealtimeBattle } from "../../src/combat/realtime";
 import { meleeAimPose } from "../../src/characters/meleeAim";
 import { twoHandPose } from "../../src/characters/twoHandMotion";

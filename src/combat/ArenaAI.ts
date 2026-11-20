@@ -1,3 +1,5 @@
+import { hasSkill, skill } from "../domain/skills";
+import { permittedInput, actionAllowed } from "./skillRules";
 import { stats } from "../domain/progression";
 import { aimAtFighter } from "./aim";
 import {
@@ -178,11 +180,38 @@ export class ArenaAI {
         }
       }
     }
-    if (this.grappleApproach > 0 && !target.knockdown && this.ready(self)) {
+    if (
+      hasSkill(self.model, skill.wrestling) &&
+      this.grappleApproach > 0 &&
+      !target.knockdown &&
+      this.ready(self)
+    ) {
       this.lastDecision = "grapple";
       return { grapple: gap <= 105, move: gap <= 105 ? 0 : toward, run: true };
     }
     if (!this.ready(self) || this.tacticalCooldown > 0) return undefined;
+    if (hasSkill(self.model, skill.rage) && !self.rageUsed && gap < 220)
+      return { rage: true };
+    if (
+      actionAllowed(self.model, "bash") &&
+      gap < 150 &&
+      !(self.bashCooldown ?? 0)
+    )
+      return { attack: "bash", hand: "front" };
+    if (
+      actionAllowed(
+        self.model,
+        "superman",
+        weaponForHand(self.model, "rear") ? "rear" : "front",
+      ) &&
+      gap > 170 &&
+      gap < 290 &&
+      this.tacticsRandom() < 0.2
+    )
+      return {
+        attack: "superman",
+        hand: weaponForHand(self.model, "rear") ? "rear" : "front",
+      };
     this.tacticalCooldown = self.model.combatProfile
       ? 450 + this.tacticsRandom() * 450
       : 700 + this.tacticsRandom() * 800;
@@ -260,9 +289,12 @@ export class ArenaAI {
     ground: readonly Projectile[] = [],
   ): ArenaInput {
     const input = this.decide(delta, self, target, ground);
-    return twoHandWeapon(self.model)?.weaponType === "crossbow"
-      ? { ...input, aim: aimAtFighter(target) }
-      : input;
+    return permittedInput(
+      self.model,
+      twoHandWeapon(self.model)?.weaponType === "crossbow"
+        ? { ...input, aim: aimAtFighter(target) }
+        : input,
+    );
   }
   private decide(
     delta: number,
@@ -301,7 +333,11 @@ export class ArenaAI {
     const input: ArenaInput = {
       move: gap > preferred + 12 ? toward : backOff ? -toward : 0,
       run: gap > 340,
-      guard: this.guardFor > 0,
+      guard:
+        this.guardFor > 0 ||
+        (actionAllowed(self.model, "guard") &&
+          Boolean(target.action) &&
+          gap < 240),
     };
     if (
       this.options.advanced !== false &&
@@ -333,7 +369,15 @@ export class ArenaAI {
       return input;
     if (this.options.advanced !== false) {
       const tactic = this.tactics(self, target, ground);
-      if (tactic) return { ...tactic, toggleStance: self.relaxed };
+      if (
+        tactic &&
+        (!tactic.attack ||
+          actionAllowed(self.model, tactic.attack, tactic.hand)) &&
+        (!tactic.grapple || actionAllowed(self.model, "grapple")) &&
+        (!tactic.parry || actionAllowed(self.model, "parry")) &&
+        (!tactic.belt || permittedInput(self.model, tactic).belt)
+      )
+        return { ...tactic, toggleStance: self.relaxed };
     }
     if (
       !self.action &&
@@ -396,6 +440,7 @@ export class ArenaAI {
       }
     }
     if (
+      actionAllowed(self.model, "throw") &&
       this.throwsRemaining &&
       this.throwCooldown <= 0 &&
       !self.action &&

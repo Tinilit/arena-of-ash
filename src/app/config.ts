@@ -7,6 +7,7 @@ import { ShopScene } from "../scenes/ShopScene";
 import { ResultScene } from "../scenes/ResultScene";
 import { LadderScene } from "../scenes/LadderScene";
 import { installBackgroundUpdates } from "./backgroundUpdates";
+import { SkillScene } from "../scenes/SkillScene";
 export const config: Phaser.Types.Core.GameConfig = {
   type:
     import.meta.env.DEV &&
@@ -27,6 +28,7 @@ export const config: Phaser.Types.Core.GameConfig = {
     CharacterScene,
     ShopScene,
     ResultScene,
+    SkillScene,
     LadderScene,
   ],
   render: { antialias: true },

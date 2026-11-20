@@ -1,3 +1,4 @@
+import { trainedGladiator as createPlayer } from "../fixtures/trained";
 import { describe, it, expect } from "vitest";
 import {
   contact,
@@ -16,7 +17,7 @@ import { ArenaAI } from "../../src/combat/ArenaAI";
 import { ArenaMotion } from "../../src/characters/ArenaMotion";
 import { Animator } from "../../src/characters/animation";
 import { equipmentMotion } from "../../src/characters/equipmentMotion";
-import { createPlayer } from "../../src/domain/model";
+
 import { opponent } from "../../src/domain/progression";
 import { item } from "../../src/data/catalog";
 import { parseCatalog } from "../../src/content/schema";

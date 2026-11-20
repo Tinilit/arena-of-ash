@@ -4,12 +4,34 @@ import { arena } from "../rendering/arena";
 import { Button, label } from "../ui/widgets";
 import { en } from "../ui/strings";
 import { prepareDisplay } from "../app/display";
+import {
+  progressionScene,
+  pendingDecision,
+  shopAccess,
+  closeShop,
+} from "../domain/postBattle";
 export class BaseScene extends Phaser.Scene {
   services!: Services;
   buttons: Record<string, Button> = {};
   prepare(title: string) {
     prepareDisplay(this);
     this.services = this.registry.get("services");
+    const destination = progressionScene(this.services.player);
+    if (
+      (pendingDecision(this.services.player) &&
+        this.scene.key !== destination &&
+        !(
+          this.scene.key === "CharacterScene" &&
+          shopAccess(this.services.player)
+        )) ||
+      ((this.scene.key === "ShopScene" ||
+        this.scene.key === "SkillScene" ||
+        this.scene.key === "ResultScene") &&
+        !pendingDecision(this.services.player))
+    ) {
+      this.scene.start(destination);
+      return false;
+    }
     this.buttons = {};
     arena(this);
     label(this, 42, 47, title, 32);
@@ -38,11 +60,30 @@ export class BaseScene extends Phaser.Scene {
         "#e8bd72",
       ).setOrigin(0.5);
     this.input.keyboard?.on("keydown-ESC", () => {
-      if (this.scene.key !== "MainMenuScene") this.scene.start("MainMenuScene");
+      this.leave();
     });
     this.events.once("shutdown", () => {
       this.input.keyboard?.removeAllListeners();
     });
+    return true;
+  }
+  private leave() {
+    const p = this.services.player;
+    if (this.scene.key === "CharacterScene" && shopAccess(p)) {
+      this.scene.start("ShopScene");
+      return;
+    }
+    if (this.scene.key === "ShopScene") {
+      closeShop(p);
+      this.services.save();
+      this.scene.start("MainMenuScene");
+      return;
+    }
+    if (pendingDecision(p)) {
+      this.scene.start(progressionScene(p));
+      return;
+    }
+    if (this.scene.key !== "MainMenuScene") this.scene.start("MainMenuScene");
   }
   button(
     id: string,
@@ -58,8 +99,18 @@ export class BaseScene extends Phaser.Scene {
     return b;
   }
   back() {
-    this.button("back", 160, 670, 230, en.back, () =>
-      this.scene.start("MainMenuScene"),
+    this.button(
+      "back",
+      160,
+      670,
+      230,
+      this.scene.key === "ShopScene"
+        ? "← Finish shop visit"
+        : this.scene.key === "CharacterScene" &&
+            shopAccess(this.services.player)
+          ? "← Back to shop"
+          : en.back,
+      () => this.leave(),
     );
   }
   snapshot() {
